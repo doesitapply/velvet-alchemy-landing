@@ -8,10 +8,13 @@ import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { analyzeVisualDebt } from "./visualAudit";
+import { checkRateLimit, checkKillSwitch, logAudit, checkDomainReputation } from "./governor";
+import { governorRouter } from "./governorRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  governor: governorRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -42,6 +45,25 @@ export const appRouter = router({
         websiteUrl: z.string().url(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Governor: Check kill-switch
+        await checkKillSwitch(ctx.user.id);
+
+        // Governor: Check rate limits
+        await checkRateLimit(ctx.user.id, 'lead_create');
+
+        // Governor: Check domain reputation
+        const domainSafe = await checkDomainReputation(input.websiteUrl);
+        if (!domainSafe) {
+          await logAudit({
+            userId: ctx.user.id,
+            action: 'lead_create',
+            resource: 'leads',
+            details: `Blocked: Domain ${input.websiteUrl} flagged as unsafe`,
+            status: 'blocked',
+          });
+          throw new Error('Domain flagged as unsafe or blacklisted');
+        }
+
         // Capture screenshot
         const screenshot = await captureScreenshot(input.websiteUrl);
         
@@ -80,6 +102,16 @@ export const appRouter = router({
           summary: auditResult.summary,
           prestigeScore: auditResult.prestigeScore,
           visualDebtData: JSON.stringify(auditResult),
+        });
+
+        // Governor: Log successful lead creation
+        await logAudit({
+          userId: ctx.user.id,
+          action: 'lead_create',
+          resource: 'leads',
+          resourceId: lead.id,
+          details: `Created lead for ${input.companyName}`,
+          status: 'success',
         });
 
         return { lead, audit };

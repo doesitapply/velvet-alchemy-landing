@@ -23,9 +23,21 @@
 - [x] Write unit tests for audit logic (3/3 passing)
 - [x] Manual test: verify audit quality (LLM producing structured results)
 
+## Governor (In Progress)
+- [x] Add rate_limits table to database schema
+- [x] Add system_config table for kill-switch and settings
+- [x] Add audit_log table for compliance tracking
+- [x] Implement rate limiting middleware
+- [x] Implement domain reputation check function
+- [x] Implement kill-switch logic (global + per-user)
+- [x] Add audit logging to all critical operations
+- [x] Build admin dashboard for Governor controls
+- [x] Write unit tests for rate limiting (10/10 passing)
+- [x] Write unit tests for kill-switch (10/10 passing)
+- [x] Manual test: verify rate limits trigger correctly (all tests passing)
+
 ## Future Enhancements
 - Curator v2: Automated lead scraping
-- Governor: Rate limiting and safety
 - Charmer: Draft-only outreach generation
 - Visionary: Asset pack generation
 - Stripe integration
