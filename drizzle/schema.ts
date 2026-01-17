@@ -37,3 +37,33 @@ export const waitlist = mysqlTable("waitlist", {
 
 export type Waitlist = typeof waitlist.$inferSelect;
 export type InsertWaitlist = typeof waitlist.$inferInsert;
+
+// Leads table for The Curator
+export const leads = mysqlTable("leads", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Owner of this lead
+  companyName: varchar("companyName", { length: 255 }).notNull(),
+  websiteUrl: varchar("websiteUrl", { length: 512 }).notNull(),
+  screenshotUrl: varchar("screenshotUrl", { length: 512 }),
+  screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for deletion
+  status: mysqlEnum("status", ["pending", "audited", "contacted", "closed"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = typeof leads.$inferInsert;
+
+// Audits table for The Curator
+export const audits = mysqlTable("audits", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull(),
+  summary: text("summary"), // Placeholder for now, will be LLM-generated later
+  prestigeScore: int("prestigeScore"), // 0-100, null for MVP
+  visualDebtData: text("visualDebtData"), // JSON string for structured audit data
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Audit = typeof audits.$inferSelect;
+export type InsertAudit = typeof audits.$inferInsert;

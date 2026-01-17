@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, waitlist, InsertWaitlist } from "../drizzle/schema";
+import { InsertUser, users, waitlist, InsertWaitlist, leads, InsertLead, audits, InsertAudit, Lead, Audit } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -123,4 +123,77 @@ export async function getWaitlistEntries() {
   }
 
   return await db.select().from(waitlist);
+}
+
+// Lead functions for The Curator
+export async function createLead(lead: InsertLead): Promise<Lead | null> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create lead: database not available");
+    return null;
+  }
+
+  try {
+    const result = await db.insert(leads).values(lead);
+    const insertId = Number(result[0].insertId);
+    
+    // Fetch the created lead
+    const created = await db.select().from(leads).where(eq(leads.id, insertId)).limit(1);
+    return created[0] || null;
+  } catch (error) {
+    console.error("[Database] Failed to create lead:", error);
+    return null;
+  }
+}
+
+export async function getLeadsByUserId(userId: number): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get leads: database not available");
+    return [];
+  }
+
+  return await db.select().from(leads).where(eq(leads.userId, userId));
+}
+
+export async function getLeadById(id: number): Promise<Lead | null> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get lead: database not available");
+    return null;
+  }
+
+  const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+  return result[0] || null;
+}
+
+// Audit functions
+export async function createAudit(audit: InsertAudit): Promise<Audit | null> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create audit: database not available");
+    return null;
+  }
+
+  try {
+    const result = await db.insert(audits).values(audit);
+    const insertId = Number(result[0].insertId);
+    
+    const created = await db.select().from(audits).where(eq(audits.id, insertId)).limit(1);
+    return created[0] || null;
+  } catch (error) {
+    console.error("[Database] Failed to create audit:", error);
+    return null;
+  }
+}
+
+export async function getAuditByLeadId(leadId: number): Promise<Audit | null> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get audit: database not available");
+    return null;
+  }
+
+  const result = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
+  return result[0] || null;
 }

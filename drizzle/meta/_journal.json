@@ -15,6 +15,13 @@
       "when": 1768655357179,
       "tag": "0001_mute_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1768655770057,
+      "tag": "0002_nasty_falcon",
+      "breakpoints": true
     }
   ]
 }

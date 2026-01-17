@@ -1,9 +1,12 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { addToWaitlist } from "./db";
+import { addToWaitlist, createLead, getLeadsByUserId, getLeadById, createAudit, getAuditByLeadId } from "./db";
+import { captureScreenshot } from "./screenshot";
+import { storagePut } from "./storage";
+import { nanoid } from "nanoid";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -28,6 +31,69 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const result = await addToWaitlist(input.email, input.targetNiche);
         return result;
+      }),
+  }),
+
+  leads: router({
+    create: protectedProcedure
+      .input(z.object({
+        companyName: z.string().min(1),
+        websiteUrl: z.string().url(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Capture screenshot
+        const screenshot = await captureScreenshot(input.websiteUrl);
+        
+        if (!screenshot.success) {
+          throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
+        }
+
+        // Upload to S3
+        const fileKey = `leads/${ctx.user.id}/${nanoid()}.png`;
+        const uploadResult = await storagePut(fileKey, screenshot.buffer, 'image/png');
+
+        // Create lead record
+        const lead = await createLead({
+          userId: ctx.user.id,
+          companyName: input.companyName,
+          websiteUrl: input.websiteUrl,
+          screenshotUrl: uploadResult.url,
+          screenshotKey: fileKey,
+          status: 'pending',
+        });
+
+        if (!lead) {
+          throw new Error('Failed to create lead record');
+        }
+
+        // Create placeholder audit
+        const audit = await createAudit({
+          leadId: lead.id,
+          summary: 'Audit pending. Screenshot captured successfully.',
+          prestigeScore: null,
+          visualDebtData: null,
+        });
+
+        return { lead, audit };
+      }),
+
+    list: protectedProcedure
+      .query(async ({ ctx }) => {
+        const leads = await getLeadsByUserId(ctx.user.id);
+        return leads;
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const lead = await getLeadById(input.id);
+        if (!lead) {
+          throw new Error('Lead not found');
+        }
+        
+        const audit = await getAuditByLeadId(lead.id);
+        
+        return { lead, audit };
       }),
   }),
 });
