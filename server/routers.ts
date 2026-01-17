@@ -7,6 +7,7 @@ import { addToWaitlist, createLead, getLeadsByUserId, getLeadById, createAudit, 
 import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
+import { analyzeVisualDebt } from "./visualAudit";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -66,12 +67,19 @@ export const appRouter = router({
           throw new Error('Failed to create lead record');
         }
 
-        // Create placeholder audit
+        // Run visual audit using LLM
+        const auditResult = await analyzeVisualDebt(
+          uploadResult.url,
+          input.websiteUrl,
+          input.companyName
+        );
+
+        // Create audit record with LLM results
         const audit = await createAudit({
           leadId: lead.id,
-          summary: 'Audit pending. Screenshot captured successfully.',
-          prestigeScore: null,
-          visualDebtData: null,
+          summary: auditResult.summary,
+          prestigeScore: auditResult.prestigeScore,
+          visualDebtData: JSON.stringify(auditResult),
         });
 
         return { lead, audit };

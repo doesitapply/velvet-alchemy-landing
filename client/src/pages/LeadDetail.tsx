@@ -159,12 +159,104 @@ export default function LeadDetail() {
                 {audit.prestigeScore !== null && (
                   <div>
                     <h3 className="text-sm font-mono text-muted-foreground mb-2">PRESTIGE SCORE</h3>
-                    <div className="flex items-center gap-2">
-                      <div className="text-3xl font-serif italic">{audit.prestigeScore}</div>
-                      <span className="text-sm text-muted-foreground">/ 100</span>
+                    <div className="flex items-center gap-4">
+                      <div className="text-5xl font-serif italic">{audit.prestigeScore}</div>
+                      <div className="flex-1">
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all ${
+                              audit.prestigeScore >= 80 ? 'bg-green-500' :
+                              audit.prestigeScore >= 60 ? 'bg-yellow-500' :
+                              audit.prestigeScore >= 40 ? 'bg-orange-500' :
+                              'bg-red-500'
+                            }`}
+                            style={{ width: `${audit.prestigeScore}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {audit.prestigeScore >= 80 ? 'Exceptional' :
+                           audit.prestigeScore >= 60 ? 'Good' :
+                           audit.prestigeScore >= 40 ? 'Needs Improvement' :
+                           'Critical Issues'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
+
+                {/* Visual Debt Breakdown */}
+                {audit.visualDebtData && (() => {
+                  try {
+                    const auditData = JSON.parse(audit.visualDebtData);
+                    return (
+                      <>
+                        {/* Strengths & Weaknesses */}
+                        <div className="grid md:grid-cols-2 gap-4">
+                          {auditData.strengths && auditData.strengths.length > 0 && (
+                            <div>
+                              <h3 className="text-sm font-mono text-muted-foreground mb-2">STRENGTHS</h3>
+                              <ul className="space-y-1">
+                                {auditData.strengths.map((strength: string, i: number) => (
+                                  <li key={i} className="text-sm flex items-start gap-2">
+                                    <span className="text-green-500 mt-0.5">✓</span>
+                                    <span>{strength}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {auditData.weaknesses && auditData.weaknesses.length > 0 && (
+                            <div>
+                              <h3 className="text-sm font-mono text-muted-foreground mb-2">WEAKNESSES</h3>
+                              <ul className="space-y-1">
+                                {auditData.weaknesses.map((weakness: string, i: number) => (
+                                  <li key={i} className="text-sm flex items-start gap-2">
+                                    <span className="text-red-500 mt-0.5">✗</span>
+                                    <span>{weakness}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Visual Debt Items */}
+                        {auditData.visualDebt && auditData.visualDebt.length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-mono text-muted-foreground mb-3">VISUAL DEBT ANALYSIS</h3>
+                            <div className="space-y-3">
+                              {auditData.visualDebt.map((item: any, i: number) => (
+                                <div key={i} className="border border-border rounded-sm p-4 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs px-2 py-1 rounded-sm font-mono ${
+                                      item.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                                      item.severity === 'high' ? 'bg-orange-500/10 text-orange-500' :
+                                      item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
+                                      'bg-blue-500/10 text-blue-500'
+                                    }`}>
+                                      {item.severity.toUpperCase()}
+                                    </span>
+                                    <span className="text-xs px-2 py-1 rounded-sm font-mono bg-muted">
+                                      {item.category.toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium">{item.issue}</p>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      <span className="font-mono text-xs">→</span> {item.recommendation}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  } catch (e) {
+                    return null;
+                  }
+                })()}
 
                 <div>
                   <h3 className="text-sm font-mono text-muted-foreground mb-2">AUDIT DATE</h3>

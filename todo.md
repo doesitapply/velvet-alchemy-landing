@@ -14,8 +14,17 @@
 - [x] Write unit tests for lead creation
 - [x] Manual test: create lead, verify DB + S3 + UI (all tests passing)
 
-## Future Enhancements (Not MVP)
-- Curator v1: LLM audit + prestige score
+## Curator v1 (In Progress)
+- [x] Create LLM visual audit function
+- [x] Define visual debt schema (JSON structure)
+- [x] Implement prestige score calculation logic
+- [x] Integrate audit into leads.create procedure
+- [x] Update LeadDetail UI to display visual debt findings
+- [x] Write unit tests for audit logic (3/3 passing)
+- [x] Manual test: verify audit quality (LLM producing structured results)
+
+## Future Enhancements
+- Curator v2: Automated lead scraping
 - Governor: Rate limiting and safety
 - Charmer: Draft-only outreach generation
 - Visionary: Asset pack generation
