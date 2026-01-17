@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Terminal as TerminalIcon, ShieldCheck, Zap, Database, Globe, Lock } from "lucide-react";
+import { ArrowRight, Terminal as TerminalIcon, ShieldCheck, Zap, Database, Globe, Lock, Volume2, VolumeX } from "lucide-react";
 import { Terminal } from "@/components/Terminal";
 import { LiveTicker } from "@/components/LiveTicker";
 import { RequestAccessDialog } from "@/components/RequestAccessDialog";
+import { GravityWell } from "@/components/GravityWell";
+import { useSound } from "@/contexts/SoundContext";
 
 export default function Home() {
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
+  const { playClick, playHover, isMuted, toggleMute } = useSound();
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground overflow-x-hidden pb-8">
@@ -31,10 +34,14 @@ export default function Home() {
           </nav>
           <div className="flex items-center gap-4">
             <span className="hidden sm:inline-block text-xs font-mono text-terminal animate-pulse">● SYSTEM ONLINE</span>
+            <button onClick={toggleMute} className="text-muted-foreground hover:text-white transition-colors">
+              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
             <Button 
               variant="outline" 
               className="font-mono text-xs border-white/20 hover:bg-white/5 hover:text-gold rounded-none h-9"
-              onClick={() => setIsTerminalOpen(true)}
+              onClick={() => { playClick(); setIsTerminalOpen(true); }}
+              onMouseEnter={playHover}
             >
               ACCESS TERMINAL
             </Button>
@@ -46,19 +53,17 @@ export default function Home() {
         
         {/* Hero Section: The Gravity Well */}
         <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden border-b border-white/10">
-          {/* Background Image with Overlay */}
-          <div className="absolute inset-0 z-0">
-            <img 
-              src="/images/gravity-well-hero.jpg" 
-              alt="Gravity Well Visualization" 
-              className="w-full h-full object-cover opacity-60"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent"></div>
+          {/* Interactive 3D Background */}
+          <GravityWell />
+          
+          {/* Overlays for texture and depth */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent"></div>
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
           </div>
 
-          <div className="container relative z-10 grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
+          <div className="container relative z-10 grid lg:grid-cols-2 gap-12 items-center pointer-events-none">
+            <div className="space-y-8 pointer-events-auto">
               <div className="inline-flex items-center gap-2 px-3 py-1 border border-white/10 bg-white/5 backdrop-blur-sm rounded-none">
                 <span className="w-2 h-2 bg-terminal rounded-full animate-pulse"></span>
                 <span className="text-xs font-mono tracking-widest text-muted-foreground">REVENUE ENGINE V2.0 ACTIVE</span>
@@ -77,7 +82,8 @@ export default function Home() {
                 <Button 
                   size="lg" 
                   className="rounded-none bg-gold text-black hover:bg-white font-mono text-sm h-14 px-8 border border-transparent"
-                  onClick={() => setIsAccessDialogOpen(true)}
+                  onClick={() => { playClick(); setIsAccessDialogOpen(true); }}
+                  onMouseEnter={playHover}
                 >
                   INITIATE SEQUENCE <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -85,7 +91,8 @@ export default function Home() {
                   size="lg" 
                   variant="outline" 
                   className="rounded-none border-white/20 text-white hover:bg-white/5 font-mono text-sm h-14 px-8"
-                  onClick={() => document.getElementById('architecture')?.scrollIntoView({ behavior: 'smooth' })}
+                  onClick={() => { playClick(); document.getElementById('architecture')?.scrollIntoView({ behavior: 'smooth' }); }}
+                  onMouseEnter={playHover}
                 >
                   VIEW ARCHITECTURE
                 </Button>
@@ -193,7 +200,8 @@ export default function Home() {
               <Button 
                 size="lg" 
                 className="rounded-none bg-white text-black hover:bg-gold font-mono text-sm h-14 px-12 min-w-[200px]"
-                onClick={() => setIsAccessDialogOpen(true)}
+                onClick={() => { playClick(); setIsAccessDialogOpen(true); }}
+                onMouseEnter={playHover}
               >
                 REQUEST ACCESS
               </Button>
