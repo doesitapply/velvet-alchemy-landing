@@ -1,11 +1,22 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Terminal, ShieldCheck, Zap, Database, Globe, Lock } from "lucide-react";
+import { ArrowRight, Terminal as TerminalIcon, ShieldCheck, Zap, Database, Globe, Lock } from "lucide-react";
+import { Terminal } from "@/components/Terminal";
+import { LiveTicker } from "@/components/LiveTicker";
+import { RequestAccessDialog } from "@/components/RequestAccessDialog";
 
 export default function Home() {
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
+
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground overflow-x-hidden pb-8">
       
+      <Terminal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} />
+      <RequestAccessDialog open={isAccessDialogOpen} onOpenChange={setIsAccessDialogOpen} />
+      <LiveTicker />
+
       {/* Navigation / Header */}
       <header className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/50 backdrop-blur-md">
         <div className="container flex h-16 items-center justify-between">
@@ -20,7 +31,11 @@ export default function Home() {
           </nav>
           <div className="flex items-center gap-4">
             <span className="hidden sm:inline-block text-xs font-mono text-terminal animate-pulse">● SYSTEM ONLINE</span>
-            <Button variant="outline" className="font-mono text-xs border-white/20 hover:bg-white/5 hover:text-gold rounded-none h-9">
+            <Button 
+              variant="outline" 
+              className="font-mono text-xs border-white/20 hover:bg-white/5 hover:text-gold rounded-none h-9"
+              onClick={() => setIsTerminalOpen(true)}
+            >
               ACCESS TERMINAL
             </Button>
           </div>
@@ -59,10 +74,19 @@ export default function Home() {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Button size="lg" className="rounded-none bg-gold text-black hover:bg-white font-mono text-sm h-14 px-8 border border-transparent">
+                <Button 
+                  size="lg" 
+                  className="rounded-none bg-gold text-black hover:bg-white font-mono text-sm h-14 px-8 border border-transparent"
+                  onClick={() => setIsAccessDialogOpen(true)}
+                >
                   INITIATE SEQUENCE <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
-                <Button size="lg" variant="outline" className="rounded-none border-white/20 text-white hover:bg-white/5 font-mono text-sm h-14 px-8">
+                <Button 
+                  size="lg" 
+                  variant="outline" 
+                  className="rounded-none border-white/20 text-white hover:bg-white/5 font-mono text-sm h-14 px-8"
+                  onClick={() => document.getElementById('architecture')?.scrollIntoView({ behavior: 'smooth' })}
+                >
                   VIEW ARCHITECTURE
                 </Button>
               </div>
@@ -104,7 +128,7 @@ export default function Home() {
                 {[
                   { title: "The Curator", icon: Database, desc: "Scours the void for high-value targets. Audits visual debt instantly." },
                   { title: "The Visionary", icon: Zap, desc: "Synthesizes bespoke visual assets. Shows them what they could be." },
-                  { title: "The Charmer", icon: Terminal, desc: "Crafts seductive, high-status outreach. Never begs, only offers." },
+                  { title: "The Charmer", icon: TerminalIcon, desc: "Crafts seductive, high-status outreach. Never begs, only offers." },
                   { title: "The Governor", icon: ShieldCheck, desc: "Ensures domain safety and reputation. The immune system." }
                 ].map((agent, i) => (
                   <Card key={i} className="bg-white/5 border-white/10 rounded-none p-6 hover:bg-white/10 transition-colors group">
@@ -166,7 +190,11 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col items-center gap-4">
-              <Button size="lg" className="rounded-none bg-white text-black hover:bg-gold font-mono text-sm h-14 px-12 min-w-[200px]">
+              <Button 
+                size="lg" 
+                className="rounded-none bg-white text-black hover:bg-gold font-mono text-sm h-14 px-12 min-w-[200px]"
+                onClick={() => setIsAccessDialogOpen(true)}
+              >
                 REQUEST ACCESS
               </Button>
               <div className="flex items-center gap-6 mt-12 text-xs font-mono text-muted-foreground">
