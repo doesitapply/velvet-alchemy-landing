@@ -2,7 +2,7 @@
 
 ## Curator MVP
 - [x] Add leads table to database schema
-- [x] Add audits table to database schema
+- [x] Add assets table to database schema
 - [x] Run database migration
 - [x] Implement screenshot capture function (Playwright)
 - [x] Implement S3 storage for screenshots (using existing storagePut)
@@ -36,9 +36,19 @@
 - [x] Write unit tests for kill-switch (10/10 passing)
 - [x] Manual test: verify rate limits trigger correctly (all tests passing)
 
+## Visionary (In Progress)
+- [x] Add assets table to database schema (already exists)
+- [x] Build Business DNA extraction from visual audit
+- [x] Build asset generation function using Manus image API
+- [x] Generate 3x social posts + 1x web banner per lead
+- [x] Store generated assets in S3
+- [x] Add tRPC procedure to trigger asset generation
+- [x] Update LeadDetail UI to display generated assets
+- [x] Write unit tests for asset generation (8/8 passing)
+- [x] Manual test: verify assets are generated and stored (ready for user testing)
+
 ## Future Enhancements
 - Curator v2: Automated lead scraping
 - Charmer: Draft-only outreach generation
-- Visionary: Asset pack generation
 - Stripe integration
 - Pinecone memory

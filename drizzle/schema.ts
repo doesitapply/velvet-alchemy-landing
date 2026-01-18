@@ -118,3 +118,19 @@ export const auditLog = mysqlTable("audit_log", {
 
 export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = typeof auditLog.$inferInsert;
+
+/**
+ * Assets table for The Visionary
+ */
+export const assets = mysqlTable("assets", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull(),
+  type: mysqlEnum("type", ["hero_header", "social_post", "web_banner"]).notNull(),
+  url: varchar("url", { length: 512 }).notNull(),
+  s3Key: varchar("s3Key", { length: 512 }).notNull(),
+  metadata: text("metadata"), // JSON string for additional info (prompt, dimensions, etc.)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Asset = typeof assets.$inferSelect;
+export type InsertAsset = typeof assets.$inferInsert;

@@ -136,6 +136,43 @@ export const appRouter = router({
         return { lead, audit };
       }),
   }),
+
+  visionary: router({
+    generateAssets: protectedProcedure
+      .input(z.object({ leadId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { getLeadById } = await import("./db");
+        const { generateAssetsForLead } = await import("./visionary");
+
+        const lead = await getLeadById(input.leadId);
+        if (!lead) {
+          throw new Error("Lead not found");
+        }
+
+        const { getAuditByLeadId } = await import("./db");
+        const audit = await getAuditByLeadId(lead.id);
+        if (!audit) {
+          throw new Error("Lead must have an audit before generating assets");
+        }
+
+        const visualDebt = audit.visualDebtData
+          ? JSON.parse(audit.visualDebtData)
+          : null;
+
+        return generateAssetsForLead(
+          lead.id,
+          lead.companyName,
+          lead.websiteUrl,
+          visualDebt
+        );
+      }),
+    getAssets: protectedProcedure
+      .input(z.object({ leadId: z.number() }))
+      .query(async ({ input }) => {
+        const { getAssetsByLeadId } = await import("./visionary");
+        return getAssetsByLeadId(input.leadId);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

@@ -3,7 +3,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ExternalLink } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 
 export default function LeadDetail() {
@@ -15,6 +16,21 @@ export default function LeadDetail() {
     { id: leadId! },
     { enabled: !!leadId && !!user }
   );
+
+  const { data: assets, isLoading: assetsLoading, refetch: refetchAssets } = trpc.visionary.getAssets.useQuery(
+    { leadId: leadId! },
+    { enabled: !!leadId && !!user }
+  );
+
+  const generateAssets = trpc.visionary.generateAssets.useMutation({
+    onSuccess: () => {
+      toast.success("Assets generated successfully!");
+      refetchAssets();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to generate assets: ${error.message}`);
+    },
+  });
 
   if (authLoading) {
     return (
@@ -265,6 +281,71 @@ export default function LeadDetail() {
               </div>
             </Card>
           )}
+
+          {/* Assets Section */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-serif italic">Generated Assets</h2>
+              <Button
+                onClick={() => generateAssets.mutate({ leadId: leadId! })}
+                disabled={generateAssets.isPending || assetsLoading}
+                variant="default"
+              >
+                {generateAssets.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate Assets
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {assetsLoading ? (
+              <div className="flex items-center justify-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : assets && assets.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {assets.map((asset: any) => (
+                  <div key={asset.id} className="border border-border rounded-sm p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-mono uppercase text-muted-foreground">
+                        {asset.type.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(asset.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <img
+                      src={asset.url}
+                      alt={asset.type}
+                      className="w-full rounded-sm border border-border"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => window.open(asset.url, "_blank")}
+                    >
+                      View Full Size
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 space-y-4">
+                <Sparkles className="h-12 w-12 mx-auto text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  No assets generated yet. Click "Generate Assets" to create high-fidelity visual assets for this lead.
+                </p>
+              </div>
+            )}
+          </Card>
         </div>
       </main>
     </div>
