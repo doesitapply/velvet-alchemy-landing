@@ -177,3 +177,22 @@ export const outreachDrafts = mysqlTable("outreach_drafts", {
 
 export type OutreachDraft = typeof outreachDrafts.$inferSelect;
 export type InsertOutreachDraft = typeof outreachDrafts.$inferInsert;
+
+/**
+ * Pipeline jobs table for The Orchestrator
+ */
+export const pipelineJobs = mysqlTable("pipeline_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
+  currentStage: varchar("currentStage", { length: 50 }),
+  stagesCompleted: text("stagesCompleted"), // JSON array of completed stages
+  errorMessage: text("errorMessage"),
+  retryCount: int("retryCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+
+export type PipelineJob = typeof pipelineJobs.$inferSelect;
+export type InsertPipelineJob = typeof pipelineJobs.$inferInsert;

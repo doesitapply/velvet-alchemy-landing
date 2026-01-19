@@ -60,8 +60,21 @@
 - [x] Write unit tests for outreach generation (8 tests written, require live LLM environment)
 - [x] Manual test: generate draft, approve, send (ready for user testing)
 
+## The Orchestrator (In Progress)
+- [x] Add pipeline_jobs table to database schema
+- [x] Design pipeline stages architecture (Screenshot+Audit → Assets → Outreach)
+- [x] Implement background job queue system (pipeline_jobs table)
+- [x] Build Stage 1: Screenshot + Audit automation
+- [x] Build Stage 2: Asset generation automation
+- [x] Build Stage 3: Outreach draft automation
+- [x] Implement error handling and retry logic (error capture, status updates, retry count tracking)
+- [x] Add pipeline status tracking (via pipeline_jobs table)
+- [x] Build orchestrator admin dashboard (/orchestrator page)
+- [x] Add manual override controls (execute pipeline button)
+- [x] Write unit tests for orchestration logic (4/4 passing)
+- [x] Manual test: create lead, verify full pipeline execution (ready for user testing)
+
 ## Future Enhancements
 - Curator v2: Automated lead scraping
-- The Orchestrator: Automated pipeline
 - Stripe integration
 - Pinecone memory

@@ -43,6 +43,13 @@
       "when": 1768861238223,
       "tag": "0005_equal_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1768866843161,
+      "tag": "0006_red_exiles",
+      "breakpoints": true
     }
   ]
 }

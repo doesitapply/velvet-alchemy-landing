@@ -8,6 +8,7 @@ import { SoundProvider } from "./contexts/SoundContext";
 import Home from "./pages/Home";
 import GovernorDashboard from "./pages/GovernorDashboard";
 import Charmer from "./pages/Charmer";
+import Orchestrator from "./pages/Orchestrator";
 import Dashboard from "./pages/Dashboard";
 import LeadDetail from "./pages/LeadDetail";
 
@@ -17,8 +18,9 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
        <Route path="/governor" component={GovernorDashboard} />
-      <Route path="/charmer" component={Charmer} />
-      <Route path={"/dashboard"} component={Dashboard} />
+           <Route path={"/charmer"} component={Charmer} />
+      <Route path={"/orchestrator"} component={Orchestrator} />
+      <Route path={"/404"} component={NotFound} />
       <Route path={"/leads/:id"} component={LeadDetail} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
