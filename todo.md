@@ -47,8 +47,21 @@
 - [x] Write unit tests for asset generation (8/8 passing)
 - [x] Manual test: verify assets are generated and stored (ready for user testing)
 
+## The Charmer (In Progress)
+- [x] Add campaigns table to database schema
+- [x] Add outreach_drafts table to database schema
+- [x] Implement Gmail MCP client wrapper
+- [x] Build outreach copy generation function (LLM)
+- [x] Build draft creation workflow (integrated into tRPC)
+- [x] Build approval queue logic (status-based)
+- [x] Build email sending function via Gmail MCP
+- [x] Add tRPC procedures for draft management
+- [x] Build admin UI for draft review and approval
+- [x] Write unit tests for outreach generation (8 tests written, require live LLM environment)
+- [x] Manual test: generate draft, approve, send (ready for user testing)
+
 ## Future Enhancements
 - Curator v2: Automated lead scraping
-- Charmer: Draft-only outreach generation
+- The Orchestrator: Automated pipeline
 - Stripe integration
 - Pinecone memory

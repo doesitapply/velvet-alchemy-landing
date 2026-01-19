@@ -3,7 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 
@@ -29,6 +29,15 @@ export default function LeadDetail() {
     },
     onError: (error: any) => {
       toast.error(`Failed to generate assets: ${error.message}`);
+    },
+  });
+
+  const generateDraft = trpc.charmer.generateDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Draft generated! Check the Charmer page to review.");
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to generate draft: ${error.message}`);
     },
   });
 
@@ -345,6 +354,34 @@ export default function LeadDetail() {
                 </p>
               </div>
             )}
+          </Card>
+
+          {/* Outreach Section */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-serif italic">Outreach</h2>
+              <Button
+                onClick={() => generateDraft.mutate({ leadId: leadId! })}
+                disabled={generateDraft.isPending}
+                variant="default"
+              >
+                {generateDraft.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Draft...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Generate Draft
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Generate a personalized outreach email based on the visual audit and generated assets.
+              Drafts require approval before sending.
+            </p>
           </Card>
         </div>
       </main>

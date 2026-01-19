@@ -36,6 +36,13 @@
       "when": 1768775230243,
       "tag": "0004_damp_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1768861238223,
+      "tag": "0005_equal_tarantula",
+      "breakpoints": true
     }
   ]
 }

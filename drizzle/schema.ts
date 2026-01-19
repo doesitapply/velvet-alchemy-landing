@@ -134,3 +134,46 @@ export const assets = mysqlTable("assets", {
 
 export type Asset = typeof assets.$inferSelect;
 export type InsertAsset = typeof assets.$inferInsert;
+
+/**
+ * Campaigns table for tracking outreach campaigns
+ */
+export const campaigns = mysqlTable("campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["draft", "pending_approval", "approved", "sent", "failed"]).default("draft").notNull(),
+  sentAt: timestamp("sentAt"),
+  openedAt: timestamp("openedAt"),
+  clickedAt: timestamp("clickedAt"),
+  repliedAt: timestamp("repliedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Campaign = typeof campaigns.$inferSelect;
+export type InsertCampaign = typeof campaigns.$inferInsert;
+
+/**
+ * Outreach drafts table for storing generated email copy
+ */
+export const outreachDrafts = mysqlTable("outreach_drafts", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+  recipientName: varchar("recipientName", { length: 255 }),
+  status: mysqlEnum("status", ["draft", "pending_approval", "approved", "rejected", "sent"]).default("draft").notNull(),
+  rejectionReason: text("rejectionReason"),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  sentAt: timestamp("sentAt"),
+  gmailMessageId: varchar("gmailMessageId", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type OutreachDraft = typeof outreachDrafts.$inferSelect;
+export type InsertOutreachDraft = typeof outreachDrafts.$inferInsert;

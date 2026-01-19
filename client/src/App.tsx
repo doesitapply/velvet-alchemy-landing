@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { SoundProvider } from "./contexts/SoundContext";
 import Home from "./pages/Home";
 import GovernorDashboard from "./pages/GovernorDashboard";
+import Charmer from "./pages/Charmer";
 import Dashboard from "./pages/Dashboard";
 import LeadDetail from "./pages/LeadDetail";
 
@@ -15,7 +16,8 @@ function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
-      <Route path={"/governor"} component={GovernorDashboard} />
+       <Route path="/governor" component={GovernorDashboard} />
+      <Route path="/charmer" component={Charmer} />
       <Route path={"/dashboard"} component={Dashboard} />
       <Route path={"/leads/:id"} component={LeadDetail} />
       <Route path={"/404"} component={NotFound} />
