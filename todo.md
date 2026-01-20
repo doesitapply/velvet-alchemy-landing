@@ -87,6 +87,14 @@
 - [x] Add navigation link to Command Center in main nav (route added to App.tsx)
 - [x] Manual test: launch workflows, verify real-time updates (ready for user testing)
 
+## Documentation Suite
+- [x] README.md - System overview, architecture, quick start
+- [x] USER_GUIDE.md - Step-by-step workflow tutorials
+- [x] ARCHITECTURE.md - Technical deep-dive on agents and database
+- [x] DEPLOYMENT.md - Production deployment checklist
+- [x] TROUBLESHOOTING.md - Common issues and solutions
+- [x] API_REFERENCE.md - tRPC procedures documentation
+
 ## Future Enhancements
 - Curator v2: Automated lead scraping
 - Stripe integration
