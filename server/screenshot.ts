@@ -36,17 +36,21 @@ export async function captureScreenshot(
     });
 
     const context = await browser.newContext({
-      viewport: { width: 1280, height: 720 },
+      viewport: { width: 1024, height: 600 }, // Reduced for faster processing
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     });
 
     const page = await context.newPage();
 
-    // Navigate to URL with timeout
+    // Navigate to URL with fast load strategy
+    // Use domcontentloaded instead of networkidle to avoid waiting for trackers/analytics
     await page.goto(url, {
-      waitUntil: 'networkidle',
-      timeout,
+      waitUntil: 'domcontentloaded', // Much faster than networkidle
+      timeout: Math.min(timeout, 10000), // Cap at 10 seconds max
     });
+    
+    // Wait an additional 2 seconds for critical assets to load
+    await page.waitForTimeout(2000);
 
     // Take screenshot
     const buffer = await page.screenshot({

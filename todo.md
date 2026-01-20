@@ -137,3 +137,25 @@
 - [ ] Update outreach templates to reference ranking position and local competition
 - [ ] Add "ranking improvement plan" to visual audit output
 - [ ] Test with real Reno businesses (pizza, plumbers, dentists, etc.)
+
+## Documentation Updates for Reno Pivot
+- [ ] Update README.md - Change from luxury to local business focus
+- [ ] Update USER_GUIDE.md - Add scraper workflow and examples
+- [ ] Update ARCHITECTURE.md - Document scraper infrastructure
+- [ ] Update API_REFERENCE.md - Add scraper router procedures
+- [ ] Update Help page - Reflect new workflow and business categories
+
+## Critical Fixes - Make It Work
+- [x] Debug visual audit performance (why is it taking 2+ minutes?)
+- [x] Check Rolex lead status in database
+- [x] Test visual audit with simple local business site
+- [x] Install Playwright browsers
+- [x] Optimize screenshot capture (domcontentloaded, 10s timeout, 1024x600 viewport)
+- [x] Optimize GPT-4o processing (detail: low)
+- [x] Update audit criteria for local businesses
+- [ ] Wire up real search API (SerpAPI or DataForSEO) in scraperRouter
+- [ ] Fix Orchestrator to load real leads from database (remove mock data)
+- [ ] Test complete end-to-end pipeline with one Reno business
+- [ ] Replace browser prompt() with proper modals in Command Center
+- [ ] Load real data in Governor dashboard (rate limits, audit logs)
+- [ ] Remove all mock data and placeholder content

@@ -34,7 +34,7 @@ export async function analyzeVisualDebt(
       messages: [
         {
           role: "system",
-          content: `You are an expert visual designer and luxury brand consultant. Your task is to audit website screenshots for companies in the high-net-worth market. Evaluate design quality, user experience, branding sophistication, and overall "prestige" factor. Be critical but constructive.`,
+          content: `You are an expert web designer and local business consultant. Your task is to audit website screenshots for small businesses. Evaluate design quality, user experience, mobile-friendliness, trust signals, and conversion optimization. Focus on practical improvements that help local businesses compete online. Be critical but constructive.`,
         },
         {
           role: "user",
@@ -43,11 +43,11 @@ export async function analyzeVisualDebt(
               type: "text",
               text: `Analyze this screenshot of ${companyName}'s website (${websiteUrl}). Provide a detailed visual audit focusing on:
 
-1. **Design Quality**: Typography, color palette, spacing, visual hierarchy
-2. **User Experience**: Navigation clarity, information architecture, accessibility
-3. **Branding**: Logo quality, brand consistency, luxury market positioning
-4. **Content**: Copywriting quality, visual storytelling, call-to-action effectiveness
-5. **Technical**: Load indicators, responsive design hints, visual polish
+1. **Design Quality**: Typography readability, color contrast, spacing, visual hierarchy
+2. **User Experience**: Navigation clarity, mobile-friendliness, contact info visibility
+3. **Trust Signals**: Professional appearance, credibility indicators, social proof
+4. **Content**: Clear value proposition, call-to-action effectiveness, local keywords
+5. **Technical**: Page speed indicators, responsive design, visual polish
 
 Return your analysis in the following JSON format:
 {
@@ -59,19 +59,19 @@ Return your analysis in the following JSON format:
       "recommendation": "Specific actionable fix"
     }
   ],
-  "prestigeScore": 0-100 (integer, where 100 = perfect luxury brand execution),
+  "prestigeScore": 0-100 (integer, where 100 = perfect small business website execution),
   "summary": "2-3 sentence overall assessment",
   "strengths": ["List of 2-3 positive aspects"],
-  "weaknesses": ["List of 2-3 critical issues"]
+  "weaknesses": ["List of 2-3 critical issues that hurt conversions or rankings"]
 }
 
-Be honest and specific. A score of 70+ should be reserved for truly exceptional execution.`,
+Be honest and specific. Focus on issues that directly impact local search rankings and customer trust. A score of 70+ should be reserved for truly exceptional execution.`,
             },
             {
               type: "image_url",
               image_url: {
                 url: screenshotUrl,
-                detail: "high",
+                detail: "low", // Use low detail for faster processing (512px)
               },
             },
           ],
