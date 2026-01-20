@@ -12,6 +12,8 @@ import Orchestrator from "./pages/Orchestrator";
 import CommandCenter from "./pages/CommandCenter";
 import Dashboard from "./pages/Dashboard";
 import LeadDetail from "./pages/LeadDetail";
+import Leads from "./pages/Leads";
+import Help from "./pages/Help";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -21,10 +23,11 @@ function Router() {
        <Route path="/governor" component={GovernorDashboard} />
            <Route path={"/charmer"} component={Charmer} />
       <Route path={"/orchestrator"} component={Orchestrator} />
-      <Route path={"/command-center"} component={CommandCenter} />
-      <Route path={"/404"} component={NotFound} />
-      <Route path={"/leads/:id"} component={LeadDetail} />
-      <Route path={"/404"} component={NotFound} />
+      <Route path="/command-center" component={CommandCenter} />
+      <Route path="/leads" component={Leads} />
+      <Route path="/leads/:id" component={LeadDetail} />
+      <Route path="/help" component={Help} />
+      <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>

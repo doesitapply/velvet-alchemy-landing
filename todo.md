@@ -99,3 +99,27 @@
 - Curator v2: Automated lead scraping
 - Stripe integration
 - Pinecone memory
+
+## Stress Test & Missing Features
+- [x] Test authentication flow end-to-end
+- [ ] Test lead creation with real websites
+- [ ] Test visual audit accuracy and prestige scoring
+- [ ] Test asset generation with multiple leads
+- [ ] Test outreach draft generation
+- [ ] Test email sending via Gmail MCP
+- [ ] Test full pipeline automation
+- [ ] Test Governor controls (kill-switch, rate limits)
+- [x] Identify and fix any missing features or bugs
+- [x] Create in-app instruction/help page
+
+## Critical Fixes Needed
+- [x] Create Leads list page (/leads route)
+- [x] Replace browser prompt() with proper modal dialogs (done in Leads page)
+- [x] Add navigation header/sidebar to all dashboard pages
+- [ ] Fix Orchestrator to show real leads instead of mock data
+- [ ] Add authentication guards to protected routes
+- [ ] Implement lead detail page with full functionality
+- [ ] Add proper forms for lead creation in Command Center
+- [ ] Fix "Back to Dashboard" links (create /dashboard route or redirect)
+- [ ] Load real data in Governor (rate limits, audit logs)
+- [x] Add help/instruction page
