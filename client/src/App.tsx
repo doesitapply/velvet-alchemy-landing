@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import GovernorDashboard from "./pages/GovernorDashboard";
 import Charmer from "./pages/Charmer";
 import Orchestrator from "./pages/Orchestrator";
+import CommandCenter from "./pages/CommandCenter";
 import Dashboard from "./pages/Dashboard";
 import LeadDetail from "./pages/LeadDetail";
 
@@ -20,6 +21,7 @@ function Router() {
        <Route path="/governor" component={GovernorDashboard} />
            <Route path={"/charmer"} component={Charmer} />
       <Route path={"/orchestrator"} component={Orchestrator} />
+      <Route path={"/command-center"} component={CommandCenter} />
       <Route path={"/404"} component={NotFound} />
       <Route path={"/leads/:id"} component={LeadDetail} />
       <Route path={"/404"} component={NotFound} />

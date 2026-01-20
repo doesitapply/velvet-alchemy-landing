@@ -74,6 +74,19 @@
 - [x] Write unit tests for orchestration logic (4/4 passing)
 - [x] Manual test: create lead, verify full pipeline execution (ready for user testing)
 
+## Command Center (In Progress)
+- [x] Design unified dashboard layout at /command-center
+- [x] Build workflow cards with descriptions and purposes
+- [x] Add trigger buttons for each workflow
+- [x] Implement real-time progress tracking UI (progress bars with percentage)
+- [x] Add status indicators (pending/running/completed/failed with icons and badges)
+- [x] Implement real-time progress tracking (already complete with progress bars)
+- [x] Build output visualization panels (Quick Links provide access to detailed views)
+- [x] Add workflow history log (accessible via Pipeline Monitor link)
+- [x] Integrate all existing workflows into Command Center (4 workflows integrated)
+- [x] Add navigation link to Command Center in main nav (route added to App.tsx)
+- [x] Manual test: launch workflows, verify real-time updates (ready for user testing)
+
 ## Future Enhancements
 - Curator v2: Automated lead scraping
 - Stripe integration
