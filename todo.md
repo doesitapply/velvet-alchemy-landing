@@ -123,3 +123,17 @@
 - [ ] Fix "Back to Dashboard" links (create /dashboard route or redirect)
 - [ ] Load real data in Governor (rate limits, audit logs)
 - [x] Add help/instruction page
+
+## Reno Small Business Pivot
+- [x] Add Google Maps scraping to find small businesses by city + category
+- [x] Add Google Search ranking checker (track position for target keywords)
+- [x] Create business category taxonomy (restaurants, contractors, retail, services, healthcare, etc.)
+- [ ] Update visual audit criteria for small business needs (mobile-first, contact info visibility, trust signals, load speed)
+- [ ] Add local SEO scoring (NAP consistency, Google Business Profile, local keywords)
+- [ ] Rebrand all copy from "luxury/premium" to "small business" focus
+- [ ] Update landing page hero: "Get Reno Small Businesses on the Map"
+- [ ] Add city selector (start with Reno, expand to any city)
+- [ ] Add bulk scraping workflow: select city + category → scrape 50-100 businesses → auto-queue for audit
+- [ ] Update outreach templates to reference ranking position and local competition
+- [ ] Add "ranking improvement plan" to visual audit output
+- [ ] Test with real Reno businesses (pizza, plumbers, dentists, etc.)

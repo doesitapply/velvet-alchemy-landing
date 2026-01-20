@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import LeadDetail from "./pages/LeadDetail";
 import Leads from "./pages/Leads";
 import Help from "./pages/Help";
+import BusinessScraper from "./pages/BusinessScraper";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/leads" component={Leads} />
       <Route path="/leads/:id" component={LeadDetail} />
       <Route path="/help" component={Help} />
+      <Route path="/scraper" component={BusinessScraper} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

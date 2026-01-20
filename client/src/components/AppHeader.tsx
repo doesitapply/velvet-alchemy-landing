@@ -12,6 +12,7 @@ import {
   LogOut,
   Home,
   HelpCircle,
+  Search,
 } from "lucide-react";
 
 export default function AppHeader() {
@@ -21,6 +22,7 @@ export default function AppHeader() {
   const navItems = [
     { path: "/command-center", label: "Command Center", icon: LayoutDashboard },
     { path: "/leads", label: "Leads", icon: Eye },
+    { path: "/scraper", label: "Scraper", icon: Search },
     { path: "/charmer", label: "Charmer", icon: Mail },
     { path: "/orchestrator", label: "Orchestrator", icon: Zap },
     { path: "/governor", label: "Governor", icon: Shield },
