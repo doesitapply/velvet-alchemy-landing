@@ -9,6 +9,63 @@ import { logAudit } from "./governor";
 
 export const charmerRouter = router({
   /**
+   * Send email directly from lead profile (bypasses draft system)
+   */
+  sendDirectEmail: protectedProcedure
+    .input(
+      z.object({
+        leadId: z.number(),
+        to: z.string().email(),
+        subject: z.string().min(1),
+        body: z.string().min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      // Verify lead exists and belongs to user
+      const [lead] = await db.select().from(leads).where(eq(leads.id, input.leadId)).limit(1);
+      if (!lead) throw new Error("Lead not found");
+
+      // Send email via Gmail MCP
+      const result = await sendEmail({
+        to: input.to,
+        subject: input.subject,
+        body: input.body,
+      });
+
+      if (!result.success) {
+        // Log failure
+        await logAudit({
+          userId: ctx.user.id,
+          action: "direct_email_failed",
+          resource: "leads",
+          resourceId: input.leadId,
+          details: JSON.stringify({ error: result.error, to: input.to }),
+          status: "failure",
+        });
+
+        throw new Error(`Failed to send email: ${result.error}`);
+      }
+
+      // Log success
+      await logAudit({
+        userId: ctx.user.id,
+        action: "direct_email_sent",
+        resource: "leads",
+        resourceId: input.leadId,
+        details: JSON.stringify({ to: input.to, subject: input.subject, messageId: result.messageId }),
+        status: "success",
+      });
+
+      return {
+        success: true,
+        messageId: result.messageId,
+      };
+    }),
+
+  /**
    * Generate outreach draft for a lead
    */
   generateDraft: protectedProcedure

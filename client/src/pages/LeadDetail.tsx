@@ -1,16 +1,19 @@
-import { useRoute, Link } from "wouter";
+import { Link, useRoute } from "wouter";
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
+import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
   const leadId = params?.id ? parseInt(params.id) : null;
   const { user, loading: authLoading } = useAuth();
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const { data, isLoading, error } = trpc.leads.getById.useQuery(
     { id: leadId! },
@@ -38,6 +41,16 @@ export default function LeadDetail() {
     },
     onError: (error: any) => {
       toast.error(`Failed to generate draft: ${error.message}`);
+    },
+  });
+
+  const sendDirectEmail = trpc.charmer.sendDirectEmail.useMutation({
+    onSuccess: () => {
+      toast.success("Email sent successfully!");
+      setEmailDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to send email: ${error.message}`);
     },
   });
 
@@ -360,29 +373,55 @@ export default function LeadDetail() {
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-serif italic">Outreach</h2>
-              <Button
-                onClick={() => generateDraft.mutate({ leadId: leadId! })}
-                disabled={generateDraft.isPending}
-                variant="default"
-              >
-                {generateDraft.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Draft...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="mr-2 h-4 w-4" />
-                    Generate Draft
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setEmailDialogOpen(true)}
+                  variant="default"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Email
+                </Button>
+                <Button
+                  onClick={() => generateDraft.mutate({ leadId: leadId! })}
+                  disabled={generateDraft.isPending}
+                  variant="outline"
+                >
+                  {generateDraft.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating Draft...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Generate Draft
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Generate a personalized outreach email based on the visual audit and generated assets.
-              Drafts require approval before sending.
+              Send an email directly or generate a personalized draft based on the visual audit.
             </p>
           </Card>
+
+          {/* Email Compose Dialog */}
+          <EmailComposeDialog
+            open={emailDialogOpen}
+            onOpenChange={setEmailDialogOpen}
+            defaultTo=""
+            defaultSubject={`Website Audit Results - ${lead.companyName}`}
+            defaultBody={audit ? `Hi,\n\nI recently reviewed ${lead.companyName}'s website (${lead.websiteUrl}) and wanted to share some insights.\n\nPrestige Score: ${audit.prestigeScore}/100\n\nSummary: ${audit.summary}\n\nI'd love to discuss how we can help improve your online presence.\n\nBest regards` : `Hi,\n\nI wanted to reach out regarding ${lead.companyName}'s website.\n\nBest regards`}
+            onSend={async (data) => {
+              await sendDirectEmail.mutateAsync({
+                leadId: leadId!,
+                to: data.to,
+                subject: data.subject,
+                body: data.body,
+              });
+            }}
+            isLoading={sendDirectEmail.isPending}
+          />
         </div>
       </main>
     </div>

@@ -219,3 +219,13 @@
 - [x] Test export with real Reno pizza leads (26 leads exported successfully)
 - [x] Test filters (status, prestige score range)
 - [x] Verify CSV contains all required fields (Lead ID, Company Name, Website URL, Prestige Score, Status, Audit Summary, Top Issues, Visual Debt Details, Social Post URLs, Banner URLs, Screenshot URL, Created At, Audit Date)
+
+## Email Integration on Lead Profile
+- [x] Create backend tRPC procedure for sending emails via Gmail MCP
+- [x] Build EmailComposeDialog component with form fields (to, subject, body)
+- [x] Add "Send Email" button to LeadDetail page
+- [x] Pre-fill email with lead contact info and audit summary
+- [x] Integrate with existing Charmer outreach draft system
+- [x] Add success/error toast notifications
+- [x] Test email sending with unit tests (4/4 passing)
+- [x] Update todo.md to mark tasks complete
