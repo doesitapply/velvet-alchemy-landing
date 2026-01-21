@@ -166,17 +166,17 @@ export default function BusinessScraper() {
             <Button
               onClick={handleScrape}
               disabled={bulkScrapeMutation.isPending || !category || !targetKeyword}
-              className="w-full bg-gold hover:bg-gold/90 text-black font-semibold"
+              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xl px-8 py-6 shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70 hover:scale-105 transition-all"
             >
               {bulkScrapeMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Scraping...
+                  <Loader2 className="mr-3 h-6 w-6 animate-spin" />
+                  SCRAPING BUSINESSES...
                 </>
               ) : (
                 <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Scrape & Create Leads
+                  <Search className="mr-3 h-6 w-6" />
+                  START SCRAPING NOW
                 </>
               )}
             </Button>

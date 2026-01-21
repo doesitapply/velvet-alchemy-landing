@@ -285,3 +285,18 @@
 - [ ] Add stats card showing total scraped vs qualified leads - DEFERRED (can add later)
 - [x] Test full workflow: Scraper → Auto-Audit → Filtered Leads page (verified filtering works - page now empty)
 - [x] Save checkpoint
+
+
+## Add Start Scraping Button
+- [x] Read BusinessScraper.tsx to find form structure
+- [x] Add large prominent "Start Scraping" button at bottom of form
+- [x] Make button cyan gradient to match Start Audit button style
+- [x] Test button triggers scrape with form values (button already existed, upgraded to HUGE cyan)
+- [x] Save checkpoint
+
+
+## SEO Improvements for Landing Page
+- [x] Add meta description (50-160 characters) to index.html
+- [x] Add meta keywords to index.html
+- [x] Test SEO metadata
+- [x] Save checkpoint
