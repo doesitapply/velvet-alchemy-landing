@@ -252,3 +252,12 @@
 - [x] Add toast to lead management (lead deleted, updated) - implemented in mutations
 - [x] Test all toast notifications
 - [x] Save checkpoint
+
+
+## Start Audit Button on LeadDetail
+- [x] Add "Start Audit" button to LeadDetail page header
+- [x] Wire up mutation to call orchestrator.executePipeline with leadId
+- [x] Add toast notifications for audit start/success/error
+- [x] Disable button while audit is running (isPending state)
+- [x] Test audit trigger (button visible on pending leads, hidden on audited)
+- [x] Save checkpoint

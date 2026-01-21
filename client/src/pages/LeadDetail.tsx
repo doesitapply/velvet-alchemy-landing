@@ -4,7 +4,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
@@ -51,6 +51,19 @@ export default function LeadDetail() {
     },
     onError: (error: any) => {
       toast.error(`Failed to send email: ${error.message}`);
+    },
+  });
+
+  const startAudit = trpc.orchestrator.executePipeline.useMutation({
+    onSuccess: () => {
+      toast.success("Audit started! This will take 2-3 minutes.");
+      // Refetch lead data after a delay to show updated status
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to start audit: ${error.message}`);
     },
   });
 
@@ -154,12 +167,33 @@ export default function LeadDetail() {
                 </span>
               </div>
             </div>
-            <Button asChild variant="outline">
-              <a href={lead.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                Visit Site
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            </Button>
+            <div className="flex items-center gap-2">
+              {lead.status === 'pending' && (
+                <Button
+                  onClick={() => startAudit.mutate({ leadId: lead.id })}
+                  disabled={startAudit.isPending}
+                  className="gap-2 bg-gold text-black hover:bg-gold/90"
+                >
+                  {startAudit.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Starting Audit...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Start Audit
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button asChild variant="outline">
+                <a href={lead.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                  Visit Site
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
           </div>
 
           {/* Screenshot */}
