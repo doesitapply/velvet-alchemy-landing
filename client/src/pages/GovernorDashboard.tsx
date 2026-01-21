@@ -45,7 +45,7 @@ export default function GovernorDashboard() {
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
             <h1 className="text-2xl font-bold">Access Denied</h1>
             <p className="text-muted-foreground">You do not have permission to access the Governor dashboard.</p>
-            <Link href="/dashboard">
+            <Link href="/command-center">
               <Button>Return to Dashboard</Button>
             </Link>
           </div>
@@ -69,7 +69,7 @@ export default function GovernorDashboard() {
               <p className="text-sm text-muted-foreground">System Safety & Compliance</p>
             </div>
           </div>
-          <Link href="/dashboard">
+          <Link href="/command-center">
             <Button variant="outline">Back to Dashboard</Button>
           </Link>
         </div>

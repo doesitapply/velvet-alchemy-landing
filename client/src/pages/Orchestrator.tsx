@@ -48,7 +48,7 @@ export default function Orchestrator() {
             <h1 className="text-4xl font-bold font-serif italic text-foreground">The Orchestrator</h1>
             <p className="text-muted-foreground mt-2">Automated pipeline execution and monitoring</p>
           </div>
-          <Button variant="outline" onClick={() => setLocation("/dashboard")}>
+          <Button variant="outline" onClick={() => setLocation("/command-center")}>
             ← Back to Dashboard
           </Button>
         </div>

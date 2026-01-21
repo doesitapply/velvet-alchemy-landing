@@ -300,3 +300,16 @@
 - [x] Add meta keywords to index.html
 - [x] Test SEO metadata
 - [x] Save checkpoint
+
+
+## Fix 404 Error and Nested Anchor
+- [ ] Update AppHeader Dashboard link from /dashboard to /command-center
+- [ ] Fix nested anchor in LeadDetail header (Back/Visit Site buttons)
+- [ ] Test navigation to verify no 404 errors
+- [ ] Save checkpoint
+
+## Navigation Routing Fixes (Current)
+- [x] Fix /dashboard links to /command-center in LeadDetail.tsx (2 links)
+- [x] Fix /dashboard link to /command-center in Orchestrator.tsx (1 link)
+- [x] Fix /dashboard link to /command-center in GovernorDashboard.tsx (2 links)
+- [x] Fix nested anchor tag in LeadDetail Visit Site button

@@ -95,7 +95,7 @@ export default function LeadDetail() {
         <Card className="p-8 max-w-md text-center space-y-4">
           <h2 className="text-2xl font-serif italic">Invalid Lead ID</h2>
           <Button asChild>
-            <Link href="/dashboard">Back to Dashboard</Link>
+            <Link href="/command-center">Back to Dashboard</Link>
           </Button>
         </Card>
       </div>
@@ -119,7 +119,7 @@ export default function LeadDetail() {
             {error?.message || "The requested lead could not be found."}
           </p>
           <Button asChild>
-            <Link href="/dashboard">Back to Dashboard</Link>
+            <Link href="/command-center">Back to Dashboard</Link>
           </Button>
         </Card>
       </div>
@@ -173,11 +173,14 @@ export default function LeadDetail() {
                   )}
                 </Button>
               )}
-              <Button asChild variant="outline" size="lg" className="border-2 border-white/30">
-                <a href={lead.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-base">
-                  Visit Site
-                  <ExternalLink className="h-5 w-5" />
-                </a>
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-2 border-white/30 gap-2"
+                onClick={() => window.open(lead.websiteUrl, "_blank", "noopener,noreferrer")}
+              >
+                Visit Site
+                <ExternalLink className="h-5 w-5" />
               </Button>
             </div>
           </div>
