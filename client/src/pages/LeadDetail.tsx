@@ -158,7 +158,7 @@ export default function LeadDetail() {
                   onClick={() => startAudit.mutate({ leadId: lead.id })}
                   disabled={startAudit.isPending}
                   size="lg"
-                  className="gap-3 bg-gold text-black hover:bg-gold/90 text-xl px-8 py-6 font-bold shadow-lg shadow-gold/30 border-2 border-gold/50"
+                  className="gap-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 text-xl px-8 py-6 font-bold shadow-lg shadow-cyan-500/50 border-2 border-cyan-400/50 transition-all duration-300 hover:scale-105"
                 >
                   {startAudit.isPending ? (
                     <>
