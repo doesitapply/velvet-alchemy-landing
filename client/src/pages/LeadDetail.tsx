@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play } from "lu
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
+import AppHeader from "@/components/AppHeader";
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
@@ -129,23 +130,7 @@ export default function LeadDetail() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container flex h-16 items-center gap-4">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Link>
-          </Button>
-          <div className="flex-1">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
-              <span className="font-serif text-xl italic">Velvet Alchemy</span>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Main Content */}
       <main className="container py-8">
@@ -167,30 +152,31 @@ export default function LeadDetail() {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {lead.status === 'pending' && (
                 <Button
                   onClick={() => startAudit.mutate({ leadId: lead.id })}
                   disabled={startAudit.isPending}
-                  className="gap-2 bg-gold text-black hover:bg-gold/90"
+                  size="lg"
+                  className="gap-3 bg-gold text-black hover:bg-gold/90 text-xl px-8 py-6 font-bold shadow-lg shadow-gold/30 border-2 border-gold/50"
                 >
                   {startAudit.isPending ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-6 w-6 animate-spin" />
                       Starting Audit...
                     </>
                   ) : (
                     <>
-                      <Play className="h-4 w-4" />
-                      Start Audit
+                      <Play className="h-6 w-6" />
+                      START AUDIT NOW
                     </>
                   )}
                 </Button>
               )}
-              <Button asChild variant="outline">
-                <a href={lead.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+              <Button asChild variant="outline" size="lg" className="border-2 border-white/30">
+                <a href={lead.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-base">
                   Visit Site
-                  <ExternalLink className="h-4 w-4" />
+                  <ExternalLink className="h-5 w-5" />
                 </a>
               </Button>
             </div>

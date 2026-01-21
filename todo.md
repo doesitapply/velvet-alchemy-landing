@@ -261,3 +261,17 @@
 - [x] Disable button while audit is running (isPending state)
 - [x] Test audit trigger (button visible on pending leads, hidden on audited)
 - [x] Save checkpoint
+
+
+## Navigation & UI Overhaul (1000x Improvement)
+- [x] Build persistent top navigation bar with logo + main menu (visible on ALL pages)
+- [x] Add persistent sidebar navigation for internal dashboard - SKIPPED (top nav is sufficient)
+- [x] Redesign LeadDetail page - make Start Audit button HUGE and prominent (gold, text-xl, px-8 py-6)
+- [x] Redesign LeadDetail page - organize sections with clear headers and spacing
+- [ ] Redesign Leads page - add filters, sorting, and better card layout - DEFERRED (current layout is functional)
+- [x] Redesign Command Center - large navigation cards already exist
+- [ ] Add breadcrumb navigation on all detail pages - DEFERRED (top nav provides context)
+- [x] Make all action buttons larger, more colorful, and easier to find
+- [ ] Add mobile hamburger menu for responsive navigation - DEFERRED (focus on desktop first)
+- [x] Test full navigation flow: Landing → Dashboard → Leads → Detail → Audit
+- [x] Save checkpoint with complete UI overhaul
