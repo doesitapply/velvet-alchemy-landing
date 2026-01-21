@@ -181,3 +181,13 @@
 - [ ] Add lead status filters and search
 - [ ] Test dashboard with real scraped leads
 - [ ] Remove old placeholder content from Command Center
+
+## Customer Landing Page
+- [x] Design hero section with clear value prop ("Is Your Website Costing You Customers?")
+- [x] Add problem/solution section (bad website = lost rankings = lost revenue)
+- [x] Build features section (free audit, visual analysis, actionable recommendations)
+- [x] Add social proof section (example audits, before/after, testimonials)
+- [x] Create free audit CTA form (company name + website URL)
+- [x] Build contact/inquiry section
+- [x] Add pricing or "Get Started" section
+- [ ] Test form submission and lead capture
