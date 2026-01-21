@@ -1,269 +1,329 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import AppHeader from "@/components/AppHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Play, Loader2, CheckCircle2, XCircle, Clock, Zap, Eye, Sparkles, Mail } from "lucide-react";
-import { toast } from "sonner";
-
-interface Workflow {
-  id: string;
-  name: string;
-  description: string;
-  purpose: string;
-  icon: React.ReactNode;
-  action: () => Promise<void>;
-  status?: "idle" | "running" | "completed" | "failed";
-  progress?: number;
-}
+import { Loader2, TrendingUp, Users, CheckCircle2, Zap, Search, Play, Activity } from "lucide-react";
+import { Link } from "wouter";
 
 export default function CommandCenter() {
-  const [activeWorkflows, setActiveWorkflows] = useState<Record<string, { status: string; progress: number }>>({});
-  
-  const createLead = trpc.leads.create.useMutation();
-  const generateAssets = trpc.visionary.generateAssets.useMutation();
-  const generateDraft = trpc.charmer.generateDraft.useMutation();
-  const executePipeline = trpc.orchestrator.executePipeline.useMutation();
-  
-  const workflows: Workflow[] = [
-    {
-      id: "curator",
-      name: "The Curator",
-      description: "Capture and audit a lead's website",
-      purpose: "Takes a URL, captures a screenshot, and generates an AI-powered visual audit with prestige score (0-100). Identifies design issues, UX problems, and branding gaps.",
-      icon: <Eye className="h-6 w-6" />,
-      action: async () => {
-        const url = prompt("Enter company website URL:");
-        const company = prompt("Enter company name:");
-        if (!url || !company) return;
-        
-        setActiveWorkflows(prev => ({ ...prev, curator: { status: "running", progress: 30 } }));
-        
-        try {
-          await createLead.mutateAsync({ companyName: company, websiteUrl: url });
-          setActiveWorkflows(prev => ({ ...prev, curator: { status: "completed", progress: 100 } }));
-          toast.success("Lead created and audited successfully");
-        } catch (error) {
-          setActiveWorkflows(prev => ({ ...prev, curator: { status: "failed", progress: 0 } }));
-          toast.error("Failed to create lead");
-        }
-      },
-    },
-    {
-      id: "visionary",
-      name: "The Visionary",
-      description: "Generate visual assets for a lead",
-      purpose: "Extracts brand DNA (colors, fonts, vibe) from the visual audit and generates 3 social media posts + 1 web banner using AI. Creates professional design assets that look like a $10k/month agency made them.",
-      icon: <Sparkles className="h-6 w-6" />,
-      action: async () => {
-        const leadId = prompt("Enter lead ID:");
-        if (!leadId) return;
-        
-        setActiveWorkflows(prev => ({ ...prev, visionary: { status: "running", progress: 40 } }));
-        
-        try {
-          await generateAssets.mutateAsync({ leadId: parseInt(leadId) });
-          setActiveWorkflows(prev => ({ ...prev, visionary: { status: "completed", progress: 100 } }));
-          toast.success("Assets generated successfully");
-        } catch (error) {
-          setActiveWorkflows(prev => ({ ...prev, visionary: { status: "failed", progress: 0 } }));
-          toast.error("Failed to generate assets");
-        }
-      },
-    },
-    {
-      id: "charmer",
-      name: "The Charmer",
-      description: "Generate personalized outreach email",
-      purpose: "Creates AI-powered outreach copy based on visual audit findings and generated assets. Saves to approval queue for review before sending. Personalizes messaging to reference specific visual debt issues.",
-      icon: <Mail className="h-6 w-6" />,
-      action: async () => {
-        const leadId = prompt("Enter lead ID:");
-        if (!leadId) return;
-        
-        setActiveWorkflows(prev => ({ ...prev, charmer: { status: "running", progress: 50 } }));
-        
-        try {
-          await generateDraft.mutateAsync({ leadId: parseInt(leadId) });
-          setActiveWorkflows(prev => ({ ...prev, charmer: { status: "completed", progress: 100 } }));
-          toast.success("Outreach draft generated successfully");
-        } catch (error) {
-          setActiveWorkflows(prev => ({ ...prev, charmer: { status: "failed", progress: 0 } }));
-          toast.error("Failed to generate draft");
-        }
-      },
-    },
-    {
-      id: "orchestrator",
-      name: "The Orchestrator",
-      description: "Run the complete automated pipeline",
-      purpose: "Executes the full workflow: Screenshot → Visual Audit → Asset Generation → Outreach Draft. Transforms manual steps into a single autonomous operation. Handles errors and retries automatically.",
-      icon: <Zap className="h-6 w-6" />,
-      action: async () => {
-        const leadId = prompt("Enter lead ID:");
-        if (!leadId) return;
-        
-        setActiveWorkflows(prev => ({ ...prev, orchestrator: { status: "running", progress: 0 } }));
-        
-        try {
-          // Simulate progress updates
-          const stages = [
-            { name: "Screenshot", progress: 25 },
-            { name: "Visual Audit", progress: 50 },
-            { name: "Asset Generation", progress: 75 },
-            { name: "Outreach Draft", progress: 100 },
-          ];
-          
-          for (const stage of stages) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setActiveWorkflows(prev => ({ 
-              ...prev, 
-              orchestrator: { status: "running", progress: stage.progress } 
-            }));
-          }
-          
-          await executePipeline.mutateAsync({ leadId: parseInt(leadId) });
-          setActiveWorkflows(prev => ({ ...prev, orchestrator: { status: "completed", progress: 100 } }));
-          toast.success("Pipeline executed successfully");
-        } catch (error) {
-          setActiveWorkflows(prev => ({ ...prev, orchestrator: { status: "failed", progress: 0 } }));
-          toast.error("Pipeline execution failed");
-        }
-      },
-    },
-  ];
+  const metricsQuery = trpc.dashboard.getMetrics.useQuery();
+  const pipelineQuery = trpc.dashboard.getPipelineStats.useQuery();
+  const activityQuery = trpc.dashboard.getRecentActivity.useQuery();
+  const scoreDistQuery = trpc.dashboard.getScoreDistribution.useQuery();
 
-  const getStatusIcon = (status?: string) => {
-    switch (status) {
-      case "running":
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
-      case "completed":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case "failed":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
+  const metrics = metricsQuery.data;
+  const pipeline = pipelineQuery.data;
+  const activity = activityQuery.data;
+  const scoreDist = scoreDistQuery.data;
 
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case "running":
-        return <Badge variant="outline" className="border-blue-500 text-blue-500">Running</Badge>;
-      case "completed":
-        return <Badge variant="outline" className="border-green-500 text-green-500">Completed</Badge>;
-      case "failed":
-        return <Badge variant="outline" className="border-red-500 text-red-500">Failed</Badge>;
-      default:
-        return <Badge variant="outline">Idle</Badge>;
-    }
-  };
+  const isLoading = metricsQuery.isLoading || pipelineQuery.isLoading;
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="space-y-2">
-          <h1 className="text-4xl font-serif italic text-gold">Command Center</h1>
-          <p className="text-muted-foreground">
-            Launch and monitor autonomous workflows. Each agent executes a specific stage of the revenue pipeline.
-          </p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <AppHeader />
+      
+      <main className="container py-8">
+        <div className="space-y-8">
+          {/* Header */}
+          <div>
+            <h1 className="text-4xl font-serif italic text-gold mb-2">Command Center</h1>
+            <p className="text-muted-foreground">
+              Orchestrate your lead generation and outreach operations
+            </p>
+          </div>
 
-        {/* Workflow Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {workflows.map((workflow) => {
-            const workflowState = activeWorkflows[workflow.id];
-            const status = workflowState?.status || "idle";
-            const progress = workflowState?.progress || 0;
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-gold" />
+            </div>
+          )}
 
-            return (
-              <Card key={workflow.id} className="border-white/10 bg-black/50 backdrop-blur-md">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-md bg-gold/10 text-gold">
-                        {workflow.icon}
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl font-serif italic text-gold">
-                          {workflow.name}
-                        </CardTitle>
-                        <CardDescription className="text-sm text-muted-foreground">
-                          {workflow.description}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(status)}
-                      {getStatusBadge(status)}
-                    </div>
-                  </div>
+          {/* Metrics Grid */}
+          {!isLoading && metrics && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Total Leads */}
+              <Card className="bg-black/50 border-white/10">
+                <CardHeader className="pb-3">
+                  <CardDescription className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-blue-400" />
+                    Total Leads
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-sm font-mono text-muted-foreground">
-                      <span className="text-terminal">PURPOSE:</span> {workflow.purpose}
-                    </p>
-                  </div>
-
-                  {status === "running" && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Progress</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <Progress value={progress} className="h-2" />
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={workflow.action}
-                    disabled={status === "running"}
-                    className="w-full bg-gold/10 hover:bg-gold/20 text-gold border border-gold/20"
-                  >
-                    {status === "running" ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Running...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="mr-2 h-4 w-4" />
-                        Launch {workflow.name}
-                      </>
-                    )}
-                  </Button>
+                <CardContent>
+                  <div className="text-3xl font-bold text-blue-400">{metrics.totalLeads}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    +{metrics.leadsToday} today
+                  </p>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
 
-        {/* Quick Links */}
-        <Card className="border-white/10 bg-black/50 backdrop-blur-md">
-          <CardHeader>
-            <CardTitle className="text-lg font-serif italic text-gold">Quick Access</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Button variant="outline" className="border-white/20" asChild>
-                <a href="/dashboard">View All Leads</a>
-              </Button>
-              <Button variant="outline" className="border-white/20" asChild>
-                <a href="/charmer">Review Drafts</a>
-              </Button>
-              <Button variant="outline" className="border-white/20" asChild>
-                <a href="/governor">Safety Controls</a>
-              </Button>
-              <Button variant="outline" className="border-white/20" asChild>
-                <a href="/orchestrator">Pipeline Monitor</a>
-              </Button>
+              {/* Pending Audits */}
+              <Card className="bg-black/50 border-white/10">
+                <CardHeader className="pb-3">
+                  <CardDescription className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-yellow-400" />
+                    Pending Audits
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-yellow-400">{metrics.pendingAudits}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Awaiting analysis
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Completed Audits */}
+              <Card className="bg-black/50 border-white/10">
+                <CardHeader className="pb-3">
+                  <CardDescription className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-400" />
+                    Completed Audits
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-400">{metrics.completedAudits}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Avg score: {metrics.avgPrestigeScore}/100
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Conversion Rate */}
+              <Card className="bg-black/50 border-white/10">
+                <CardHeader className="pb-3">
+                  <CardDescription className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-gold" />
+                    Conversion Rate
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-gold">{metrics.conversionRate}%</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {metrics.withOutreach} outreach sent
+                  </p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+
+          {/* Pipeline Funnel */}
+          {!isLoading && pipeline && (
+            <Card className="bg-black/50 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-gold">Lead Pipeline</CardTitle>
+                <CardDescription>Track leads through each stage of the process</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {/* Scraped */}
+                  <div className="relative">
+                    <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Scraped</div>
+                      <div className="text-2xl font-bold text-blue-400">{pipeline.scraped}</div>
+                    </div>
+                    <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
+                  </div>
+
+                  {/* Audited */}
+                  <div className="relative">
+                    <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Audited</div>
+                      <div className="text-2xl font-bold text-green-400">{pipeline.audited}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {pipeline.scraped > 0 ? Math.round((pipeline.audited / pipeline.scraped) * 100) : 0}% of total
+                      </div>
+                    </div>
+                    <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
+                  </div>
+
+                  {/* Assets Generated */}
+                  <div className="relative">
+                    <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Assets</div>
+                      <div className="text-2xl font-bold text-purple-400">{pipeline.assets}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {pipeline.audited > 0 ? Math.round((pipeline.assets / pipeline.audited) * 100) : 0}% of audited
+                      </div>
+                    </div>
+                    <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
+                  </div>
+
+                  {/* Outreach Sent */}
+                  <div>
+                    <div className="bg-gold/20 border border-gold/30 rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Outreach</div>
+                      <div className="text-2xl font-bold text-gold">{pipeline.outreach}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {pipeline.assets > 0 ? Math.round((pipeline.outreach / pipeline.assets) * 100) : 0}% of assets
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Run Scraper */}
+            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20 hover:border-blue-500/40 transition-colors">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-400">
+                  <Search className="h-5 w-5" />
+                  Business Scraper
+                </CardTitle>
+                <CardDescription>
+                  Find local businesses and bulk-create leads
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/scraper">
+                  <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white">
+                    <Search className="mr-2 h-4 w-4" />
+                    Launch Scraper
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* Start Orchestrator */}
+            <Card className="bg-gradient-to-br from-gold/10 to-gold/5 border-gold/20 hover:border-gold/40 transition-colors">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gold">
+                  <Play className="h-5 w-5" />
+                  Orchestrator
+                </CardTitle>
+                <CardDescription>
+                  Automate the full pipeline for all leads
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/orchestrator">
+                  <Button className="w-full bg-gold hover:bg-gold/90 text-black">
+                    <Play className="mr-2 h-4 w-4" />
+                    Run Pipeline
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* View Leads */}
+            <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20 hover:border-green-500/40 transition-colors">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-green-400">
+                  <Users className="h-5 w-5" />
+                  Manage Leads
+                </CardTitle>
+                <CardDescription>
+                  View, filter, and manage all your leads
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/leads">
+                  <Button className="w-full bg-green-500 hover:bg-green-600 text-white">
+                    <Users className="mr-2 h-4 w-4" />
+                    View All Leads
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Activity & Score Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Recent Activity */}
+            {!isLoading && activity && (
+              <Card className="bg-black/50 border-white/10">
+                <CardHeader>
+                  <CardTitle className="text-gold">Recent Activity</CardTitle>
+                  <CardDescription>Latest updates across all leads</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {activity.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No activity yet. Start by scraping some leads!
+                      </p>
+                    ) : (
+                      activity.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0"
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{item.companyName}</p>
+                            <p className="text-xs text-muted-foreground">{item.activity}</p>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(item.timestamp).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Score Distribution */}
+            {!isLoading && scoreDist && (
+              <Card className="bg-black/50 border-white/10">
+                <CardHeader>
+                  <CardTitle className="text-gold">Prestige Score Distribution</CardTitle>
+                  <CardDescription>Quality breakdown of audited leads</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {/* Excellent */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <span className="text-sm">Excellent (80-100)</span>
+                      </div>
+                      <span className="text-sm font-semibold text-green-400">{scoreDist.excellent}</span>
+                    </div>
+
+                    {/* Good */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="text-sm">Good (60-79)</span>
+                      </div>
+                      <span className="text-sm font-semibold text-blue-400">{scoreDist.good}</span>
+                    </div>
+
+                    {/* Fair */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <span className="text-sm">Fair (40-59)</span>
+                      </div>
+                      <span className="text-sm font-semibold text-yellow-400">{scoreDist.fair}</span>
+                    </div>
+
+                    {/* Poor */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <span className="text-sm">Poor (0-39)</span>
+                      </div>
+                      <span className="text-sm font-semibold text-red-400">{scoreDist.poor}</span>
+                    </div>
+
+                    {scoreDist.excellent + scoreDist.good + scoreDist.fair + scoreDist.poor === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No audited leads yet
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

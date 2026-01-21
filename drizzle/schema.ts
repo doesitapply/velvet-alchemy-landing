@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -47,6 +47,9 @@ export const leads = mysqlTable("leads", {
   screenshotUrl: varchar("screenshotUrl", { length: 512 }),
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for deletion
   status: mysqlEnum("status", ["pending", "audited", "contacted", "closed"]).default("pending").notNull(),
+  prestigeScore: int("prestigeScore"), // 0-100, copied from audit for quick access
+  hasAssets: boolean("hasAssets").default(false).notNull(), // True if Visionary generated assets
+  hasOutreach: boolean("hasOutreach").default(false).notNull(), // True if Charmer sent outreach
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

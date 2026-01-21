@@ -168,3 +168,16 @@
 - [x] Test search with "pizza restaurant Reno NV"
 - [x] Test bulk lead creation from 10+ search results (19 leads created successfully)
 - [ ] Add error handling and rate limiting
+
+## Command Center Dashboard Rebuild
+- [x] Create backend procedures for dashboard metrics (total leads, pending audits, completed outreach, conversion rates)
+- [x] Add lead pipeline stats endpoint (scraped → audited → assets → outreach)
+- [x] Add missing fields to leads table (prestigeScore, hasAssets, hasOutreach)
+- [ ] Build unified Command Center UI with live metrics cards
+- [ ] Add visual lead pipeline funnel/chart
+- [ ] Add quick action cards (Run Scraper, Start Orchestrator, View Activity)
+- [ ] Add recent activity feed showing real-time updates
+- [ ] Implement batch operations UI (select multiple leads, run actions)
+- [ ] Add lead status filters and search
+- [ ] Test dashboard with real scraped leads
+- [ ] Remove old placeholder content from Command Center
