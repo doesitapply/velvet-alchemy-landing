@@ -53,6 +53,7 @@ export default function AppHeader() {
 
               return (
                 <Button
+                  key={item.path}
                   asChild
                   variant="ghost"
                   size="sm"
@@ -62,7 +63,7 @@ export default function AppHeader() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Link key={item.path} href={item.path} className="flex items-center gap-2">
+                  <Link href={item.path} className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
                     {item.label}
                   </Link>
