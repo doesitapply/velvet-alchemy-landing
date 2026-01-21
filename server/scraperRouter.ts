@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
-// Note: Using Manus search API via fetch since SDK doesn't export search function
+import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
 import * as db from "./db";
 
 /**
@@ -11,7 +11,7 @@ import * as db from "./db";
 
 export const scraperRouter = router({
   /**
-   * Search for local businesses using Google Search
+   * Search for local businesses using Google Maps Places API
    * Returns businesses with their websites and basic info
    */
   searchBusinesses: protectedProcedure
@@ -31,38 +31,62 @@ export const scraperRouter = router({
       const searchQuery = `${category} in ${location}`;
 
       try {
-        // Use Manus search API to find businesses
-        // Use Manus search API to find businesses
-        // For now, return empty array - will implement proper search integration
-        const searchResults: any[] = [];
-        
-        // TODO: Implement search API call
+        // Use Google Maps Places API to search for businesses
+        const placesResult = await makeRequest<PlacesSearchResult>(
+          "/maps/api/place/textsearch/json",
+          { query: searchQuery }
+        );
 
-        // Extract business info from search results
+        if (placesResult.status !== "OK" || !placesResult.results) {
+          return {
+            success: true,
+            businesses: [],
+            query: searchQuery,
+            count: 0,
+          };
+        }
+
+        // Fetch details for each place to get website URLs
         const businesses = [];
-        for (const result of searchResults.slice(0, limit)) {
-          // Extract domain from URL
-          const url = result.url || result.link;
-          if (!url) continue;
+        for (const place of placesResult.results.slice(0, limit)) {
+          try {
+            // Fetch place details to get website URL
+            const details = await makeRequest<PlaceDetailsResult>(
+              "/maps/api/place/details/json",
+              { 
+                place_id: place.place_id,
+                fields: "name,website,formatted_address,rating,user_ratings_total"
+              }
+            );
 
-          // Skip aggregator sites
-          if (
-            url.includes("yelp.com") ||
-            url.includes("yellowpages.com") ||
-            url.includes("facebook.com") ||
-            url.includes("google.com/maps")
-          ) {
+            const url = details.result.website;
+            if (!url) continue; // Skip businesses without websites
+
+            // Skip aggregator sites
+            if (
+              url.includes("yelp.com") ||
+              url.includes("yellowpages.com") ||
+              url.includes("facebook.com") ||
+              url.includes("google.com/maps")
+            ) {
+              continue;
+            }
+
+            businesses.push({
+              name: details.result.name,
+              url: url,
+              snippet: `${details.result.formatted_address} | Rating: ${details.result.rating || "N/A"} (${details.result.user_ratings_total || 0} reviews)`,
+              category: category,
+              city: city,
+              state: state || "",
+              rating: details.result.rating,
+              reviewCount: details.result.user_ratings_total,
+              address: details.result.formatted_address,
+            });
+          } catch (error) {
+            console.error(`Failed to fetch details for ${place.name}:`, error);
             continue;
           }
-
-          businesses.push({
-            name: result.title || "Unknown Business",
-            url: url,
-            snippet: result.snippet || result.description || "",
-            category: category,
-            city: city,
-            state: state || "",
-          });
         }
 
         return {
@@ -81,7 +105,7 @@ export const scraperRouter = router({
     }),
 
   /**
-   * Check Google ranking for a specific business/keyword
+   * Check Google Maps ranking for a specific business/keyword
    * Returns ranking position (1-100) or null if not found
    */
   checkRanking: protectedProcedure
@@ -96,26 +120,32 @@ export const scraperRouter = router({
       const { businessName, keyword, location } = input;
 
       try {
-        // Search Google for the keyword + location
+        // Search Google Maps for the keyword + location
         const searchQuery = `${keyword} ${location}`;
-        // Use Manus search API to find businesses
-        // For now, return empty array - will implement proper search integration
-        const searchResults: any[] = [];
-        
-        // TODO: Implement search API call
+        const placesResult = await makeRequest<PlacesSearchResult>(
+          "/maps/api/place/textsearch/json",
+          { query: searchQuery }
+        );
+
+        if (placesResult.status !== "OK" || !placesResult.results) {
+          return {
+            success: true,
+            businessName,
+            keyword,
+            location,
+            position: null,
+            message: `${businessName} not found in top 100 results for "${keyword}"`,
+          };
+        }
 
         // Find the business in search results
         let position = null;
-        for (let i = 0; i < searchResults.length; i++) {
-          const result = searchResults[i];
-          const title = result.title || "";
-          const url = result.url || result.link || "";
+        for (let i = 0; i < placesResult.results.length; i++) {
+          const place = placesResult.results[i];
+          const name = place.name || "";
 
           // Check if this result matches the business
-          if (
-            title.toLowerCase().includes(businessName.toLowerCase()) ||
-            url.toLowerCase().includes(businessName.toLowerCase().replace(/\s+/g, ""))
-          ) {
+          if (name.toLowerCase().includes(businessName.toLowerCase())) {
             position = i + 1;
             break;
           }
@@ -163,31 +193,60 @@ export const scraperRouter = router({
         const location = state ? `${city}, ${state}` : city;
         const searchQuery = `${category} in ${location}`;
 
-        // Use Manus search API to find businesses
-        // For now, return empty array - will implement proper search integration
-        const searchResults: any[] = [];
-        
-        // TODO: Implement search API call
+        // Use Google Maps Places API to search for businesses
+        const placesResult = await makeRequest<PlacesSearchResult>(
+          "/maps/api/place/textsearch/json",
+          { query: searchQuery }
+        );
+
+        if (placesResult.status !== "OK" || !placesResult.results) {
+          return {
+            success: true,
+            query: searchQuery,
+            totalFound: 0,
+            createdCount: 0,
+            errorCount: 0,
+            leads: [],
+            errors: [],
+          };
+        }
 
         // Step 2: Filter and process businesses
         const createdLeads = [];
         const errors = [];
 
-        for (const result of searchResults.slice(0, limit)) {
-          const url = result.url || result.link;
-          if (!url) continue;
+        for (const place of placesResult.results.slice(0, limit)) {
+          let url: string | undefined;
+          let businessName: string;
 
-          // Skip aggregator sites
-          if (
-            url.includes("yelp.com") ||
-            url.includes("yellowpages.com") ||
-            url.includes("facebook.com") ||
-            url.includes("google.com/maps")
-          ) {
+          try {
+            // Fetch place details to get website URL
+            const details = await makeRequest<PlaceDetailsResult>(
+              "/maps/api/place/details/json",
+              { 
+                place_id: place.place_id,
+                fields: "name,website,formatted_address"
+              }
+            );
+
+            url = details.result.website;
+            businessName = details.result.name;
+
+            if (!url) continue; // Skip businesses without websites
+
+            // Skip aggregator sites
+            if (
+              url.includes("yelp.com") ||
+              url.includes("yellowpages.com") ||
+              url.includes("facebook.com") ||
+              url.includes("google.com/maps")
+            ) {
+              continue;
+            }
+          } catch (error) {
+            console.error(`Failed to fetch details for ${place.name}:`, error);
             continue;
           }
-
-          const businessName = result.title || "Unknown Business";
 
           try {
             // Check if lead already exists by URL
@@ -224,7 +283,7 @@ export const scraperRouter = router({
         return {
           success: true,
           query: searchQuery,
-          totalFound: searchResults.length,
+          totalFound: placesResult.results.length,
           createdCount: createdLeads.length,
           errorCount: errors.length,
           leads: createdLeads,

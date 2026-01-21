@@ -159,3 +159,12 @@
 - [ ] Replace browser prompt() with proper modals in Command Center
 - [ ] Load real data in Governor dashboard (rate limits, audit logs)
 - [ ] Remove all mock data and placeholder content
+
+## Search API Integration
+- [x] Research available search APIs (Manus built-in, SerpAPI, DataForSEO)
+- [x] Choose and configure search API provider (Google Maps Places API)
+- [x] Implement searchBusinesses in scraperRouter with real API calls
+- [x] Implement checkRanking with real Google ranking data
+- [x] Test search with "pizza restaurant Reno NV"
+- [x] Test bulk lead creation from 10+ search results (19 leads created successfully)
+- [ ] Add error handling and rate limiting
