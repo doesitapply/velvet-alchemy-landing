@@ -229,3 +229,15 @@
 - [x] Add success/error toast notifications
 - [x] Test email sending with unit tests (4/4 passing)
 - [x] Update todo.md to mark tasks complete
+
+
+## Landing Page Routing Update
+- [x] Create new landing page at "/" with two paths
+- [x] Path 1: "Get Free Audit" → Customer Portal (self-service audit)
+- [x] Path 2: "Internal Dashboard" → Command Center (admin tools)
+- [x] Move current Landing.tsx to CustomerPortal.tsx at /customer-portal
+- [x] Update App.tsx routing structure
+- [x] Fix all navigation links in sidebar and headers
+- [x] Test customer portal flow (audit submission)
+- [x] Test internal dashboard flow (all admin tools)
+- [x] Save checkpoint

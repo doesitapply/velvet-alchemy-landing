@@ -6,7 +6,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { SoundProvider } from "./contexts/SoundContext";
 import Home from "@/pages/Home";
-import Landing from "@/pages/Landing";
+import LandingHome from "@/pages/LandingHome";
+import CustomerPortal from "@/pages/CustomerPortal";
 import About from "@/pages/About";
 import GovernorDashboard from "./pages/GovernorDashboard";
 import Charmer from "./pages/Charmer";
@@ -23,7 +24,8 @@ function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-       <Route path="/" component={Landing} />
+      <Route path="/" component={LandingHome} />
+      <Route path="/customer-portal" component={CustomerPortal} />
       <Route path="/old-home" component={Home} />
       <Route path="/about" component={About} />
        <Route path="/governor" component={GovernorDashboard} />
