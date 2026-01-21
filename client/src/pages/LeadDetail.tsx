@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import AppHeader from "@/components/AppHeader";
+import { AuditProgressBar } from "@/components/AuditProgressBar";
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
@@ -184,6 +185,20 @@ export default function LeadDetail() {
               </Button>
             </div>
           </div>
+
+          {/* Progress Bar */}
+          {lead.status === 'pending' && (
+            <AuditProgressBar 
+              leadId={lead.id} 
+              onComplete={() => {
+                toast.success("Audit completed! Refreshing page...");
+                setTimeout(() => window.location.reload(), 1500);
+              }}
+              onError={(error) => {
+                toast.error(`Audit failed: ${error}`);
+              }}
+            />
+          )}
 
           {/* Screenshot */}
           {lead.screenshotUrl && (

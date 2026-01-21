@@ -189,6 +189,7 @@ export const pipelineJobs = mysqlTable("pipeline_jobs", {
   leadId: int("leadId").notNull().references(() => leads.id, { onDelete: "cascade" }),
   status: mysqlEnum("status", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
   currentStage: varchar("currentStage", { length: 50 }),
+  progressPercentage: int("progressPercentage").default(0).notNull(), // 0-100
   stagesCompleted: text("stagesCompleted"), // JSON array of completed stages
   errorMessage: text("errorMessage"),
   retryCount: int("retryCount").default(0).notNull(),

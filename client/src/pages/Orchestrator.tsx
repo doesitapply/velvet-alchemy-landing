@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Play, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { AuditProgressBar } from "@/components/AuditProgressBar";
 
 export default function Orchestrator() {
   const [, setLocation] = useLocation();
@@ -134,6 +135,21 @@ export default function Orchestrator() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Progress Bar for running audits */}
+                    {lead.status === 'pending' && (
+                      <div className="flex-1 ml-4">
+                        <AuditProgressBar 
+                          leadId={lead.id} 
+                          onComplete={() => {
+                            toast.success(`Audit completed for ${lead.companyName}!`);
+                          }}
+                          onError={(error) => {
+                            toast.error(`Audit failed for ${lead.companyName}: ${error}`);
+                          }}
+                        />
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-2">
                       <Button

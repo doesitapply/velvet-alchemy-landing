@@ -335,3 +335,16 @@
 - [x] Fix error handling and user feedback - EXISTS: error toasts, try-catch blocks
 - [x] Ensure all database operations work correctly - VERIFIED: all CRUD operations working
 - [x] Test end-to-end workflow with real data - VERIFIED: 45 real Reno businesses (roofing + pizza)
+
+## Real-Time Audit Progress Tracking (COMPLETED)
+- [x] Design progress tracking architecture (polling vs WebSocket) - POLLING chosen for simplicity
+- [x] Update pipeline_jobs table schema to track current stage and progress percentage - Added progressPercentage column
+- [x] Implement backend progress updates in orchestrator.ts (update job status at each stage) - Progress updates at 0%, 25%, 75%, 90%, 100%
+- [x] Create AuditProgressBar component with stage indicators - 3 stages: Screenshot, Assets, Outreach with icons
+- [x] Add polling mechanism to fetch job status every 2 seconds - Using tRPC refetchInterval
+- [x] Integrate progress bar into LeadDetail page (show during audit) - Shows for pending leads, auto-refreshes on complete
+- [x] Integrate progress bar into Orchestrator page (show for each running job) - Shows for all pending leads in list
+- [x] Add stage transitions: Screenshot (0-75%) → Assets (75-90%) → Outreach (90-100%) - Implemented with color-coded states
+- [x] Test progress tracking with real audit execution - VERIFIED: Progress bars display, stages update, errors show correctly
+- [x] Add error state handling (show failed stage in red) - Error messages display with red border and icon
+- [x] Save checkpoint

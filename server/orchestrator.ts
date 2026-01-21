@@ -47,6 +47,7 @@ async function updatePipelineJob(
   updates: {
     status?: "pending" | "running" | "completed" | "failed";
     currentStage?: string | null;
+    progressPercentage?: number;
     stagesCompleted?: string[];
     errorMessage?: string | null;
     retryCount?: number;
@@ -59,6 +60,7 @@ async function updatePipelineJob(
   const updateData: Record<string, unknown> = {};
   if (updates.status !== undefined) updateData.status = updates.status;
   if (updates.currentStage !== undefined) updateData.currentStage = updates.currentStage;
+  if (updates.progressPercentage !== undefined) updateData.progressPercentage = updates.progressPercentage;
   if (updates.stagesCompleted !== undefined) updateData.stagesCompleted = JSON.stringify(updates.stagesCompleted);
   if (updates.errorMessage !== undefined) updateData.errorMessage = updates.errorMessage;
   if (updates.retryCount !== undefined) updateData.retryCount = updates.retryCount;
@@ -235,9 +237,9 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
   const jobId = await createPipelineJob(leadId);
 
   try {
-    await updatePipelineJob(jobId, { status: "running", currentStage: "screenshot" });
+    await updatePipelineJob(jobId, { status: "running", currentStage: "screenshot", progressPercentage: 0 });
 
-    // Stage 1: Screenshot + Audit
+    // Stage 1: Screenshot + Audit (0-75%)
     const stage1Result = await runScreenshotAndAuditStage(leadId, userId);
     if (!stage1Result.success) {
       await updatePipelineJob(jobId, {
@@ -249,10 +251,11 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
     }
     await updatePipelineJob(jobId, {
       currentStage: "assets",
+      progressPercentage: 75,
       stagesCompleted: ["screenshot"],
     });
 
-    // Stage 2: Asset Generation
+    // Stage 2: Asset Generation (75-90%)
     const stage2Result = await runAssetGenerationStage(leadId, userId);
     if (!stage2Result.success) {
       await updatePipelineJob(jobId, {
@@ -264,10 +267,11 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
     }
     await updatePipelineJob(jobId, {
       currentStage: "outreach",
+      progressPercentage: 90,
       stagesCompleted: ["screenshot", "assets"],
     });
 
-    // Stage 3: Outreach Draft
+    // Stage 3: Outreach Draft (90-100%)
     const stage3Result = await runOutreachDraftStage(leadId, userId);
     if (!stage3Result.success) {
       await updatePipelineJob(jobId, {
@@ -282,6 +286,7 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
     await updatePipelineJob(jobId, {
       status: "completed",
       currentStage: null,
+      progressPercentage: 100,
       stagesCompleted: ["screenshot", "assets", "outreach"],
       completedAt: new Date(),
     });
