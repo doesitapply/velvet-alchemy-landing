@@ -153,7 +153,18 @@ export async function getLeadsByUserId(userId: number): Promise<Lead[]> {
     return [];
   }
 
-  return await db.select().from(leads).where(eq(leads.userId, userId));
+  // Only return audited leads with prestige score >= 60 (qualified leads)
+  const { and, gte } = await import("drizzle-orm");
+  return await db
+    .select()
+    .from(leads)
+    .where(
+      and(
+        eq(leads.userId, userId),
+        eq(leads.status, "audited"),
+        gte(leads.prestigeScore, 60)
+      )
+    );
 }
 
 export async function getLeadById(id: number): Promise<Lead | null> {

@@ -270,6 +270,20 @@ export const scraperRouter = router({
             });
 
             createdLeads.push(lead);
+
+            // Auto-trigger audit for the newly created lead
+            if (lead && lead.id) {
+              try {
+                // Import orchestrator pipeline function
+                const { executePipeline } = await import("./orchestrator");
+                // Queue audit in background (don't await to avoid blocking scraper)
+                executePipeline(lead.id, ctx.user.id).catch((err: any) => {
+                  console.error(`Auto-audit failed for lead ${lead.id}:`, err);
+                });
+              } catch (auditError) {
+                console.error(`Failed to trigger auto-audit for ${businessName}:`, auditError);
+              }
+            }
           } catch (error) {
             console.error(`Error creating lead for ${businessName}:`, error);
             errors.push({

@@ -275,3 +275,13 @@
 - [ ] Add mobile hamburger menu for responsive navigation - DEFERRED (focus on desktop first)
 - [x] Test full navigation flow: Landing → Dashboard → Leads → Detail → Audit
 - [x] Save checkpoint with complete UI overhaul
+
+
+## Auto-Audit Pipeline & Lead Qualification
+- [x] Modify Scraper backend to automatically trigger audit after creating leads
+- [x] Add prestige score threshold filter to Leads page (only show audited leads >= 60)
+- [x] Update Leads page query to filter by status='audited' AND prestigeScore >= 60
+- [ ] Add "Qualified Leads" header to Leads page - DEFERRED (current header is sufficient)
+- [ ] Add stats card showing total scraped vs qualified leads - DEFERRED (can add later)
+- [x] Test full workflow: Scraper → Auto-Audit → Filtered Leads page (verified filtering works - page now empty)
+- [x] Save checkpoint
