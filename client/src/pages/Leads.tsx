@@ -189,18 +189,17 @@ export default function Leads() {
                       </div>
                     </div>
 
-                    <Link href={`/leads/${lead.id}`}>
-                      <a>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 border-white/20 hover:bg-white/5"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View Details
-                        </Button>
-                      </a>
-                    </Link>
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 border-white/20 hover:bg-white/5"
+                    >
+                      <Link href={`/leads/${lead.id}`} className="flex items-center gap-2">
+                        <Eye className="h-4 w-4" />
+                        View Details
+                      </Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
