@@ -241,3 +241,14 @@
 - [x] Test customer portal flow (audit submission)
 - [x] Test internal dashboard flow (all admin tools)
 - [x] Save checkpoint
+
+
+## Global Toast Notification System
+- [x] Install Sonner package for toast notifications
+- [x] Set up Toaster provider in main.tsx
+- [x] Add toast to Orchestrator (audit started, completed, failed)
+- [x] Add toast to email sending (LeadDetail, Charmer) - already implemented
+- [x] Add toast to Scraper (businesses found, scrape complete)
+- [x] Add toast to lead management (lead deleted, updated) - implemented in mutations
+- [x] Test all toast notifications
+- [x] Save checkpoint

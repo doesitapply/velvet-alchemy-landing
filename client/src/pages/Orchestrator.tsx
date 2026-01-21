@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Play, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 
 export default function Orchestrator() {
   const [, setLocation] = useLocation();
@@ -13,10 +14,14 @@ export default function Orchestrator() {
 
   const executePipelineMutation = trpc.orchestrator.executePipeline.useMutation({
     onSuccess: () => {
-      alert("Pipeline execution started! Check back in a few minutes.");
+      toast.success("Pipeline started!", {
+        description: "Audit will complete in 2-3 minutes. Check back soon.",
+      });
     },
     onError: (error) => {
-      alert(`Failed to start pipeline: ${error.message}`);
+      toast.error("Pipeline failed", {
+        description: error.message,
+      });
     },
   });
 

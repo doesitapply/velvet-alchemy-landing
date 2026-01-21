@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { trpc } from "@/lib/trpc";
 import { Loader2, Search, CheckCircle2, XCircle, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 export default function BusinessScraper() {
   const [city, setCity] = useState("Reno");
@@ -17,13 +18,30 @@ export default function BusinessScraper() {
   const [limit, setLimit] = useState(20);
 
   const categoriesQuery = trpc.scraper.getCategories.useQuery();
-  const bulkScrapeMutation = trpc.scraper.bulkScrapeAndCreate.useMutation();
+  const bulkScrapeMutation = trpc.scraper.bulkScrapeAndCreate.useMutation({
+    onSuccess: (data) => {
+      toast.success("Scrape complete!", {
+        description: `Found ${data.createdCount} businesses. Check the Leads page.`,
+      });
+    },
+    onError: (error) => {
+      toast.error("Scrape failed", {
+        description: error.message,
+      });
+    },
+  });
 
   const handleScrape = () => {
     if (!category || !targetKeyword) {
-      alert("Please select a category and enter a target keyword");
+      toast.error("Missing fields", {
+        description: "Please select a category and enter a target keyword",
+      });
       return;
     }
+    
+    toast.loading("Scraping businesses...", {
+      description: "This may take 30-60 seconds",
+    });
 
     bulkScrapeMutation.mutate({
       city,
