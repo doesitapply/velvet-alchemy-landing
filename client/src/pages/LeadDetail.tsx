@@ -81,9 +81,7 @@ export default function LeadDetail() {
         <Card className="p-8 max-w-md text-center space-y-4">
           <h2 className="text-2xl font-serif italic">Invalid Lead ID</h2>
           <Button asChild>
-            <Link href="/dashboard">
-              <a>Back to Dashboard</a>
-            </Link>
+            <Link href="/dashboard">Back to Dashboard</Link>
           </Button>
         </Card>
       </div>
@@ -107,9 +105,7 @@ export default function LeadDetail() {
             {error?.message || "The requested lead could not be found."}
           </p>
           <Button asChild>
-            <Link href="/dashboard">
-              <a>Back to Dashboard</a>
-            </Link>
+            <Link href="/dashboard">Back to Dashboard</Link>
           </Button>
         </Card>
       </div>
@@ -124,19 +120,15 @@ export default function LeadDetail() {
       <header className="border-b border-border bg-card">
         <div className="container flex h-16 items-center gap-4">
           <Button asChild variant="ghost" size="sm">
-            <Link href="/dashboard">
-              <a className="flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </a>
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back
             </Link>
           </Button>
           <div className="flex-1">
-            <Link href="/">
-              <a className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
-                <span className="font-serif text-xl italic">Velvet Alchemy</span>
-              </a>
+            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+              <span className="font-serif text-xl italic">Velvet Alchemy</span>
             </Link>
           </div>
         </div>
