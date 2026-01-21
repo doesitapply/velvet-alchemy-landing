@@ -202,3 +202,11 @@
 - [x] Include step-by-step "How to Get Started" guide
 - [x] Add route and navigation links
 - [ ] Test page and save checkpoint
+
+## Critical Bug Fixes (From Stress Test 2)
+- [x] Fix landing page form submission - debug why trpc.leads.create fails (created public procedure)
+- [x] Add loading progress indicator during 35-40 second visual audit
+- [x] Sync prestige scores from audits table to leads table after audit completes
+- [x] Add success toast when lead is created successfully (already implemented)
+- [x] Add error logging for form submission failures (already implemented)
+- [x] Test all fixes end-to-end with real data (all 3 fixes working, timeout issue identified)

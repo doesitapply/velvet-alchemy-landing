@@ -11,8 +11,10 @@ export default function Landing() {
   const [companyName, setCompanyName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
 
-  const createLead = trpc.leads.create.useMutation();
+  const createLead = trpc.leads.createPublic.useMutation();
 
   const handleFreeAudit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,15 +25,43 @@ export default function Landing() {
     }
 
     setIsSubmitting(true);
+    setProgress(0);
+    setProgressMessage("Capturing screenshot...");
+
+    // Simulate progress updates
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev < 30) {
+          setProgressMessage("Capturing screenshot...");
+          return prev + 2;
+        } else if (prev < 90) {
+          setProgressMessage("Analyzing design with AI...");
+          return prev + 1;
+        } else {
+          setProgressMessage("Calculating prestige score...");
+          return prev + 0.5;
+        }
+      });
+    }, 500);
+
     try {
       await createLead.mutateAsync({ companyName, websiteUrl });
-      toast.success("Audit request submitted! We'll contact you within 24 hours.");
+      clearInterval(progressInterval);
+      setProgress(100);
+      setProgressMessage("Complete!");
+      toast.success("Audit complete! We'll contact you within 24 hours with your detailed report.");
       setCompanyName("");
       setWebsiteUrl("");
     } catch (error) {
+      clearInterval(progressInterval);
       toast.error("Failed to submit audit request. Please try again.");
+      console.error("Audit error:", error);
     } finally {
-      setIsSubmitting(false);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setProgress(0);
+        setProgressMessage("");
+      }, 2000);
     }
   };
 
@@ -97,12 +127,25 @@ export default function Landing() {
                       className="bg-white/5 border-white/10"
                     />
                   </div>
+                  {isSubmitting && (
+                    <div className="space-y-2">
+                      <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="h-full bg-gold transition-all duration-500 ease-out"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <p className="text-sm text-center text-muted-foreground">
+                        {progressMessage} ({Math.round(progress)}%)
+                      </p>
+                    </div>
+                  )}
                   <Button
                     type="submit"
                     disabled={isSubmitting}
                     className="w-full bg-gold hover:bg-gold/90 text-black font-semibold h-12 text-lg"
                   >
-                    {isSubmitting ? "Analyzing..." : "Get Your Free Audit"}
+                    {isSubmitting ? progressMessage || "Analyzing..." : "Get Your Free Audit"}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center">
                     No credit card required • Results in 24 hours • 100% confidential

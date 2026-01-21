@@ -3,7 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { addToWaitlist, createLead, getLeadsByUserId, getLeadById, createAudit, getAuditByLeadId } from "./db";
+import { addToWaitlist, createLead, getLeadsByUserId, getLeadById, updateLead, createAudit, getAuditByLeadId } from "./db";
 import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -47,6 +47,64 @@ export const appRouter = router({
   }),
 
   leads: router({
+    createPublic: publicProcedure
+      .input(z.object({
+        companyName: z.string().min(1),
+        websiteUrl: z.string().url(),
+      }))
+      .mutation(async ({ input }) => {
+        // For public form submissions, use a default system user ID
+        const SYSTEM_USER_ID = 1; // Owner's user ID from env
+
+        // Capture screenshot
+        const screenshot = await captureScreenshot(input.websiteUrl);
+        
+        if (!screenshot.success) {
+          throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
+        }
+
+        // Upload to S3
+        const fileKey = `leads/public/${nanoid()}.png`;
+        const uploadResult = await storagePut(fileKey, screenshot.buffer, 'image/png');
+
+        // Create lead record
+        const lead = await createLead({
+          userId: SYSTEM_USER_ID,
+          companyName: input.companyName,
+          websiteUrl: input.websiteUrl,
+          screenshotUrl: uploadResult.url,
+          screenshotKey: fileKey,
+          status: 'pending',
+        });
+
+        if (!lead) {
+          throw new Error('Failed to create lead record');
+        }
+
+        // Run visual audit using LLM
+        const auditResult = await analyzeVisualDebt(
+          uploadResult.url,
+          input.websiteUrl,
+          input.companyName
+        );
+
+        // Create audit record with LLM results
+        const audit = await createAudit({
+          leadId: lead.id,
+          summary: auditResult.summary,
+          prestigeScore: auditResult.prestigeScore,
+          visualDebtData: JSON.stringify(auditResult),
+        });
+
+        // Update lead with prestige score
+        const updatedLead = await updateLead(lead.id, {
+          prestigeScore: auditResult.prestigeScore,
+          status: 'audited',
+        });
+
+        return { lead: updatedLead || lead, audit };
+      }),
+
     create: protectedProcedure
       .input(z.object({
         companyName: z.string().min(1),
@@ -112,6 +170,12 @@ export const appRouter = router({
           visualDebtData: JSON.stringify(auditResult),
         });
 
+        // Update lead with prestige score
+        const updatedLead = await updateLead(lead.id, {
+          prestigeScore: auditResult.prestigeScore,
+          status: 'audited',
+        });
+
         // Governor: Log successful lead creation
         await logAudit({
           userId: ctx.user.id,
@@ -122,7 +186,7 @@ export const appRouter = router({
           status: 'success',
         });
 
-        return { lead, audit };
+        return { lead: updatedLead || lead, audit };
       }),
 
     list: protectedProcedure

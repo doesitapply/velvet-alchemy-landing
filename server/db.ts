@@ -167,6 +167,22 @@ export async function getLeadById(id: number): Promise<Lead | null> {
   return result[0] || null;
 }
 
+export async function updateLead(id: number, updates: Partial<InsertLead>): Promise<Lead | null> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot update lead: database not available");
+    return null;
+  }
+
+  try {
+    await db.update(leads).set(updates).where(eq(leads.id, id));
+    return await getLeadById(id);
+  } catch (error) {
+    console.error("[Database] Failed to update lead:", error);
+    return null;
+  }
+}
+
 // Audit functions
 export async function createAudit(audit: InsertAudit): Promise<Audit | null> {
   const db = await getDb();
