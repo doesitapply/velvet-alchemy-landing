@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import AppLayout from "@/components/AppLayout";
+import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -125,7 +125,9 @@ export default function Export() {
   };
 
   return (
-    <AppLayout>
+    <div className="min-h-screen bg-background">
+      <AppHeader />
+      
       <div className="container mx-auto py-8 px-4">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Export Leads</h1>
@@ -274,6 +276,6 @@ export default function Export() {
           )}
         </Card>
       </div>
-    </AppLayout>
+    </div>
   );
 }

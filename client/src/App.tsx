@@ -10,10 +10,10 @@ import Landing from "@/pages/Landing";
 import About from "@/pages/About";
 import GovernorDashboard from "./pages/GovernorDashboard";
 import Charmer from "./pages/Charmer";
-import OrchestratorSimple from "./pages/OrchestratorSimple";
+import Orchestrator from "./pages/Orchestrator";
 import CommandCenter from "./pages/CommandCenter";
 import Dashboard from "./pages/Dashboard";
-import LeadDetailSimple from "./pages/LeadDetailSimple";
+import LeadDetail from "./pages/LeadDetail";
 import Leads from "./pages/Leads";
 import Help from "./pages/Help";
 import BusinessScraper from "./pages/BusinessScraper";
@@ -28,10 +28,10 @@ function Router() {
       <Route path="/about" component={About} />
        <Route path="/governor" component={GovernorDashboard} />
            <Route path={"/charmer"} component={Charmer} />
-      <Route path={"/orchestrator"} component={OrchestratorSimple} />
+      <Route path={"/orchestrator"} component={Orchestrator} />
       <Route path="/command-center" component={CommandCenter} />
       <Route path="/leads" component={Leads} />
-      <Route path="/leads/:id" component={LeadDetailSimple} />
+      <Route path="/leads/:id" component={LeadDetail} />
       <Route path="/help" component={Help} />
       <Route path="/scraper" component={BusinessScraper} />
       <Route path="/export" component={Export} />
