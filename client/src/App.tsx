@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { SoundProvider } from "./contexts/SoundContext";
@@ -32,6 +32,9 @@ function Router() {
            <Route path={"/charmer"} component={Charmer} />
       <Route path={"/orchestrator"} component={Orchestrator} />
       <Route path="/command-center" component={CommandCenter} />
+      <Route path="/dashboard">
+        <Redirect to="/command-center" />
+      </Route>
       <Route path="/leads" component={Leads} />
       <Route path="/leads/:id" component={LeadDetail} />
       <Route path="/help" component={Help} />

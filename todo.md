@@ -313,3 +313,4 @@
 - [x] Fix /dashboard link to /command-center in Orchestrator.tsx (1 link)
 - [x] Fix /dashboard link to /command-center in GovernorDashboard.tsx (2 links)
 - [x] Fix nested anchor tag in LeadDetail Visit Site button
+- [x] Add /dashboard redirect route to handle Management UI links
