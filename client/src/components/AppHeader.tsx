@@ -37,7 +37,7 @@ export default function AppHeader() {
       <div className="container flex h-20 items-center justify-between px-6">
         {/* Logo - Larger and more prominent */}
         <Link href="/command-center">
-          <a className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <div className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
             <div className="h-12 w-12 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-md border-2 border-gold/50 shadow-lg shadow-gold/20" />
             <div className="flex flex-col">
               <span className="font-serif text-2xl italic tracking-wide text-gold font-bold">
@@ -47,7 +47,7 @@ export default function AppHeader() {
                 Revenue Instrument
               </span>
             </div>
-          </a>
+          </div>
         </Link>
 
         {/* Main Navigation - Larger buttons with better contrast */}
