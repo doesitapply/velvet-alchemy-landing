@@ -68,11 +68,9 @@ export default function LandingHome() {
                     </li>
                   </ul>
                   <Button asChild className="w-full gap-2 bg-gold text-black hover:bg-gold/90" size="lg">
-                    <Link href="/customer-portal">
-                      <a className="flex items-center gap-2">
-                        Start Free Audit
-                        <ArrowRight className="h-5 w-5" />
-                      </a>
+                    <Link href="/customer-portal" className="flex items-center gap-2">
+                      Start Free Audit
+                      <ArrowRight className="h-5 w-5" />
                     </Link>
                   </Button>
                 </div>
@@ -109,11 +107,9 @@ export default function LandingHome() {
                     </li>
                   </ul>
                   <Button asChild variant="outline" className="w-full gap-2 border-terminal/50 hover:bg-terminal/10" size="lg">
-                    <Link href="/command-center">
-                      <a className="flex items-center gap-2">
-                        Access Dashboard
-                        <ArrowRight className="h-5 w-5" />
-                      </a>
+                    <Link href="/command-center" className="flex items-center gap-2">
+                      Access Dashboard
+                      <ArrowRight className="h-5 w-5" />
                     </Link>
                   </Button>
                 </div>
