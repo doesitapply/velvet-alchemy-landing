@@ -12,7 +12,8 @@ import { checkRateLimit, checkKillSwitch, logAudit, checkDomainReputation } from
 import { governorRouter } from "./governorRouter";
 import { charmerRouter } from "./charmerRouter";
 import { orchestratorRouter } from "./orchestratorRouter";
-import { scraperRouter } from "./scraperRouter";
+import { scraperRouter } from './scraperRouter';
+import { exportRouter } from './exportRouter';
 import { dashboardRouter } from "./dashboardRouter";
 
 export const appRouter = router({
@@ -22,6 +23,7 @@ export const appRouter = router({
   charmer: charmerRouter,
   orchestrator: orchestratorRouter,
   scraper: scraperRouter,
+  export: exportRouter,
   dashboard: dashboardRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

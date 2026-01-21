@@ -210,3 +210,12 @@
 - [x] Add success toast when lead is created successfully (already implemented)
 - [x] Add error logging for form submission failures (already implemented)
 - [x] Test all fixes end-to-end with real data (all 3 fixes working, timeout issue identified)
+
+## Export Page for Employee Outreach
+- [x] Create exportRouter with getExportData procedure
+- [x] Build Export page UI at /export with filters and selection
+- [x] Implement CSV download functionality with all lead data
+- [x] Add Export link to AppHeader navigation
+- [x] Test export with real Reno pizza leads (26 leads exported successfully)
+- [x] Test filters (status, prestige score range)
+- [x] Verify CSV contains all required fields (Lead ID, Company Name, Website URL, Prestige Score, Status, Audit Summary, Top Issues, Visual Debt Details, Social Post URLs, Banner URLs, Screenshot URL, Created At, Audit Date)
