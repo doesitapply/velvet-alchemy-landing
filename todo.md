@@ -191,3 +191,14 @@
 - [x] Build contact/inquiry section
 - [x] Add pricing or "Get Started" section
 - [ ] Test form submission and lead capture
+
+## Public Documentation Page
+- [x] Write comprehensive About/How It Works page explaining Velvet Alchemy to the public
+- [x] Include problem statement (bad websites = lost customers)
+- [x] Explain how the AI audit works (screenshot + GPT-4o Vision analysis)
+- [x] Add real example (Roundabout Pizza audit results)
+- [x] Show ROI calculation ($10k-180k lost per year)
+- [x] Add "Who This Is For" section (local businesses, contractors, restaurants)
+- [x] Include step-by-step "How to Get Started" guide
+- [x] Add route and navigation links
+- [ ] Test page and save checkpoint

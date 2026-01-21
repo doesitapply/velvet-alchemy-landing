@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { SoundProvider } from "./contexts/SoundContext";
 import Home from "@/pages/Home";
 import Landing from "@/pages/Landing";
+import About from "@/pages/About";
 import GovernorDashboard from "./pages/GovernorDashboard";
 import Charmer from "./pages/Charmer";
 import Orchestrator from "./pages/Orchestrator";
@@ -23,6 +24,7 @@ function Router() {
     <Switch>
        <Route path="/" component={Landing} />
       <Route path="/old-home" component={Home} />
+      <Route path="/about" component={About} />
        <Route path="/governor" component={GovernorDashboard} />
            <Route path={"/charmer"} component={Charmer} />
       <Route path={"/orchestrator"} component={Orchestrator} />

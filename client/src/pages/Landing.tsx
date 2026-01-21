@@ -47,7 +47,7 @@ export default function Landing() {
           <nav className="hidden md:flex items-center gap-8 text-sm font-mono text-muted-foreground">
             <a href="#how-it-works" className="hover:text-foreground transition-colors">HOW IT WORKS</a>
             <a href="#features" className="hover:text-foreground transition-colors">FEATURES</a>
-            <a href="#pricing" className="hover:text-foreground transition-colors">PRICING</a>
+            <a href="/about" className="hover:text-foreground transition-colors">ABOUT</a>
           </nav>
           <Button variant="outline" className="font-mono text-xs border-white/20 hover:bg-white/5 hover:text-gold rounded-none h-9">
             <a href="#free-audit">GET FREE AUDIT</a>
