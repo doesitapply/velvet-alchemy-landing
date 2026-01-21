@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AppHeader from "@/components/AppHeader";
+import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +35,7 @@ export default function BusinessScraper() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader />
-
+    <AppLayout>
       <div className="container py-8 max-w-6xl">
         <div className="mb-8">
           <h1 className="text-4xl font-serif italic text-gold mb-2">Business Scraper</h1>
@@ -278,6 +276,6 @@ export default function BusinessScraper() {
           </Card>
         )}
       </div>
-    </div>
+    </AppLayout>
   );
 }

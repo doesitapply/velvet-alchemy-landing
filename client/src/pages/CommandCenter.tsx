@@ -1,4 +1,4 @@
-import AppHeader from "@/components/AppHeader";
+import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
@@ -19,10 +19,8 @@ export default function CommandCenter() {
   const isLoading = metricsQuery.isLoading || pipelineQuery.isLoading;
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader />
-      
-      <main className="container py-8">
+    <AppLayout>
+      <div className="container py-8">
         <div className="space-y-8">
           {/* Header */}
           <div>
@@ -323,7 +321,7 @@ export default function CommandCenter() {
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

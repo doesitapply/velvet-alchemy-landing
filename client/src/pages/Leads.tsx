@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import AppHeader from "@/components/AppHeader";
+import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,9 +59,7 @@ export default function Leads() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader />
-
+    <AppLayout>
       <div className="container py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -224,6 +222,6 @@ export default function Leads() {
           </Card>
         )}
       </div>
-    </div>
+    </AppLayout>
   );
 }
