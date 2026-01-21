@@ -153,18 +153,29 @@ export async function getLeadsByUserId(userId: number): Promise<Lead[]> {
     return [];
   }
 
-  // Only return audited leads with prestige score >= 60 (qualified leads)
-  const { and, gte } = await import("drizzle-orm");
+  // Return ALL audited leads regardless of userId (single-user system)
+  // Show leads with any prestige score to see what's in the system
+  const { desc } = await import("drizzle-orm");
   return await db
     .select()
     .from(leads)
-    .where(
-      and(
-        eq(leads.userId, userId),
-        eq(leads.status, "audited"),
-        gte(leads.prestigeScore, 60)
-      )
-    );
+    .where(eq(leads.status, "audited"))
+    .orderBy(desc(leads.prestigeScore));
+}
+
+export async function getAllLeads(): Promise<Lead[]> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get leads: database not available");
+    return [];
+  }
+
+  // Return ALL leads regardless of status or userId (for orchestrator/admin views)
+  const { desc } = await import("drizzle-orm");
+  return await db
+    .select()
+    .from(leads)
+    .orderBy(desc(leads.createdAt));
 }
 
 export async function getLeadById(id: number): Promise<Lead | null> {

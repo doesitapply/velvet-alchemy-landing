@@ -9,8 +9,8 @@ import { toast } from "sonner";
 export default function Orchestrator() {
   const [, setLocation] = useLocation();
 
-  // Fetch all leads
-  const { data: leads, isLoading: leadsLoading } = trpc.leads.list.useQuery();
+  // Fetch all leads (including pending)
+  const { data: leads, isLoading: leadsLoading } = trpc.leads.listAll.useQuery();
 
   const executePipelineMutation = trpc.orchestrator.executePipeline.useMutation({
     onSuccess: () => {

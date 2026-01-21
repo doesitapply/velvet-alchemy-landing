@@ -1,0 +1,80 @@
+{
+  "query": "SELECT id, companyName, userId, status, prestigeScore FROM leads LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT id, companyName, userId, status, prestigeScore FROM leads LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "companyName": "Test Company",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "2",
+      "companyName": "Test Company",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "30001",
+      "companyName": "Roundabout Pizza Reno",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "60001",
+      "companyName": "Smiling with Hope Pizza",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "60002",
+      "companyName": "Pizza Guys",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "60003",
+      "companyName": "SouthCreek Pizza Co.",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "60004",
+      "companyName": "Pizanos Pizza",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "60005",
+      "companyName": "R Town Pizza",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "60006",
+      "companyName": "Pizzava",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    },
+    {
+      "id": "60007",
+      "companyName": "Longboards Beach Fired Pizza - South Reno",
+      "userId": "1",
+      "status": "pending",
+      "prestigeScore": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcompanyName\tuserId\tstatus\tprestigeScore\n1\tTest Company\t1\tpending\tNULL\n2\tTest Company\t1\tpending\tNULL\n30001\tRoundabout Pizza Reno\t1\tpending\tNULL\n60001\tSmiling with Hope Pizza\t1\tpending\tNULL\n60002\tPizza Guys\t1\tpending\tNULL\n60003\tSouthCreek Pizza Co.\t1\tpending\tNULL\n60004\tPizanos Pizza\t1\tpending\tNULL\n60005\tR Town Pizza\t1\tpending\tNULL\n60006\tPizzava\t1\tpending\tNULL\n60007\tLongboards Beach Fired Pizza - South Reno\t1\tpending\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

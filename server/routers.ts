@@ -197,6 +197,13 @@ export const appRouter = router({
         return leads;
       }),
 
+    listAll: protectedProcedure
+      .query(async () => {
+        const { getAllLeads } = await import('./db');
+        const leads = await getAllLeads();
+        return leads;
+      }),
+
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
