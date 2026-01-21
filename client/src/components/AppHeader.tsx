@@ -39,13 +39,11 @@ export default function AppHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/80 backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-8">
-          <Link href="/">
-            <a className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20" />
-              <span className="font-serif text-xl italic tracking-wide text-gold">
-                Velvet Alchemy
-              </span>
-            </a>
+          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20" />
+            <span className="font-serif text-xl italic tracking-wide text-gold">
+              Velvet Alchemy
+            </span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">
@@ -54,22 +52,21 @@ export default function AppHeader() {
               const isActive = location === item.path;
 
               return (
-                <Link key={item.path} href={item.path}>
-                  <a>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`gap-2 ${
-                        isActive
-                          ? "bg-white/10 text-gold"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </Button>
-                  </a>
-                </Link>
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className={`gap-2 ${
+                    isActive
+                      ? "bg-white/10 text-gold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Link key={item.path} href={item.path} className="flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                </Button>
               );
             })}
           </nav>
