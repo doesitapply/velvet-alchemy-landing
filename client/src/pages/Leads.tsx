@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ExternalLink, Eye, Search, Plus } from "lucide-react";
+import { Loader2, ExternalLink, Eye, Search, Plus, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -45,6 +45,46 @@ export default function Leads() {
     createLead.mutate({ companyName, websiteUrl });
   };
 
+  const handleExportCSV = () => {
+    if (!leads || leads.length === 0) {
+      toast.error("No leads to export");
+      return;
+    }
+
+    // CSV headers
+    const headers = ["Company Name", "Website", "Status", "Prestige Score", "Has Assets", "Has Outreach", "Created Date"];
+    
+    // CSV rows
+    const rows = leads.map(lead => [
+      lead.companyName,
+      lead.websiteUrl,
+      lead.status,
+      lead.prestigeScore || "Not audited",
+      lead.hasAssets ? "Yes" : "No",
+      lead.hasOutreach ? "Yes" : "No",
+      new Date(lead.createdAt).toLocaleDateString()
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `velvet-alchemy-leads-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    toast.success(`Exported ${leads.length} leads to CSV`);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "audited":
@@ -71,13 +111,23 @@ export default function Leads() {
             </p>
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 bg-gold text-black hover:bg-gold/90">
-                <Plus className="h-4 w-4" />
-                Create Lead
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-3">
+            <Button 
+              onClick={handleExportCSV}
+              variant="outline"
+              className="gap-2 border-gold/30 text-gold hover:bg-gold/10"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 bg-gold text-black hover:bg-gold/90">
+                  <Plus className="h-4 w-4" />
+                  Create Lead
+                </Button>
+              </DialogTrigger>
             <DialogContent className="bg-black border-white/10">
               <DialogHeader>
                 <DialogTitle className="text-gold">Create New Lead</DialogTitle>
@@ -135,6 +185,7 @@ export default function Leads() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         <div className="mb-6">
