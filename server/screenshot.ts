@@ -46,7 +46,7 @@ export async function captureScreenshot(
     // Use domcontentloaded instead of networkidle to avoid waiting for trackers/analytics
     await page.goto(url, {
       waitUntil: 'domcontentloaded', // Much faster than networkidle
-      timeout: Math.min(timeout, 10000), // Cap at 10 seconds max
+      timeout: Math.min(timeout, 30000), // Cap at 30 seconds max
     });
     
     // Wait an additional 2 seconds for critical assets to load

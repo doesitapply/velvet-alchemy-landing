@@ -271,23 +271,23 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
       stagesCompleted: ["screenshot", "assets"],
     });
 
-    // Stage 3: Outreach Draft (90-100%)
-    const stage3Result = await runOutreachDraftStage(leadId, userId);
-    if (!stage3Result.success) {
-      await updatePipelineJob(jobId, {
-        status: "failed",
-        errorMessage: stage3Result.error || "Outreach draft stage failed",
-        currentStage: "outreach",
-      });
-      return;
-    }
+    // Stage 3: Outreach Draft (DISABLED - Manual outreach only)
+    // const stage3Result = await runOutreachDraftStage(leadId, userId);
+    // if (!stage3Result.success) {
+    //   await updatePipelineJob(jobId, {
+    //     status: "failed",
+    //     errorMessage: stage3Result.error || "Outreach draft stage failed",
+    //     currentStage: "outreach",
+    //   });
+    //   return;
+    // }
 
-    // Pipeline complete
+    // Pipeline complete (without outreach automation)
     await updatePipelineJob(jobId, {
       status: "completed",
       currentStage: null,
       progressPercentage: 100,
-      stagesCompleted: ["screenshot", "assets", "outreach"],
+      stagesCompleted: ["screenshot", "assets"],
       completedAt: new Date(),
     });
 

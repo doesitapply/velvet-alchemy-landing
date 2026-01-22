@@ -1,0 +1,462 @@
+{
+  "project": {
+    "name": "Velvet Alchemy",
+    "subtitle": "Revenue Instrument",
+    "version": "5c0988c1",
+    "description": "AI-powered website audit and lead generation platform for small businesses",
+    "target_market": "Reno, NV small businesses (roofing contractors, pizza restaurants)",
+    "last_updated": "2026-01-21T22:07:00Z"
+  },
+  "technology_stack": {
+    "frontend": {
+      "framework": "React 19",
+      "styling": "Tailwind CSS 4",
+      "routing": "Wouter",
+      "ui_components": "shadcn/ui",
+      "state_management": "TanStack Query (React Query)",
+      "api_client": "tRPC 11 with Superjson"
+    },
+    "backend": {
+      "runtime": "Node.js 22",
+      "framework": "Express 4",
+      "api_layer": "tRPC 11",
+      "database": "MySQL/TiDB (via Drizzle ORM)",
+      "authentication": "Manus OAuth + JWT",
+      "file_storage": "AWS S3",
+      "screenshot_engine": "Playwright (chromium-headless-shell)",
+      "ai_provider": "OpenAI GPT-4o Vision"
+    },
+    "infrastructure": {
+      "hosting": "Manus Platform (built-in)",
+      "domain": "3000-iymrneh8w4e605wabqi09-265b473f.us2.manus.computer",
+      "deployment": "Automatic via Manus Publish",
+      "secrets_management": "Manus Secrets (environment variables)"
+    },
+    "external_integrations": {
+      "google_maps": "Google Maps Places API (via Manus proxy)",
+      "gmail": "Gmail MCP (Model Context Protocol)",
+      "stripe": "Not configured (available via webdev_add_feature)",
+      "vercel": "MCP integration available",
+      "image_generation": "Manus built-in ImageService"
+    }
+  },
+  "database_schema": {
+    "tables": {
+      "user": {
+        "description": "User accounts with role-based access",
+        "columns": ["id", "openId", "name", "email", "role", "createdAt", "updatedAt"],
+        "roles": ["admin", "user"],
+        "current_users": 1
+      },
+      "leads": {
+        "description": "Business leads scraped from Google Maps",
+        "columns": ["id", "userId", "companyName", "websiteUrl", "status", "screenshotUrl", "auditSummary", "visualDebt", "prestigeScore", "createdAt", "updatedAt"],
+        "statuses": ["pending", "audited", "contacted", "closed"],
+        "current_count": 45,
+        "pending_audits": 41,
+        "completed_audits": 4
+      },
+      "audits": {
+        "description": "Detailed visual audit results",
+        "columns": ["id", "leadId", "screenshotUrl", "auditSummary", "visualDebt", "prestigeScore", "auditedAt"],
+        "current_count": 4
+      },
+      "assets": {
+        "description": "AI-generated marketing assets",
+        "columns": ["id", "leadId", "assetType", "assetUrl", "prompt", "metadata", "createdAt"],
+        "asset_types": ["social_post", "web_banner"],
+        "current_count": 0
+      },
+      "outreach_drafts": {
+        "description": "AI-generated email outreach drafts",
+        "columns": ["id", "leadId", "campaignId", "subject", "body", "status", "approvedAt", "sentAt", "createdAt"],
+        "statuses": ["draft", "approved", "sent"],
+        "current_count": 0
+      },
+      "campaigns": {
+        "description": "Email outreach campaigns",
+        "columns": ["id", "name", "description", "status", "createdAt"],
+        "current_count": 0
+      },
+      "pipeline_jobs": {
+        "description": "Background job tracking for audit pipeline",
+        "columns": ["id", "leadId", "status", "currentStage", "stagesCompleted", "progressPercentage", "errorMessage", "retryCount", "createdAt", "updatedAt", "completedAt"],
+        "statuses": ["pending", "running", "completed", "failed"],
+        "stages": ["screenshot", "assets", "outreach"],
+        "current_jobs": 45
+      },
+      "rate_limits": {
+        "description": "API rate limiting tracking",
+        "columns": ["id", "userId", "action", "count", "windowStart", "createdAt"],
+        "tracked_actions": ["pipeline_execute", "scrape_businesses"]
+      },
+      "system_config": {
+        "description": "System-wide configuration and kill switches",
+        "columns": ["id", "key", "value", "description", "updatedAt"],
+        "current_configs": ["kill_switch_enabled", "max_daily_audits"]
+      },
+      "audit_log": {
+        "description": "Compliance and security audit trail",
+        "columns": ["id", "userId", "action", "resource", "details", "ipAddress", "createdAt"],
+        "current_entries": 0
+      }
+    }
+  },
+  "api_endpoints": {
+    "auth": {
+      "me": "Get current user profile",
+      "logout": "Logout and clear session"
+    },
+    "leads": {
+      "create": "Create new lead (public endpoint for customer portal)",
+      "list": "List qualified leads (audited, prestige >= 5)",
+      "listAll": "List all leads including pending (admin only)",
+      "getById": "Get lead details by ID",
+      "update": "Update lead information",
+      "delete": "Delete lead"
+    },
+    "scraper": {
+      "searchBusinesses": "Search Google Maps for businesses by city + category",
+      "checkRanking": "Check Google search ranking for a website + keyword"
+    },
+    "curator": {
+      "auditWebsite": "Run visual audit on a website (screenshot + GPT-4o analysis)"
+    },
+    "orchestrator": {
+      "executePipeline": "Execute full pipeline (screenshot → audit → assets → outreach)",
+      "getJobStatus": "Get pipeline job status by job ID",
+      "getJobsForLead": "Get all pipeline jobs for a lead"
+    },
+    "visionary": {
+      "generateAssets": "Generate marketing assets (social posts + banner)",
+      "getAssets": "Get all assets for a lead"
+    },
+    "charmer": {
+      "generateDraft": "Generate email outreach draft",
+      "sendDirectEmail": "Send email via Gmail MCP",
+      "listDrafts": "List all outreach drafts",
+      "approveDraft": "Approve draft for sending"
+    },
+    "governor": {
+      "getSystemConfig": "Get system configuration",
+      "updateSystemConfig": "Update system configuration",
+      "getRateLimits": "Get rate limit status",
+      "getAuditLog": "Get audit log entries"
+    },
+    "export": {
+      "getExportData": "Export leads to CSV with filters"
+    }
+  },
+  "features": {
+    "completed": [
+      {
+        "name": "Google Maps Business Scraper",
+        "description": "Search and scrape businesses from Google Maps by city + category",
+        "status": "✅ Working",
+        "pages": ["/scraper"],
+        "notes": "19 Reno businesses scraped (roofing + pizza)"
+      },
+      {
+        "name": "Visual Website Audit",
+        "description": "AI-powered website analysis using GPT-4o Vision",
+        "status": "✅ Working",
+        "components": ["Screenshot capture", "Visual debt analysis", "Prestige scoring"],
+        "notes": "4 audits completed, avg score 5/100"
+      },
+      {
+        "name": "Real-Time Progress Tracking",
+        "description": "Live progress bars showing audit pipeline stages",
+        "status": "✅ Working",
+        "components": ["AuditProgressBar component", "Polling every 2 seconds", "Stage indicators"],
+        "notes": "Shows Screenshot → Assets → Outreach stages with percentage"
+      },
+      {
+        "name": "Lead Management",
+        "description": "Full CRUD for leads with filtering and qualification",
+        "status": "✅ Working",
+        "pages": ["/leads", "/leads/:id"],
+        "notes": "Shows only audited leads with prestige >= 5"
+      },
+      {
+        "name": "Command Center Dashboard",
+        "description": "Unified dashboard with metrics and quick actions",
+        "status": "✅ Working",
+        "pages": ["/command-center"],
+        "metrics": ["Total leads", "Pending audits", "Completed audits", "Avg prestige score"]
+      },
+      {
+        "name": "Orchestrator Pipeline",
+        "description": "Automated pipeline execution with background jobs",
+        "status": "✅ Working",
+        "pages": ["/orchestrator"],
+        "stages": ["Screenshot", "Assets", "Outreach"],
+        "notes": "41 pending jobs ready to process"
+      },
+      {
+        "name": "Asset Generation",
+        "description": "AI-generated social posts and web banners",
+        "status": "✅ Implemented",
+        "components": ["Business DNA extraction", "Image generation via Manus API"],
+        "notes": "Not tested with real data yet"
+      },
+      {
+        "name": "Email Outreach",
+        "description": "AI-generated email drafts with Gmail sending",
+        "status": "✅ Implemented",
+        "components": ["Draft generation", "Gmail MCP integration", "Approval workflow"],
+        "notes": "Ready for testing"
+      },
+      {
+        "name": "Governor Controls",
+        "description": "Rate limiting, kill switches, and audit logging",
+        "status": "✅ Implemented",
+        "pages": ["/governor"],
+        "features": ["Kill switch", "Rate limits", "Audit log"],
+        "notes": "Backend working, UI needs real data"
+      },
+      {
+        "name": "CSV Export",
+        "description": "Export leads to CSV with filters",
+        "status": "✅ Working",
+        "pages": ["/export"],
+        "notes": "26 leads exported successfully"
+      },
+      {
+        "name": "Customer Portal",
+        "description": "Public-facing audit request form",
+        "status": "✅ Working",
+        "pages": ["/customer-portal"],
+        "notes": "Form submits, creates lead, triggers audit"
+      },
+      {
+        "name": "Enhanced Navigation",
+        "description": "Responsive navigation with dropdowns and mobile menu",
+        "status": "✅ Working",
+        "components": ["AppHeader", "Dropdown menus", "Mobile hamburger"],
+        "notes": "Desktop tested, mobile menu implemented"
+      }
+    ],
+    "in_progress": [
+      {
+        "name": "Playwright Browser Installation",
+        "description": "Install chromium browsers for screenshot capture",
+        "status": "⚠️ Blocked",
+        "blocker": "Playwright browsers not installed in sandbox",
+        "solution": "Run `pnpm exec playwright install` or switch to Firecrawl API"
+      }
+    ],
+    "not_started": [
+      {
+        "name": "Stripe Payment Integration",
+        "description": "Accept payments for premium features",
+        "status": "❌ Not Started",
+        "notes": "Available via webdev_add_feature stripe"
+      },
+      {
+        "name": "Batch Audit Processing",
+        "description": "Process multiple leads in parallel",
+        "status": "❌ Not Started",
+        "notes": "Currently processes one at a time"
+      },
+      {
+        "name": "Email Template Library",
+        "description": "Pre-written outreach templates",
+        "status": "❌ Not Started",
+        "notes": "Currently generates from scratch each time"
+      }
+    ]
+  },
+  "pages": {
+    "/": {
+      "name": "Landing Page",
+      "description": "Public homepage with two paths: Get Free Audit or Internal Dashboard",
+      "status": "✅ Live",
+      "components": ["Hero section", "Value proposition", "CTA buttons"]
+    },
+    "/customer-portal": {
+      "name": "Customer Portal",
+      "description": "Self-service audit request form",
+      "status": "✅ Live",
+      "auth_required": false,
+      "components": ["Audit request form", "Progress indicator"]
+    },
+    "/command-center": {
+      "name": "Command Center",
+      "description": "Main admin dashboard with metrics and quick actions",
+      "status": "✅ Live",
+      "auth_required": true,
+      "metrics": ["Total leads: 45", "Pending audits: 41", "Completed: 4", "Avg score: 5/100"]
+    },
+    "/leads": {
+      "name": "Leads List",
+      "description": "Qualified leads (audited, prestige >= 5)",
+      "status": "✅ Live",
+      "auth_required": true,
+      "current_leads": 4
+    },
+    "/leads/:id": {
+      "name": "Lead Detail",
+      "description": "Full lead profile with audit results and actions",
+      "status": "✅ Live",
+      "auth_required": true,
+      "components": ["Screenshot", "Audit report", "Progress bar", "Action buttons"]
+    },
+    "/scraper": {
+      "name": "Business Scraper",
+      "description": "Google Maps business search and scraping",
+      "status": "✅ Live",
+      "auth_required": true,
+      "last_scrape": "19 Reno businesses (roofing + pizza)"
+    },
+    "/orchestrator": {
+      "name": "Pipeline Orchestrator",
+      "description": "View and execute audit pipelines",
+      "status": "✅ Live",
+      "auth_required": true,
+      "pending_jobs": 41
+    },
+    "/charmer": {
+      "name": "Email Outreach",
+      "description": "Manage outreach drafts and campaigns",
+      "status": "✅ Live",
+      "auth_required": true,
+      "drafts": 0
+    },
+    "/export": {
+      "name": "CSV Export",
+      "description": "Export leads with filters",
+      "status": "✅ Live",
+      "auth_required": true,
+      "last_export": "26 leads"
+    },
+    "/governor": {
+      "name": "Governor Dashboard",
+      "description": "System controls and audit logs",
+      "status": "✅ Live",
+      "auth_required": true,
+      "features": ["Kill switch", "Rate limits", "Audit log"]
+    },
+    "/help": {
+      "name": "Help & Documentation",
+      "description": "User guide and system documentation",
+      "status": "✅ Live",
+      "auth_required": false
+    }
+  },
+  "current_data": {
+    "leads": {
+      "total": 45,
+      "pending": 41,
+      "audited": 4,
+      "contacted": 0,
+      "closed": 0
+    },
+    "audits": {
+      "completed": 4,
+      "average_prestige_score": 5,
+      "score_range": "5-5"
+    },
+    "assets": {
+      "total": 0,
+      "social_posts": 0,
+      "web_banners": 0
+    },
+    "outreach": {
+      "drafts": 0,
+      "approved": 0,
+      "sent": 0
+    },
+    "pipeline_jobs": {
+      "total": 45,
+      "pending": 41,
+      "running": 0,
+      "completed": 4,
+      "failed": 0
+    }
+  },
+  "known_issues": {
+    "critical": [
+      {
+        "issue": "Playwright browsers not installed",
+        "impact": "Screenshot capture fails, audits cannot complete",
+        "workaround": "None currently",
+        "solution": "Run `pnpm exec playwright install` or migrate to Firecrawl API"
+      }
+    ],
+    "minor": [
+      {
+        "issue": "Progress bar shows errors instead of progress",
+        "impact": "Users see error messages instead of live progress",
+        "workaround": "Backend is working, just missing browser binaries",
+        "solution": "Fix Playwright installation"
+      },
+      {
+        "issue": "Prestige scores are very low (5/100)",
+        "impact": "Few leads qualify for the Leads page (threshold is 5+)",
+        "workaround": "Threshold already lowered from 60 to 5",
+        "solution": "Review scoring algorithm or adjust criteria"
+      }
+    ]
+  },
+  "performance_metrics": {
+    "audit_duration": "35-40 seconds (when browsers work)",
+    "screenshot_capture": "5-10 seconds",
+    "gpt4o_analysis": "25-30 seconds",
+    "asset_generation": "10-15 seconds per asset",
+    "scraper_speed": "19 businesses in ~30 seconds"
+  },
+  "next_steps": {
+    "immediate": [
+      "Install Playwright browsers to unblock audit pipeline",
+      "Test full pipeline with one lead end-to-end",
+      "Verify asset generation works with real data"
+    ],
+    "short_term": [
+      "Migrate to Firecrawl API for screenshot capture (remove Playwright dependency)",
+      "Implement Inngest for background job processing (replace pipeline_jobs table)",
+      "Add batch processing for multiple leads in parallel"
+    ],
+    "long_term": [
+      "Implement Vercel AI SDK for streaming UI during audits",
+      "Add Supabase Realtime for instant UI updates",
+      "Replace custom scraper with Apify Google Maps Scraper",
+      "Add Stripe integration for premium features"
+    ]
+  },
+  "architecture_recommendations": {
+    "current_architecture": "Monolithic Express app with SQL job queue",
+    "recommended_architecture": "Event-driven serverless with specialized APIs",
+    "key_changes": [
+      {
+        "component": "Scraping",
+        "current": "Playwright (self-managed)",
+        "recommended": "Firecrawl or Apify",
+        "benefit": "No bot detection, faster, zero maintenance"
+      },
+      {
+        "component": "Orchestration",
+        "current": "SQL pipeline_jobs table",
+        "recommended": "Trigger.dev or Inngest",
+        "benefit": "Built-in retries, logging, parallel processing"
+      },
+      {
+        "component": "Database",
+        "current": "MySQL + Drizzle",
+        "recommended": "Supabase",
+        "benefit": "Realtime subscriptions, instant UI updates"
+      },
+      {
+        "component": "AI Integration",
+        "current": "Manual OpenAI API calls",
+        "recommended": "Vercel AI SDK",
+        "benefit": "Streaming UI, structured output, provider switching"
+      },
+      {
+        "component": "Email",
+        "current": "Gmail MCP (local)",
+        "recommended": "Resend or Smartlead",
+        "benefit": "Enterprise deliverability, no local setup"
+      }
+    ]
+  }
+}

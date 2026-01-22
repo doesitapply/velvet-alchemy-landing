@@ -348,3 +348,30 @@
 - [x] Test progress tracking with real audit execution - VERIFIED: Progress bars display, stages update, errors show correctly
 - [x] Add error state handling (show failed stage in red) - Error messages display with red border and icon
 - [x] Save checkpoint
+
+## End-to-End Pipeline Testing (Current)
+- [ ] Install Playwright browsers (chromium-headless-shell)
+- [ ] Test scraper: Search "roofing Reno NV" and create 5 leads
+- [ ] Verify leads are in database with correct data
+- [ ] Test audit pipeline: Run orchestrator on one pending lead
+- [ ] Verify screenshot capture works and saves to S3
+- [ ] Verify GPT-4o analysis completes and saves audit results
+- [ ] Verify prestige score is calculated correctly
+- [ ] Test asset generation: Generate social posts + banner
+- [ ] Verify assets are created and saved to S3
+- [ ] Verify assets table has correct URLs
+- [ ] Run complete end-to-end test with one real business
+- [ ] Fix any errors discovered during testing
+- [ ] Save checkpoint with fully working pipeline
+
+## Simplified Pipeline - Manual Outreach Focus (Current)
+- [ ] Fix screenshot timeout errors (increase timeout, handle slow sites)
+- [ ] Remove outreach automation from pipeline (focus on audit only)
+- [ ] Run audits on all pending plumber leads
+- [ ] Verify audit completion and prestige scores
+- [ ] Create lead export functionality (CSV download button)
+- [ ] Export format: Company Name, Website, Phone, Prestige Score, Top 3 Issues, Audit Summary
+- [ ] Create "Outreach Guide" document with messaging templates
+- [ ] Guide should include: What to say, What to offer, Pricing suggestions
+- [ ] Test complete workflow: Scrape → Audit → Export → Manual Outreach
+- [ ] Save checkpoint with working manual outreach system
