@@ -395,3 +395,17 @@
 - [ ] Test screenshot capture with real website
 - [ ] Restart dev server to pick up new browsers
 - [ ] Save checkpoint
+
+## Batch Processing & Asset Builder (URGENT - Current)
+- [ ] Add "Audit All" button to Command Center that queues all pending leads
+- [ ] Implement batch processing queue system (process leads sequentially with rate limiting)
+- [ ] Add progress indicator showing X of Y leads processed
+- [ ] Integrate Gmail API for direct email sending in Charmer
+- [ ] Request Gmail OAuth credentials from user via webdev_request_secrets
+- [ ] Fix asset generation to use Manus AI image generation API
+- [ ] Generate 3 social media posts (1080x1080) + 1 web banner (1200x628) per lead
+- [ ] Save generated images to S3 storage
+- [ ] Build asset preview gallery on lead detail pages
+- [ ] Display all generated assets with download buttons
+- [ ] Test complete workflow: Batch Audit → Generate Assets → Preview → Send Email
+- [ ] Save checkpoint

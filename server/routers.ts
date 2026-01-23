@@ -15,6 +15,7 @@ import { orchestratorRouter } from "./orchestratorRouter";
 import { scraperRouter } from './scraperRouter';
 import { exportRouter } from './exportRouter';
 import { dashboardRouter } from "./dashboardRouter";
+import { visionaryRouter } from "./visionaryRouter";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -25,6 +26,7 @@ export const appRouter = router({
   scraper: scraperRouter,
   export: exportRouter,
   dashboard: dashboardRouter,
+  visionary: visionaryRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -215,43 +217,6 @@ export const appRouter = router({
         const audit = await getAuditByLeadId(lead.id);
         
         return { lead, audit };
-      }),
-  }),
-
-  visionary: router({
-    generateAssets: protectedProcedure
-      .input(z.object({ leadId: z.number() }))
-      .mutation(async ({ input }) => {
-        const { getLeadById } = await import("./db");
-        const { generateAssetsForLead } = await import("./visionary");
-
-        const lead = await getLeadById(input.leadId);
-        if (!lead) {
-          throw new Error("Lead not found");
-        }
-
-        const { getAuditByLeadId } = await import("./db");
-        const audit = await getAuditByLeadId(lead.id);
-        if (!audit) {
-          throw new Error("Lead must have an audit before generating assets");
-        }
-
-        const visualDebt = audit.visualDebtData
-          ? JSON.parse(audit.visualDebtData)
-          : null;
-
-        return generateAssetsForLead(
-          lead.id,
-          lead.companyName,
-          lead.websiteUrl,
-          visualDebt
-        );
-      }),
-    getAssets: protectedProcedure
-      .input(z.object({ leadId: z.number() }))
-      .query(async ({ input }) => {
-        const { getAssetsByLeadId } = await import("./visionary");
-        return getAssetsByLeadId(input.leadId);
       }),
   }),
 });

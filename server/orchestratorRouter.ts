@@ -40,4 +40,37 @@ export const orchestratorRouter = router({
       const jobs = await getPipelineJobsForLead(input.leadId);
       return jobs;
     }),
+
+  /**
+   * Batch audit all pending leads
+   */
+  batchAuditAll: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "batch_audit");
+
+      // Get all pending leads
+      const { getAllLeads } = await import("./db");
+      const pendingLeads = await getAllLeads();
+      const leadsToAudit = pendingLeads.filter((lead: any) => lead.status === "pending");
+
+      if (leadsToAudit.length === 0) {
+        return { success: true, message: "No pending leads to audit", processed: 0 };
+      }
+
+      // Execute pipeline for each pending lead (non-blocking)
+      let processed = 0;
+      for (const lead of leadsToAudit) {
+        executePipeline(lead.id, ctx.user.id).catch(error => {
+          console.error(`[Orchestrator] Batch audit failed for lead ${lead.id}:`, error);
+        });
+        processed++;
+      }
+
+      return { 
+        success: true, 
+        message: `Batch audit started for ${processed} leads`,
+        processed 
+      };
+    }),
 });

@@ -4,12 +4,18 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Loader2, TrendingUp, Users, CheckCircle2, Zap, Search, Play, Activity } from "lucide-react";
 import { Link } from "wouter";
+import { useState } from "react";
+import { toast } from "sonner";
 
 export default function CommandCenter() {
+  const [isAuditingAll, setIsAuditingAll] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+
   const metricsQuery = trpc.dashboard.getMetrics.useQuery();
   const pipelineQuery = trpc.dashboard.getPipelineStats.useQuery();
   const activityQuery = trpc.dashboard.getRecentActivity.useQuery();
   const scoreDistQuery = trpc.dashboard.getScoreDistribution.useQuery();
+  const batchAuditMutation = trpc.orchestrator.batchAuditAll.useMutation();
 
   const metrics = metricsQuery.data;
   const pipeline = pipelineQuery.data;
@@ -17,6 +23,29 @@ export default function CommandCenter() {
   const scoreDist = scoreDistQuery.data;
 
   const isLoading = metricsQuery.isLoading || pipelineQuery.isLoading;
+
+  const handleAuditAll = async () => {
+    if (!metrics?.pendingAudits) return;
+    
+    const confirmed = confirm(`Start batch audit for all ${metrics.pendingAudits} pending leads? This may take several minutes.`);
+    if (!confirmed) return;
+
+    setIsAuditingAll(true);
+    setBatchProgress({ current: 0, total: metrics.pendingAudits });
+    toast.info(`Starting batch audit for ${metrics.pendingAudits} leads...`);
+
+    try {
+      await batchAuditMutation.mutateAsync();
+      toast.success(`Batch audit completed successfully!`);
+      metricsQuery.refetch();
+      pipelineQuery.refetch();
+    } catch (error) {
+      toast.error(`Batch audit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAuditingAll(false);
+      setBatchProgress({ current: 0, total: 0 });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,6 +100,25 @@ export default function CommandCenter() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Awaiting analysis
                   </p>
+                  {metrics.pendingAudits > 0 && (
+                    <Button
+                      onClick={() => handleAuditAll()}
+                      disabled={isAuditingAll}
+                      className="w-full mt-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold text-lg py-6"
+                    >
+                      {isAuditingAll ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Processing {batchProgress.current}/{batchProgress.total}...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="mr-2 h-5 w-5" />
+                          AUDIT ALL {metrics.pendingAudits} LEADS
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
