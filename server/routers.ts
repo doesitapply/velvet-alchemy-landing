@@ -220,6 +220,34 @@ export const appRouter = router({
         
         return { lead, audit };
       }),
+
+    captureScreenshot: protectedProcedure
+      .input(z.object({ leadId: z.number() }))
+      .mutation(async ({ input }) => {
+        const lead = await getLeadById(input.leadId);
+        if (!lead) {
+          throw new Error('Lead not found');
+        }
+
+        // Capture screenshot
+        const screenshot = await captureScreenshot(lead.websiteUrl);
+        
+        if (!screenshot.success) {
+          throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
+        }
+
+        // Upload to S3
+        const fileKey = `leads/${lead.userId}/${nanoid()}.png`;
+        const uploadResult = await storagePut(fileKey, screenshot.buffer, 'image/png');
+
+        // Update lead with screenshot
+        const updatedLead = await updateLead(lead.id, {
+          screenshotUrl: uploadResult.url,
+          screenshotKey: fileKey,
+        });
+
+        return { success: true, lead: updatedLead, screenshotUrl: uploadResult.url };
+      }),
   }),
 });
 

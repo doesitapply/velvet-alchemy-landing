@@ -71,6 +71,13 @@
       "when": 1769218617269,
       "tag": "0009_opposite_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1769259555502,
+      "tag": "0010_fancy_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

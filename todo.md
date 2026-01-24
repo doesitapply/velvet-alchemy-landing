@@ -436,3 +436,60 @@
 - [ ] Create installer/DMG for distribution
 - [ ] Document installation instructions
 - [ ] Save checkpoint
+
+## PHASE 1: Selective Batch Auditing (COMPLETED - READY FOR TESTING)
+- [x] Add "Audit Selected" button to Leads page
+- [x] Limit batch to maximum 5 leads (enforced in mutation + UI)
+- [x] Run audits sequentially (one at a time, not parallel)
+- [x] Continue processing if one lead fails
+- [x] Show real progress ("2 of 5 complete")
+- [x] Display prestige score for successful audits
+- [x] Show error message for failed audits
+- [x] Auto-clear checkboxes when batch completes
+- [x] Skip leads that already have audits (don't re-audit)
+- [ ] Test with 5 selected leads - READY TO TEST
+
+## PHASE 2: Pre-Screening (AFTER PHASE 1)
+- [ ] Run pre-screening on all 49 existing leads
+- [ ] Verify every lead shows priority score
+- [ ] Test sorting by priority reorders list correctly
+- [ ] Verify color coding: Green (75+), Yellow (50-74), Red (<50)
+- [ ] Confirm colors match scores exactly
+
+## PHASE 3: Asset Generation & Display (AFTER PHASE 2)
+- [ ] Disable asset generation for leads without audits
+- [ ] Generate exactly 4 images per lead (no duplicates)
+- [ ] Display images in gallery on lead detail page
+- [ ] Add download button for each image
+- [ ] Test: Can see and download all 4 images
+- [ ] Verify asset generation fails gracefully if audit missing
+
+## PHASE 4: Gmail Outreach (AFTER PHASE 3)
+- [ ] Set up Gmail MCP OAuth login
+- [ ] Add "Send Outreach Email" button (manual only)
+- [ ] Include in email: business name, prestige score, 1+ image, CTA
+- [ ] Implement daily email send limit
+- [ ] Log email success/failure status
+- [ ] Test: Email arrives in inbox with all required content
+- [ ] Verify no automatic sending (manual trigger only)
+
+## PHASE 2: Schema-Driven Technical Leak Detection (IN PROGRESS)
+- [x] Add detailed_report JSONB column to leads table
+- [x] Add last_deep_scan_at timestamp column
+- [x] Update Drizzle schema with new columns
+- [x] Run database migration
+- [x] Create ReportDrawer component (slide-over UI)
+- [x] Add Digital Health Grade (A-F) display
+- [x] Add "Leaks" section with red-bulleted list
+- [x] Add "Renovation Preview" placeholder
+- [x] Add "Draft Transparent Outreach" button
+- [x] Wire ReportDrawer to LeadDetail page
+- [ ] Create Enrichment Engine function
+- [ ] Implement load_speed detection
+- [ ] Implement mobile_friendly check
+- [ ] Implement conversion_leaks analysis
+- [ ] Implement competitor_analysis
+- [ ] Implement suggested_fix generation
+- [ ] Update audit mutation to populate detailed_report
+- [ ] Test with 3 audited leads
+- [ ] Save checkpoint

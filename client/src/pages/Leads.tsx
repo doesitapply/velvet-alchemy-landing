@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square } from "lucide-react";
+import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square, Camera } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export default function Leads() {
-  const { data: leads, isLoading, refetch } = trpc.leads.list.useQuery();
+  const { data: leads, isLoading, refetch } = trpc.leads.listAll.useQuery();
   const createLead = trpc.leads.create.useMutation({
     onSuccess: () => {
       toast.success("Lead created successfully");
@@ -32,6 +32,11 @@ export default function Leads() {
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [selectedLeads, setSelectedLeads] = useState<Set<number>>(new Set());
   const [sortBy, setSortBy] = useState<"priority" | "prestige" | "date">("priority");
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditProgress, setAuditProgress] = useState({ current: 0, total: 0 });
+  const [capturingScreenshot, setCapturingScreenshot] = useState<number | null>(null);
+
+  const batchAuditMutation = trpc.orchestrator.batchAuditSelected.useMutation();
 
   const filteredLeads = leads
     ?.filter((lead) =>
@@ -112,6 +117,77 @@ export default function Leads() {
       setSelectedLeads(new Set());
     } else {
       setSelectedLeads(new Set(filteredLeads?.map(l => l.id)));
+    }
+  };
+
+  const captureScreenshotMutation = trpc.leads.captureScreenshot.useMutation({
+    onSuccess: () => {
+      toast.success("Screenshot captured successfully");
+      refetch();
+      setCapturingScreenshot(null);
+    },
+    onError: (error) => {
+      toast.error(`Failed to capture screenshot: ${error.message}`);
+      setCapturingScreenshot(null);
+    },
+  });
+
+  const handleCaptureScreenshot = async (leadId: number) => {
+    setCapturingScreenshot(leadId);
+    await captureScreenshotMutation.mutateAsync({ leadId });
+  };
+
+  const handleAuditSelected = async () => {
+    const leadIds = Array.from(selectedLeads);
+    
+    if (leadIds.length === 0) {
+      toast.error("No leads selected");
+      return;
+    }
+
+    if (leadIds.length > 5) {
+      toast.error("Maximum 5 leads per batch");
+      return;
+    }
+
+    setIsAuditing(true);
+    setAuditProgress({ current: 0, total: leadIds.length });
+    toast.info(`Starting audit for ${leadIds.length} leads...`);
+
+    try {
+      // Trigger background processing
+      await batchAuditMutation.mutateAsync({ leadIds });
+      
+      // Poll for progress every 5 seconds
+      const pollInterval = setInterval(async () => {
+        const updated = await refetch();
+        const completedCount = leadIds.filter(id => {
+          const lead = updated.data?.find(l => l.id === id);
+          return lead?.status === 'audited';
+        }).length;
+        
+        setAuditProgress({ current: completedCount, total: leadIds.length });
+        
+        if (completedCount === leadIds.length) {
+          clearInterval(pollInterval);
+          setIsAuditing(false);
+          setAuditProgress({ current: 0, total: 0 });
+          setSelectedLeads(new Set());
+          toast.success(`✓ All ${leadIds.length} leads audited successfully`);
+        }
+      }, 5000);
+
+      // Stop polling after 10 minutes (safety)
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setIsAuditing(false);
+        setAuditProgress({ current: 0, total: 0 });
+      }, 600000);
+      
+    } catch (error) {
+      toast.error(`Batch audit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsAuditing(false);
+      setAuditProgress({ current: 0, total: 0 });
     }
   };
 
@@ -255,10 +331,22 @@ export default function Leads() {
               {selectedLeads.size > 0 && (
                 <Button
                   size="sm"
+                  onClick={handleAuditSelected}
+                  disabled={isAuditing || selectedLeads.size > 5}
                   className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
                 >
-                  <Zap className="h-4 w-4" />
-                  Audit Selected ({selectedLeads.size})
+                  {isAuditing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {auditProgress.current} of {auditProgress.total}
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      Audit Selected ({selectedLeads.size})
+                      {selectedLeads.size > 5 && " - Max 5"}
+                    </>
+                  )}
                 </Button>
               )}
             </div>
@@ -360,17 +448,40 @@ export default function Leads() {
                       </div>
                     </div>
 
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 border-white/20 hover:bg-white/5"
-                    >
-                      <Link href={`/leads/${lead.id}`} className="flex items-center gap-2">
-                        <Eye className="h-4 w-4" />
-                        View Details
-                      </Link>
-                    </Button>
+                    <div className="flex gap-2">
+                      {!lead.screenshotUrl && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCaptureScreenshot(lead.id)}
+                          disabled={capturingScreenshot === lead.id}
+                          className="gap-2 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                        >
+                          {capturingScreenshot === lead.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Capturing...
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="h-4 w-4" />
+                              Capture Screenshot
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 border-white/20 hover:bg-white/5"
+                      >
+                        <Link href={`/leads/${lead.id}`} className="flex items-center gap-2">
+                          <Eye className="h-4 w-4" />
+                          View Details
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

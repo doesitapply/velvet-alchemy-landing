@@ -10,12 +10,14 @@ import { getLoginUrl } from "@/const";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import AppHeader from "@/components/AppHeader";
 import { AuditProgressBar } from "@/components/AuditProgressBar";
+import { ReportDrawer } from "@/components/ReportDrawer";
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
   const leadId = params?.id ? parseInt(params.id) : null;
   const { user, loading: authLoading } = useAuth();
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
 
   const { data, isLoading, error } = trpc.leads.getById.useQuery(
     { id: leadId! },
@@ -249,6 +251,13 @@ export default function LeadDetail() {
                         </p>
                       </div>
                     </div>
+                    <Button
+                      onClick={() => setReportDrawerOpen(true)}
+                      variant="outline"
+                      className="mt-4"
+                    >
+                      View Detailed Report
+                    </Button>
                   </div>
                 )}
 
@@ -451,6 +460,15 @@ export default function LeadDetail() {
               });
             }}
             isLoading={sendDirectEmail.isPending}
+          />
+
+          {/* Report Drawer */}
+          <ReportDrawer
+            isOpen={reportDrawerOpen}
+            onClose={() => setReportDrawerOpen(false)}
+            companyName={lead.companyName}
+            prestigeScore={audit?.prestigeScore || 0}
+            detailedReport={lead.detailedReport ? JSON.parse(lead.detailedReport) : null}
           />
         </div>
       </main>

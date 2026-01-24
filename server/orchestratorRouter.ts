@@ -42,6 +42,90 @@ export const orchestratorRouter = router({
     }),
 
   /**
+   * Batch audit selected leads (max 5, sequential processing in background)
+   */
+  batchAuditSelected: protectedProcedure
+    .input(z.object({ leadIds: z.array(z.number()).max(5) }))
+    .mutation(async ({ input, ctx }) => {
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "batch_audit");
+
+      const { getLeadById, getAuditByLeadId, createAudit, updateLead } = await import("./db");
+      const { analyzeVisualDebt } = await import("./visualAudit");
+
+      // Process leads in background (non-blocking)
+      (async () => {
+        for (let i = 0; i < input.leadIds.length; i++) {
+          const leadId = input.leadIds[i];
+          
+          try {
+            // Check if lead already has an audit
+            const existingAudit = await getAuditByLeadId(leadId);
+            if (existingAudit) {
+              console.log(`[BatchAudit] Lead ${leadId} already audited, skipping`);
+              continue;
+            }
+
+            // Get lead details
+            const lead = await getLeadById(leadId);
+            if (!lead) {
+              console.error(`[BatchAudit] Lead ${leadId} not found`);
+              continue;
+            }
+
+            // Run visual audit
+            if (!lead.screenshotUrl) {
+              console.error(`[BatchAudit] Lead ${leadId} has no screenshot`);
+              continue;
+            }
+
+            console.log(`[BatchAudit] Processing lead ${i + 1}/${input.leadIds.length}: ${lead.companyName}`);
+
+            const auditResult = await analyzeVisualDebt(
+              lead.screenshotUrl,
+              lead.websiteUrl,
+              lead.companyName
+            );
+
+            // Create audit record
+            const audit = await createAudit({
+              leadId,
+              summary: auditResult.summary,
+              prestigeScore: auditResult.prestigeScore,
+              visualDebtData: JSON.stringify(auditResult),
+            });
+
+            // Update lead with prestige score
+            await updateLead(leadId, {
+              prestigeScore: auditResult.prestigeScore,
+              status: 'audited',
+            });
+            
+            if (!audit) {
+              console.error(`[BatchAudit] Failed to create audit for lead ${leadId}`);
+              continue;
+            }
+
+            console.log(`[BatchAudit] ✓ Lead ${leadId} audited successfully (prestige: ${audit.prestigeScore})`);
+          } catch (error) {
+            console.error(`[BatchAudit] Error auditing lead ${leadId}:`, error);
+            // Continue with next lead even if this one fails
+          }
+        }
+        console.log(`[BatchAudit] Batch complete`);
+      })().catch(error => {
+        console.error('[BatchAudit] Background processing failed:', error);
+      });
+
+      // Return immediately
+      return {
+        success: true,
+        message: `Started auditing ${input.leadIds.length} leads`,
+        total: input.leadIds.length,
+      };
+    }),
+
+  /**
    * Batch audit all pending leads
    */
   batchAuditAll: protectedProcedure

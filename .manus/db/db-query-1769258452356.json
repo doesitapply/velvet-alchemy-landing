@@ -1,0 +1,25 @@
+{
+  "query": "SELECT id, companyName, websiteUrl FROM leads ORDER BY id LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT id, companyName, websiteUrl FROM leads ORDER BY id LIMIT 3;",
+  "rows": [
+    {
+      "id": "30001",
+      "companyName": "Roundabout Pizza Reno",
+      "websiteUrl": "https://www.roundaboutpizza.com"
+    },
+    {
+      "id": "60001",
+      "companyName": "Smiling with Hope Pizza",
+      "websiteUrl": "http://smilingwithhopepizza.com/"
+    },
+    {
+      "id": "60002",
+      "companyName": "Pizza Guys",
+      "websiteUrl": "https://pizzaguys.com/"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcompanyName\twebsiteUrl\n30001\tRoundabout Pizza Reno\thttps://www.roundaboutpizza.com\n60001\tSmiling with Hope Pizza\thttp://smilingwithhopepizza.com/\n60002\tPizza Guys\thttps://pizzaguys.com/\n",
+  "stderr": "",
+  "execution_time_ms": 172
+}

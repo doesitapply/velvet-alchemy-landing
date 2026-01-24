@@ -51,6 +51,8 @@ export const leads = mysqlTable("leads", {
   priorityScore: int("priorityScore"), // 0-100, pre-screening score for lead value (domain age, SSL, mobile, etc.)
   hasAssets: boolean("hasAssets").default(false).notNull(), // True if Visionary generated assets
   hasOutreach: boolean("hasOutreach").default(false).notNull(), // True if Charmer sent outreach
+  detailedReport: text("detailedReport"), // JSON string for technical leak detection data
+  lastDeepScanAt: timestamp("lastDeepScanAt"), // Timestamp of last enrichment scan
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

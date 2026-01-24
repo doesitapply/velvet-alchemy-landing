@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, leadId, prestigeScore, createdAt FROM audits WHERE leadId IN (1, 2) ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT id, leadId, prestigeScore, createdAt FROM audits WHERE leadId IN (1, 2) ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "2",
+      "leadId": "2",
+      "prestigeScore": "NULL",
+      "createdAt": "2026-01-17 13:20:44"
+    },
+    {
+      "id": "1",
+      "leadId": "1",
+      "prestigeScore": "NULL",
+      "createdAt": "2026-01-17 13:20:41"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tleadId\tprestigeScore\tcreatedAt\n2\t2\tNULL\t2026-01-17 13:20:44\n1\t1\tNULL\t2026-01-17 13:20:41\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}
