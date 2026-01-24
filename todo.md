@@ -409,3 +409,30 @@
 - [ ] Display all generated assets with download buttons
 - [ ] Test complete workflow: Batch Audit → Generate Assets → Preview → Send Email
 - [ ] Save checkpoint
+
+## Intelligent Lead Prioritization System (COMPLETED)
+- [x] Design pre-screening criteria (domain age, SSL, mobile-friendly, page speed, business category value)
+- [x] Implement lightweight pre-screening function (no GPT-4o, just technical checks)
+- [x] Add priorityScore column to leads table (0-100)
+- [x] Create prescreenLead tRPC procedure (prescreenOne, prescreenAll, getRankings)
+- [ ] Run pre-screening on all existing 49 leads - READY: Click "Pre-Screen All" button to test
+- [x] Add priority score display to Leads page cards
+- [x] Implement sorting by priority score (highest first)
+- [x] Add checkboxes for individual lead selection
+- [x] Replace "Audit All" with "Pre-Screen All" + "Audit Selected" buttons
+- [ ] Add "Audit Top 10" quick action button - DEFERRED: Selective audit covers this
+- [ ] Add "Audit Top 25" quick action button - DEFERRED: Selective audit covers this
+- [ ] Update Orchestrator to handle selective batch processing - TODO: Wire up Audit Selected button
+- [ ] Test pre-screening accuracy with real leads
+- [ ] Save checkpoint
+
+## Desktop App Packaging (Future)
+- [ ] Research Electron vs Tauri for desktop packaging
+- [ ] Install Electron dependencies
+- [ ] Create Electron main process configuration
+- [ ] Configure app bundling for Windows/Mac/Linux
+- [ ] Add app icons and branding
+- [ ] Test desktop app build
+- [ ] Create installer/DMG for distribution
+- [ ] Document installation instructions
+- [ ] Save checkpoint

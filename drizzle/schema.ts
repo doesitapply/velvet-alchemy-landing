@@ -48,6 +48,7 @@ export const leads = mysqlTable("leads", {
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for deletion
   status: mysqlEnum("status", ["pending", "audited", "contacted", "closed"]).default("pending").notNull(),
   prestigeScore: int("prestigeScore"), // 0-100, copied from audit for quick access
+  priorityScore: int("priorityScore"), // 0-100, pre-screening score for lead value (domain age, SSL, mobile, etc.)
   hasAssets: boolean("hasAssets").default(false).notNull(), // True if Visionary generated assets
   hasOutreach: boolean("hasOutreach").default(false).notNull(), // True if Charmer sent outreach
   createdAt: timestamp("createdAt").defaultNow().notNull(),

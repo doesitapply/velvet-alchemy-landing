@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ExternalLink, Eye, Search, Plus, Download } from "lucide-react";
+import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -30,11 +30,23 @@ export default function Leads() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [selectedLeads, setSelectedLeads] = useState<Set<number>>(new Set());
+  const [sortBy, setSortBy] = useState<"priority" | "prestige" | "date">("priority");
 
-  const filteredLeads = leads?.filter((lead) =>
-    lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    lead.websiteUrl.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredLeads = leads
+    ?.filter((lead) =>
+      lead.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      lead.websiteUrl.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === "priority") {
+        return (b.priorityScore || 0) - (a.priorityScore || 0);
+      } else if (sortBy === "prestige") {
+        return (b.prestigeScore || 0) - (a.prestigeScore || 0);
+      } else {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
 
   const handleCreateLead = () => {
     if (!companyName || !websiteUrl) {
@@ -83,6 +95,31 @@ export default function Leads() {
     window.URL.revokeObjectURL(url);
 
     toast.success(`Exported ${leads.length} leads to CSV`);
+  };
+
+  const toggleLeadSelection = (leadId: number) => {
+    const newSelection = new Set(selectedLeads);
+    if (newSelection.has(leadId)) {
+      newSelection.delete(leadId);
+    } else {
+      newSelection.add(leadId);
+    }
+    setSelectedLeads(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLeads.size === filteredLeads?.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(filteredLeads?.map(l => l.id)));
+    }
+  };
+
+  const getPriorityColor = (score: number | null) => {
+    if (!score) return "text-gray-500";
+    if (score >= 75) return "text-green-400";
+    if (score >= 50) return "text-yellow-400";
+    return "text-red-400";
   };
 
   const getStatusColor = (status: string) => {
@@ -188,7 +225,7 @@ export default function Leads() {
           </div>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-6 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -197,6 +234,61 @@ export default function Leads() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 bg-white/5 border-white/10"
             />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="gap-2 border-white/20"
+              >
+                {selectedLeads.size === filteredLeads?.length ? (
+                  <CheckSquare className="h-4 w-4" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
+                {selectedLeads.size > 0 ? `${selectedLeads.size} selected` : "Select All"}
+              </Button>
+
+              {selectedLeads.size > 0 && (
+                <Button
+                  size="sm"
+                  className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
+                >
+                  <Zap className="h-4 w-4" />
+                  Audit Selected ({selectedLeads.size})
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Sort by:</span>
+              <Button
+                variant={sortBy === "priority" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("priority")}
+                className="gap-1"
+              >
+                <Star className="h-3 w-3" />
+                Priority
+              </Button>
+              <Button
+                variant={sortBy === "prestige" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("prestige")}
+              >
+                Prestige
+              </Button>
+              <Button
+                variant={sortBy === "date" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSortBy("date")}
+              >
+                Date
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -212,7 +304,20 @@ export default function Leads() {
                 className="bg-black/50 border-white/10 hover:border-gold/30 transition-colors"
               >
                 <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="pt-1">
+                      <button
+                        onClick={() => toggleLeadSelection(lead.id)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {selectedLeads.has(lead.id) ? (
+                          <CheckSquare className="h-5 w-5 text-cyan-400" />
+                        ) : (
+                          <Square className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-xl font-semibold text-foreground">
@@ -235,8 +340,23 @@ export default function Leads() {
                         </a>
                       </div>
 
-                      <div className="text-sm text-muted-foreground">
-                        Created {new Date(lead.createdAt).toLocaleDateString()}
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="text-muted-foreground">
+                          Created {new Date(lead.createdAt).toLocaleDateString()}
+                        </div>
+                        {lead.priorityScore !== null && (
+                          <div className="flex items-center gap-1">
+                            <Star className={`h-4 w-4 ${getPriorityColor(lead.priorityScore)}`} />
+                            <span className={getPriorityColor(lead.priorityScore)}>
+                              Priority: {lead.priorityScore}/100
+                            </span>
+                          </div>
+                        )}
+                        {lead.prestigeScore !== null && (
+                          <div className="text-muted-foreground">
+                            Prestige: {lead.prestigeScore}/100
+                          </div>
+                        )}
                       </div>
                     </div>
 

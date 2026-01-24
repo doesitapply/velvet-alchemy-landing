@@ -10,12 +10,14 @@ import { toast } from "sonner";
 export default function CommandCenter() {
   const [isAuditingAll, setIsAuditingAll] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [isPreScreening, setIsPreScreening] = useState(false);
 
   const metricsQuery = trpc.dashboard.getMetrics.useQuery();
   const pipelineQuery = trpc.dashboard.getPipelineStats.useQuery();
   const activityQuery = trpc.dashboard.getRecentActivity.useQuery();
   const scoreDistQuery = trpc.dashboard.getScoreDistribution.useQuery();
   const batchAuditMutation = trpc.orchestrator.batchAuditAll.useMutation();
+  const prescreenAllMutation = trpc.prescreener.prescreenAll.useMutation();
 
   const metrics = metricsQuery.data;
   const pipeline = pipelineQuery.data;
@@ -23,6 +25,23 @@ export default function CommandCenter() {
   const scoreDist = scoreDistQuery.data;
 
   const isLoading = metricsQuery.isLoading || pipelineQuery.isLoading;
+
+  const handlePreScreenAll = async () => {
+    if (!metrics?.pendingAudits) return;
+    
+    setIsPreScreening(true);
+    toast.info(`Pre-screening ${metrics.pendingAudits} leads...`);
+
+    try {
+      const result = await prescreenAllMutation.mutateAsync();
+      toast.success(`Pre-screened ${result.processed} leads! Check Leads page to see priority scores.`);
+      metricsQuery.refetch();
+    } catch (error) {
+      toast.error(`Pre-screening failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsPreScreening(false);
+    }
+  };
 
   const handleAuditAll = async () => {
     if (!metrics?.pendingAudits) return;
@@ -101,23 +120,34 @@ export default function CommandCenter() {
                     Awaiting analysis
                   </p>
                   {metrics.pendingAudits > 0 && (
-                    <Button
-                      onClick={() => handleAuditAll()}
-                      disabled={isAuditingAll}
-                      className="w-full mt-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-bold text-lg py-6"
-                    >
-                      {isAuditingAll ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Processing {batchProgress.current}/{batchProgress.total}...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="mr-2 h-5 w-5" />
-                          AUDIT ALL {metrics.pendingAudits} LEADS
-                        </>
-                      )}
-                    </Button>
+                    <div className="space-y-2 mt-4">
+                      <Button
+                        onClick={() => handlePreScreenAll()}
+                        disabled={isPreScreening || isAuditingAll}
+                        variant="outline"
+                        className="w-full border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10"
+                      >
+                        {isPreScreening ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Pre-screening...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="mr-2 h-4 w-4" />
+                            Pre-Screen All (Quick)
+                          </>
+                        )}
+                      </Button>
+                      <Link href="/leads">
+                        <Button
+                          variant="outline"
+                          className="w-full border-gold/50 text-gold hover:bg-gold/10"
+                        >
+                          Select Leads to Audit →
+                        </Button>
+                      </Link>
+                    </div>
                   )}
                 </CardContent>
               </Card>
