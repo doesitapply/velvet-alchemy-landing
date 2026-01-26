@@ -6,6 +6,7 @@ import { Loader2, TrendingUp, Users, CheckCircle2, Zap, Search, Play, Activity }
 import { Link } from "wouter";
 import { useState } from "react";
 import { toast } from "sonner";
+import { CircularProgress } from "@/components/CircularProgress";
 
 export default function CommandCenter() {
   const [isAuditingAll, setIsAuditingAll] = useState(false);
@@ -176,9 +177,14 @@ export default function CommandCenter() {
                     Conversion Rate
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-gold">{metrics.conversionRate}%</div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                <CardContent className="flex flex-col items-center pt-4">
+                  <CircularProgress
+                    value={metrics.conversionRate}
+                    size={100}
+                    strokeWidth={10}
+                    color="#D4AF37"
+                  />
+                  <p className="text-xs text-muted-foreground mt-4">
                     {metrics.withOutreach} outreach sent
                   </p>
                 </CardContent>

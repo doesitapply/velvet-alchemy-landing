@@ -5,7 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Loader2, DollarSign, TrendingUp, CheckCircle, Clock, XCircle } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import AppHeader from "@/components/AppHeader";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { Link } from "wouter";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
 export default function RevenueDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -109,7 +111,9 @@ export default function RevenueDashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground font-mono">TOTAL REVENUE</p>
-                  <p className="text-3xl font-serif italic">${totalRevenue.toLocaleString()}</p>
+                  <p className="text-3xl font-serif italic">
+                    <AnimatedCounter value={totalRevenue} prefix="$" decimals={0} />
+                  </p>
                 </div>
               </div>
             </Card>
@@ -215,6 +219,48 @@ export default function RevenueDashboard() {
               </div>
             )}
           </Card>
+
+          {/* Package Breakdown Chart */}
+          {payments && payments.length > 0 && (() => {
+            const packageCounts = payments.reduce((acc: any, p: any) => {
+              if (p.status === 'completed') {
+                acc[p.package_type] = (acc[p.package_type] || 0) + 1;
+              }
+              return acc;
+            }, {});
+
+            const chartData = [
+              { name: 'Basic ($3k)', value: packageCounts.basic || 0, color: '#3B82F6' },
+              { name: 'Standard ($5k)', value: packageCounts.standard || 0, color: '#D4AF37' },
+              { name: 'Premium ($8k)', value: packageCounts.premium || 0, color: '#8B5CF6' },
+            ].filter(item => item.value > 0);
+
+            return chartData.length > 0 ? (
+              <Card className="p-6">
+                <h2 className="text-xl font-serif italic mb-6">Package Breakdown</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </Card>
+            ) : null;
+          })()}
 
           {/* Quick Stats */}
           {payments && payments.length > 0 && (
