@@ -510,3 +510,12 @@
 - [ ] Create handoff package (credentials, editing guide, DNS instructions)
 - [ ] Test complete workflow (audit → generate → preview → publish → deliver)
 - [ ] Save checkpoint
+
+## ZIP Download Feature (COMPLETED)
+- [x] Install archiver package for ZIP creation
+- [x] Add downloadZip procedure to websiteGenerator router
+- [x] Create ZIP file from generated website files
+- [x] Add "Download ZIP" button to LeadDetail page
+- [x] Wire button to trigger ZIP download
+- [ ] Test ZIP download with Legacy Heating website - READY TO TEST
+- [ ] Save checkpoint

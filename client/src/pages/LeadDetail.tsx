@@ -19,7 +19,7 @@ export default function LeadDetail() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
 
-  const { data, isLoading, error } = trpc.leads.getById.useQuery(
+  const { data, isLoading, error, refetch } = trpc.leads.getById.useQuery(
     { id: leadId! },
     { enabled: !!leadId && !!user }
   );
@@ -50,14 +50,33 @@ export default function LeadDetail() {
 
   const generateWebsite = trpc.websiteGenerator.generate.useMutation({
     onSuccess: (data) => {
-      toast.success("Website generated successfully! Downloading...");
-      // TODO: Trigger download of generated website
+      toast.success("Website generated successfully!");
       console.log('Website generated:', data);
+      // Refetch to show download button
+      refetch();
     },
     onError: (error: any) => {
       toast.error(`Failed to generate website: ${error.message}`);
     },
   });
+
+  const downloadWebsite = trpc.websiteGenerator.downloadZip.useMutation({
+    onSuccess: async (data) => {
+      toast.success("Downloading website...");
+      // Trigger browser download
+      const link = document.createElement('a');
+      link.href = `/api/download/${data.filename}`;
+      link.download = data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to download website: ${error.message}`);
+    },
+  });
+
+
 
   const sendDirectEmail = trpc.charmer.sendDirectEmail.useMutation({
     onSuccess: () => {
@@ -396,24 +415,44 @@ export default function LeadDetail() {
                   )}
                 </Button>
                 {lead.status === 'audited' && lead.detailedReport && (
-                  <Button
-                    onClick={() => generateWebsite.mutate({ leadId: leadId! })}
-                    disabled={generateWebsite.isPending}
-                    variant="default"
-                    className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500"
-                  >
-                    {generateWebsite.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating Website...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate Website
-                      </>
-                    )}
-                  </Button>
+                  <>
+                    <Button
+                      onClick={() => generateWebsite.mutate({ leadId: leadId! })}
+                      disabled={generateWebsite.isPending}
+                      variant="default"
+                      className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500"
+                    >
+                      {generateWebsite.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating Website...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generate Website
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => downloadWebsite.mutate({ leadId: leadId! })}
+                      disabled={downloadWebsite.isPending}
+                      variant="outline"
+                      className="border-green-500 text-green-500 hover:bg-green-500/10"
+                    >
+                      {downloadWebsite.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Preparing...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Download ZIP
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
               </div>
             </div>

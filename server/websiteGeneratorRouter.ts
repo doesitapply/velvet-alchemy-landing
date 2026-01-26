@@ -4,6 +4,7 @@ import { getLeadById } from "./db";
 import { generateWebsite } from "./lib/websiteGenerator";
 import * as fs from 'fs';
 import * as path from 'path';
+import archiver from 'archiver';
 
 const WEBSITES_DIR = '/tmp/generated-websites';
 
@@ -163,4 +164,57 @@ export const websiteGeneratorRouter = router({
         html: previewHtml,
       };
     }),
+
+  /**
+   * Download website as ZIP file
+   */
+  downloadZip: protectedProcedure
+    .input(z.object({
+      leadId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const projectDir = path.join(WEBSITES_DIR, `lead-${input.leadId}`);
+      
+      if (!fs.existsSync(projectDir)) {
+        throw new Error("Website not generated yet");
+      }
+
+      const htmlPath = path.join(projectDir, 'index.html');
+      if (!fs.existsSync(htmlPath)) {
+        throw new Error("Website files not found");
+      }
+
+      // Get lead info for filename
+      const lead = await getLeadById(input.leadId);
+      const companyName = lead?.companyName.replace(/[^a-z0-9]/gi, '-').toLowerCase() || `lead-${input.leadId}`;
+      
+      // Create ZIP file
+      const zipPath = path.join('/tmp', `${companyName}-website.zip`);
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver('zip', {
+        zlib: { level: 9 } // Maximum compression
+      });
+
+      return new Promise<{ zipPath: string; filename: string }>((resolve, reject) => {
+        output.on('close', () => {
+          console.log(`[WebsiteGenerator] ZIP created: ${archive.pointer()} bytes`);
+          resolve({
+            zipPath,
+            filename: `${companyName}-website.zip`,
+          });
+        });
+
+        archive.on('error', (err) => {
+          reject(err);
+        });
+
+        archive.pipe(output);
+
+        // Add all files from project directory
+        archive.directory(projectDir, false);
+
+        archive.finalize();
+      });
+    }),
 });
+
