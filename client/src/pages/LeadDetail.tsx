@@ -48,6 +48,17 @@ export default function LeadDetail() {
     },
   });
 
+  const generateWebsite = trpc.websiteGenerator.generate.useMutation({
+    onSuccess: (data) => {
+      toast.success("Website generated successfully! Downloading...");
+      // TODO: Trigger download of generated website
+      console.log('Website generated:', data);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to generate website: ${error.message}`);
+    },
+  });
+
   const sendDirectEmail = trpc.charmer.sendDirectEmail.useMutation({
     onSuccess: () => {
       toast.success("Email sent successfully!");
@@ -366,23 +377,45 @@ export default function LeadDetail() {
           <Card className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-serif italic">Generated Assets</h2>
-              <Button
-                onClick={() => generateAssets.mutate({ leadId: leadId! })}
-                disabled={generateAssets.isPending || assetsLoading}
-                variant="default"
-              >
-                {generateAssets.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate Assets
-                  </>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => generateAssets.mutate({ leadId: leadId! })}
+                  disabled={generateAssets.isPending || assetsLoading}
+                  variant="default"
+                >
+                  {generateAssets.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Assets
+                    </>
+                  )}
+                </Button>
+                {lead.status === 'audited' && lead.detailedReport && (
+                  <Button
+                    onClick={() => generateWebsite.mutate({ leadId: leadId! })}
+                    disabled={generateWebsite.isPending}
+                    variant="default"
+                    className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500"
+                  >
+                    {generateWebsite.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Website...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate Website
+                      </>
+                    )}
+                  </Button>
                 )}
-              </Button>
+              </div>
             </div>
 
             {assetsLoading ? (

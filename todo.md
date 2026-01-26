@@ -493,3 +493,20 @@
 - [ ] Update audit mutation to populate detailed_report
 - [ ] Test with 3 audited leads
 - [ ] Save checkpoint
+
+## Website Generation System (IN PROGRESS)
+- [ ] Create website_projects table in database
+- [ ] Build AI Website Generator function (reads audit data, generates HTML/CSS/JS)
+- [ ] Add "Generate Website" button to LeadDetail page
+- [ ] Create websiteGenerator router with tRPC procedures
+- [ ] Implement design system (color palette, typography, layout based on industry)
+- [ ] Generate homepage sections (hero, services, testimonials, contact)
+- [ ] Add mobile-responsive CSS
+- [ ] Integrate contact form with email delivery
+- [ ] Add SEO optimization (meta tags, schema markup)
+- [ ] Create website preview modal
+- [ ] Build editing interface for customization
+- [ ] Implement one-click publish to subdomain
+- [ ] Create handoff package (credentials, editing guide, DNS instructions)
+- [ ] Test complete workflow (audit → generate → preview → publish → deliver)
+- [ ] Save checkpoint
