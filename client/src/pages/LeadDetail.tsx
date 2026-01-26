@@ -4,7 +4,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
@@ -93,6 +93,21 @@ export default function LeadDetail() {
     },
     onError: (error: any) => {
       toast.error(`Failed to download website: ${error.message}`);
+    },
+  });
+
+  const createInvoice = trpc.payment.createCheckoutSession.useMutation({
+    onSuccess: (data) => {
+      if (data.checkoutUrl) {
+        // Copy to clipboard
+        navigator.clipboard.writeText(data.checkoutUrl);
+        toast.success("Payment link copied to clipboard!");
+        // Open in new tab
+        window.open(data.checkoutUrl, "_blank", "noopener,noreferrer");
+      }
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to create payment link: ${error.message}`);
     },
   });
 
@@ -469,6 +484,27 @@ export default function LeadDetail() {
                         <>
                           <Sparkles className="mr-2 h-4 w-4" />
                           Download ZIP
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => createInvoice.mutate({ 
+                        leadId: leadId!,
+                        packageType: "standard" // Default to $5k standard package
+                      })}
+                      disabled={createInvoice.isPending}
+                      variant="default"
+                      className="bg-gradient-to-r from-gold to-yellow-600 hover:from-gold/90 hover:to-yellow-500 text-black font-bold"
+                    >
+                      {createInvoice.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <DollarSign className="mr-2 h-4 w-4" />
+                          Send Invoice ($5k)
                         </>
                       )}
                     </Button>

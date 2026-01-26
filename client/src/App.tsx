@@ -19,6 +19,7 @@ import Leads from "./pages/Leads";
 import Help from "./pages/Help";
 import BusinessScraper from "./pages/BusinessScraper";
 import Export from "./pages/Export";
+import RevenueDashboard from "./pages/RevenueDashboard";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/help" component={Help} />
       <Route path="/scraper" component={BusinessScraper} />
       <Route path="/export" component={Export} />
+      <Route path="/revenue" component={RevenueDashboard} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

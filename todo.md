@@ -537,3 +537,14 @@
 - [x] Add pricing strategy and sales scripts
 - [x] Include troubleshooting section
 - [ ] Save checkpoint and deliver guide
+
+## Stripe Payment Integration (IN PROGRESS)
+- [ ] Add Stripe feature to project with webdev_add_feature
+- [ ] Create payments table in database
+- [ ] Build payment router with createPaymentLink procedure
+- [ ] Add invoice generation with payment links
+- [ ] Create client payment portal page
+- [ ] Implement webhook handling for payment status updates
+- [ ] Add "Send Invoice" button to LeadDetail page
+- [ ] Test payment flow with test mode
+- [ ] Save checkpoint

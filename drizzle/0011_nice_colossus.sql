@@ -1,0 +1,1 @@
+ALTER TABLE `leads` MODIFY COLUMN `status` enum('pending','audited','contacted','closed','paid') NOT NULL DEFAULT 'pending';

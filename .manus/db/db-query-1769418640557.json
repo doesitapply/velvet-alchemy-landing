@@ -1,0 +1,9 @@
+{
+  "query": "\nCREATE TABLE IF NOT EXISTS payments (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  lead_id INT NOT NULL,\n  stripe_payment_intent_id VARCHAR(255),\n  stripe_checkout_session_id VARCHAR(255),\n  amount INT NOT NULL COMMENT 'Amount in cents',\n  currency VARCHAR(3) DEFAULT 'usd',\n  status ENUM('pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',\n  package_type ENUM('basic', 'standard', 'premium') NOT NULL,\n  payment_link TEXT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  paid_at TIMESTAMP NULL,\n  FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,\n  INDEX idx_lead_id (lead_id),\n  INDEX idx_status (status),\n  INDEX idx_stripe_payment_intent (stripe_payment_intent_id)\n);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute \nCREATE TABLE IF NOT EXISTS payments (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  lead_id INT NOT NULL,\n  stripe_payment_intent_id VARCHAR(255),\n  stripe_checkout_session_id VARCHAR(255),\n  amount INT NOT NULL COMMENT 'Amount in cents',\n  currency VARCHAR(3) DEFAULT 'usd',\n  status ENUM('pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',\n  package_type ENUM('basic', 'standard', 'premium') NOT NULL,\n  payment_link TEXT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  paid_at TIMESTAMP NULL,\n  FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,\n  INDEX idx_lead_id (lead_id),\n  INDEX idx_status (status),\n  INDEX idx_stripe_payment_intent (stripe_payment_intent_id)\n);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 297
+}
