@@ -203,3 +203,23 @@ export const pipelineJobs = mysqlTable("pipeline_jobs", {
 
 export type PipelineJob = typeof pipelineJobs.$inferSelect;
 export type InsertPipelineJob = typeof pipelineJobs.$inferInsert;
+/**
+ * Payments table for Stripe checkout sessions
+ */
+export const payments = mysqlTable("payments", {
+  id: int("id").autoincrement().primaryKey(),
+  lead_id: int("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  stripe_checkout_session_id: varchar("stripe_checkout_session_id", { length: 255 }).notNull().unique(),
+  stripe_payment_intent_id: varchar("stripe_payment_intent_id", { length: 255 }),
+  amount: int("amount").notNull(), // Amount in cents
+  currency: varchar("currency", { length: 3 }).notNull().default("usd"),
+  status: mysqlEnum("status", ["pending", "completed", "failed", "expired"]).default("pending").notNull(),
+  package_type: mysqlEnum("package_type", ["basic", "standard", "premium"]).notNull(),
+  payment_link: varchar("payment_link", { length: 512 }),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  completed_at: timestamp("completed_at"),
+});
+
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = typeof payments.$inferInsert;

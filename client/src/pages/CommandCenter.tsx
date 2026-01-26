@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CircularProgress } from "@/components/CircularProgress";
+import { ActivityFeed } from "@/components/ActivityFeed";
 
 export default function CommandCenter() {
   const [isAuditingAll, setIsAuditingAll] = useState(false);
@@ -406,6 +407,9 @@ export default function CommandCenter() {
               </Card>
             )}
           </div>
+
+          {/* Activity Feed */}
+          <ActivityFeed />
         </div>
       </main>
     </div>

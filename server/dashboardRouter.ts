@@ -1,6 +1,6 @@
 import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
-import { leads } from "../drizzle/schema";
+import { leads, payments } from "../drizzle/schema";
 import { eq, sql, and, gte } from "drizzle-orm";
 
 export const dashboardRouter = router({
@@ -152,6 +152,109 @@ export const dashboardRouter = router({
         timestamp: lead.updatedAt,
       };
     });
+  }),
+
+  /**
+   * Get unified activity feed (leads, audits, payments)
+   */
+  getActivityFeed: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    // Get recent leads (last 20)
+    const recentLeads = await db
+      .select({
+        id: leads.id,
+        companyName: leads.companyName,
+        status: leads.status,
+        createdAt: leads.createdAt,
+        updatedAt: leads.updatedAt,
+        prestigeScore: leads.prestigeScore,
+      })
+      .from(leads)
+      .orderBy(sql`${leads.createdAt} DESC`)
+      .limit(20);
+
+    // Get recent payments (last 20)
+    const recentPayments = await db
+      .select({
+        id: payments.id,
+        leadId: payments.lead_id,
+        amount: payments.amount,
+        status: payments.status,
+        packageType: payments.package_type,
+        createdAt: payments.created_at,
+      })
+      .from(payments)
+      .orderBy(sql`${payments.created_at} DESC`)
+      .limit(20);
+
+    // Get lead names for payments
+    const leadIds = recentPayments.map(p => p.leadId);
+    const leadNames: Record<number, string> = {};
+    if (leadIds.length > 0) {
+      const leadsForPayments = await db
+        .select({ id: leads.id, companyName: leads.companyName })
+        .from(leads)
+        .where(sql`${leads.id} IN (${sql.join(leadIds.map(id => sql`${id}`), sql`, `)})`)
+    ;
+      leadsForPayments.forEach(lead => {
+        leadNames[lead.id] = lead.companyName;
+      });
+    }
+
+    // Combine and format activities
+    const activities: Array<{
+      id: string;
+      type: 'lead_created' | 'audit_completed' | 'payment_received' | 'outreach_sent';
+      title: string;
+      description: string;
+      timestamp: Date;
+      metadata?: any;
+    }> = [];
+
+    // Add lead activities
+    recentLeads.forEach(lead => {
+      if (lead.status === 'audited' && lead.prestigeScore !== null) {
+        activities.push({
+          id: `audit-${lead.id}`,
+          type: 'audit_completed',
+          title: `Audit completed for ${lead.companyName}`,
+          description: `Prestige score: ${lead.prestigeScore}/100`,
+          timestamp: lead.updatedAt,
+          metadata: { leadId: lead.id, score: lead.prestigeScore },
+        });
+      } else {
+        activities.push({
+          id: `lead-${lead.id}`,
+          type: 'lead_created',
+          title: `New lead: ${lead.companyName}`,
+          description: `Status: ${lead.status}`,
+          timestamp: lead.createdAt,
+          metadata: { leadId: lead.id },
+        });
+      }
+    });
+
+    // Add payment activities
+    recentPayments.forEach(payment => {
+      if (payment.status === 'completed') {
+        const companyName = leadNames[payment.leadId] || 'Unknown Company';
+        activities.push({
+          id: `payment-${payment.id}`,
+          type: 'payment_received',
+          title: `Payment received from ${companyName}`,
+          description: `$${payment.amount.toLocaleString()} (${payment.packageType} package)`,
+          timestamp: payment.createdAt,
+          metadata: { paymentId: payment.id, leadId: payment.leadId, amount: payment.amount },
+        });
+      }
+    });
+
+    // Sort by timestamp descending and return top 15
+    return activities
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, 15);
   }),
 
   /**

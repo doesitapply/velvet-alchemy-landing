@@ -571,3 +571,13 @@
 - [x] Add animated counter for total revenue
 - [x] Test all pages with actual data
 - [x] Save checkpoint
+
+
+## Real-Time Activity Feed (COMPLETE)
+- [x] Create backend tRPC endpoint to fetch recent activities (leads, audits, payments)
+- [x] Build ActivityFeed component with icons and timestamps
+- [x] Add activity type badges (new lead, audit complete, payment received)
+- [x] Integrate activity feed into Command Center dashboard
+- [x] Add auto-refresh polling for real-time updates (10 second interval)
+- [x] Test activity feed with real data (4/4 tests passing)
+- [x] Save checkpoint
