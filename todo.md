@@ -519,3 +519,14 @@
 - [x] Wire button to trigger ZIP download
 - [ ] Test ZIP download with Legacy Heating website - READY TO TEST
 - [ ] Save checkpoint
+
+## Edit Website Feature (COMPLETED)
+- [x] Create WebsiteEditorModal component with live preview iframe
+- [x] Add color picker inputs for primary/secondary colors
+- [x] Add background color customization
+- [x] Create content editor form (business name, headline, services, contact)
+- [x] Implement live preview updates as user edits
+- [x] Add "Save & Regenerate" button that updates website with custom edits
+- [x] Wire modal to open automatically after generation
+- [ ] Test editing Legacy Heating website with custom colors/content - READY TO TEST
+- [ ] Save checkpoint

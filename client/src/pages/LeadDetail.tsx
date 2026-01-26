@@ -11,6 +11,7 @@ import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import AppHeader from "@/components/AppHeader";
 import { AuditProgressBar } from "@/components/AuditProgressBar";
 import { ReportDrawer } from "@/components/ReportDrawer";
+import { WebsiteEditorModal, WebsiteCustomizations } from "@/components/WebsiteEditorModal";
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
@@ -18,6 +19,8 @@ export default function LeadDetail() {
   const { user, loading: authLoading } = useAuth();
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
+  const [generatedHtml, setGeneratedHtml] = useState<string>("");
 
   const { data, isLoading, error, refetch } = trpc.leads.getById.useQuery(
     { id: leadId! },
@@ -50,15 +53,32 @@ export default function LeadDetail() {
 
   const generateWebsite = trpc.websiteGenerator.generate.useMutation({
     onSuccess: (data) => {
-      toast.success("Website generated successfully!");
-      console.log('Website generated:', data);
-      // Refetch to show download button
-      refetch();
+      toast.success("Website generated! Opening editor...");
+      setGeneratedHtml(data.html || "");
+      setEditorModalOpen(true);
     },
     onError: (error: any) => {
       toast.error(`Failed to generate website: ${error.message}`);
     },
   });
+
+  const saveCustomizations = trpc.websiteGenerator.saveCustomizations.useMutation({
+    onSuccess: () => {
+      toast.success("Website updated successfully!");
+      setEditorModalOpen(false);
+      refetch();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to save customizations: ${error.message}`);
+    },
+  });
+
+  const handleSaveCustomizations = (customizations: WebsiteCustomizations) => {
+    saveCustomizations.mutate({
+      leadId: leadId!,
+      customizations,
+    });
+  };
 
   const downloadWebsite = trpc.websiteGenerator.downloadZip.useMutation({
     onSuccess: async (data) => {
@@ -569,6 +589,16 @@ export default function LeadDetail() {
             companyName={lead.companyName}
             prestigeScore={audit?.prestigeScore || 0}
             detailedReport={lead.detailedReport ? JSON.parse(lead.detailedReport) : null}
+          />
+
+          {/* Website Editor Modal */}
+          <WebsiteEditorModal
+            open={editorModalOpen}
+            onOpenChange={setEditorModalOpen}
+            leadId={leadId!}
+            initialHtml={generatedHtml}
+            onSave={handleSaveCustomizations}
+            isSaving={saveCustomizations.isPending}
           />
         </div>
       </main>

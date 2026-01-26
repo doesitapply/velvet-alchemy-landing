@@ -70,6 +70,7 @@ export const websiteGeneratorRouter = router({
         status: 'preview',
         designData: website.designData,
         projectPath: projectDir,
+        html: website.html,
       };
     }),
 
@@ -215,6 +216,61 @@ export const websiteGeneratorRouter = router({
 
         archive.finalize();
       });
+    }),
+
+  /**
+   * Save customizations and regenerate website
+   */
+  saveCustomizations: protectedProcedure
+    .input(z.object({
+      leadId: z.number(),
+      customizations: z.object({
+        primaryColor: z.string(),
+        secondaryColor: z.string(),
+        backgroundColor: z.string(),
+        businessName: z.string(),
+        headline: z.string(),
+        services: z.string(),
+        contactInfo: z.string(),
+      }),
+    }))
+    .mutation(async ({ input }) => {
+      const projectDir = path.join(WEBSITES_DIR, `lead-${input.leadId}`);
+      
+      if (!fs.existsSync(projectDir)) {
+        throw new Error("Website not generated yet");
+      }
+
+      const htmlPath = path.join(projectDir, 'index.html');
+      if (!fs.existsSync(htmlPath)) {
+        throw new Error("Website files not found");
+      }
+
+      // Read existing HTML
+      let html = fs.readFileSync(htmlPath, 'utf-8');
+
+      // Apply color customizations
+      html = html.replace(/#3b82f6/g, input.customizations.primaryColor);
+      html = html.replace(/#8b5cf6/g, input.customizations.secondaryColor);
+      html = html.replace(/background-color:\s*#ffffff/g, `background-color: ${input.customizations.backgroundColor}`);
+
+      // Apply content customizations
+      if (input.customizations.businessName) {
+        html = html.replace(/<h1[^>]*>.*?<\/h1>/, `<h1>${input.customizations.businessName}</h1>`);
+      }
+      if (input.customizations.headline) {
+        html = html.replace(/<h2[^>]*>.*?<\/h2>/, `<h2>${input.customizations.headline}</h2>`);
+      }
+
+      // Save updated HTML
+      fs.writeFileSync(htmlPath, html);
+
+      console.log(`[WebsiteGenerator] Customizations saved for lead ${input.leadId}`);
+
+      return {
+        success: true,
+        leadId: input.leadId,
+      };
     }),
 });
 
