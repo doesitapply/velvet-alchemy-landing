@@ -5,20 +5,15 @@ import { generateOutreachEmail, sendEmailViaGmail, checkDailySendLimit } from ".
 
 export const emailRouter = router({
   /**
-   * Send outreach email to a lead
+   * Generate outreach email content for a lead
+   * Returns email data that can be sent via Gmail MCP through Manus UI
    */
-  sendOutreach: protectedProcedure
+  generateOutreach: protectedProcedure
     .input(z.object({
       leadId: z.number(),
       recipientEmail: z.string().email().optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
-      // Check daily send limit
-      const limitCheck = await checkDailySendLimit(ctx.user.id);
-      if (!limitCheck.canSend) {
-        throw new Error(`Daily send limit reached (${limitCheck.limit} emails/day). Try again tomorrow.`);
-      }
-
+    .query(async ({ input, ctx }) => {
       // Get lead details
       const lead = await getLeadById(input.leadId);
       if (!lead) {
@@ -26,11 +21,11 @@ export const emailRouter = router({
       }
 
       if (lead.status !== 'audited') {
-        throw new Error("Lead must be audited before sending outreach email");
+        throw new Error("Lead must be audited before generating outreach email");
       }
 
       if (!lead.detailedReport) {
-        throw new Error("Lead must have detailed report before sending outreach");
+        throw new Error("Lead must have detailed report before generating outreach");
       }
 
       // Parse detailed report
@@ -45,28 +40,12 @@ export const emailRouter = router({
         contactEmail: input.recipientEmail,
       });
 
-      // Send via Gmail MCP
-      const result = await sendEmailViaGmail({
+      return {
         to: email.recipientEmail,
         subject: email.subject,
         body: email.body,
-      });
-
-      if (!result.success) {
-        throw new Error(`Failed to send email: ${result.error}`);
-      }
-
-      // Update lead status
-      await updateLead(input.leadId, {
-        status: 'contacted',
-      });
-
-      // TODO: Log email send in email_logs table
-
-      return {
-        success: true,
-        messageId: result.messageId,
-        recipientEmail: email.recipientEmail,
+        leadId: input.leadId,
+        companyName: lead.companyName,
       };
     }),
 

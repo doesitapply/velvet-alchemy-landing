@@ -60,15 +60,24 @@ export const orchestratorRouter = router({
           const leadId = input.leadIds[i];
           
           try {
-            // Check if lead already has an audit
-            const existingAudit = await getAuditByLeadId(leadId);
-            if (existingAudit) {
-              console.log(`[BatchAudit] Lead ${leadId} already audited, skipping`);
+            // Get lead details first
+            const lead = await getLeadById(leadId);
+            if (!lead) {
+              console.error(`[BatchAudit] Lead ${leadId} not found`);
               continue;
             }
-
-            // Get lead details
-            const lead = await getLeadById(leadId);
+            
+            // Check if lead already has an audit with detailed report
+            const existingAudit = await getAuditByLeadId(leadId);
+            if (existingAudit && lead.detailedReport) {
+              console.log(`[BatchAudit] Lead ${leadId} already has detailed report, skipping`);
+              continue;
+            }
+            
+            // Allow re-audit if detailedReport is missing (for enrichment testing)
+            if (existingAudit) {
+              console.log(`[BatchAudit] Re-auditing lead ${leadId} to populate detailedReport`);
+            }
             if (!lead) {
               console.error(`[BatchAudit] Lead ${leadId} not found`);
               continue;

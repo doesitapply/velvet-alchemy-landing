@@ -74,9 +74,9 @@ export async function sendEmailViaGmail(params: {
     const input = JSON.stringify({
       messages: [
         {
-          to: params.to,
+          to: [params.to], // Gmail MCP requires array format
           subject: params.subject,
-          body: params.body,
+          content: params.body, // Use 'content' not 'body'
         },
       ],
     });

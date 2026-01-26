@@ -58,15 +58,24 @@ export default function LeadDetail() {
     },
   });
 
-  const sendOutreachEmail = trpc.email.sendOutreach.useMutation({
-    onSuccess: () => {
-      toast.success("Outreach email sent successfully!");
-      window.location.reload();
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to send outreach: ${error.message}`);
-    },
-  });
+  // Email generation query (returns email content for manual sending via Gmail MCP)
+  const [emailData, setEmailData] = useState<any>(null);
+  
+  const handleGenerateEmail = async () => {
+    try {
+      const utils = trpc.useUtils();
+      const result = await utils.email.generateOutreach.fetch({ leadId: leadId! });
+      setEmailData(result);
+      
+      // Copy email to clipboard for easy pasting
+      const emailText = `To: ${result.to}\nSubject: ${result.subject}\n\n${result.body}`;
+      await navigator.clipboard.writeText(emailText);
+      
+      toast.success("Email content copied to clipboard! Use Gmail to send.");
+    } catch (error: any) {
+      toast.error(`Failed to generate email: ${error.message}`);
+    }
+  };
 
   const startAudit = trpc.orchestrator.executePipeline.useMutation({
     onSuccess: () => {
@@ -425,21 +434,11 @@ export default function LeadDetail() {
               <div className="flex items-center gap-2">
                 {data.lead.status === 'audited' && data.lead.detailedReport && (
                   <Button
-                    onClick={() => sendOutreachEmail.mutate({ leadId: leadId! })}
-                    disabled={sendOutreachEmail.isPending}
+                    onClick={handleGenerateEmail}
                     variant="default"
                   >
-                    {sendOutreachEmail.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="mr-2 h-4 w-4" />
-                        Send Outreach Email
-                      </>
-                    )}
+                    <Send className="mr-2 h-4 w-4" />
+                    Copy Email to Clipboard
                   </Button>
                 )}
                 <Button
