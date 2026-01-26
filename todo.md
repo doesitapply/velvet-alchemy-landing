@@ -548,3 +548,10 @@
 - [ ] Add "Send Invoice" button to LeadDetail page
 - [ ] Test payment flow with test mode
 - [ ] Save checkpoint
+
+
+## Package Selection UI (COMPLETE)
+- [x] Replace fixed $5k Send Invoice button with package selection dropdown
+- [x] Add Basic ($3k), Standard ($5k), Premium ($8k) options with descriptions
+- [x] Test payment flow with all three package types (6/6 tests passing)
+- [x] Save checkpoint

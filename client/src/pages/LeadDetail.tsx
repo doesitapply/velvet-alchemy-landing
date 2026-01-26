@@ -4,6 +4,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -21,6 +22,7 @@ export default function LeadDetail() {
   const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
+  const [selectedPackage, setSelectedPackage] = useState<'basic' | 'standard' | 'premium'>('standard');
 
   const { data, isLoading, error, refetch } = trpc.leads.getById.useQuery(
     { id: leadId! },
@@ -487,10 +489,38 @@ export default function LeadDetail() {
                         </>
                       )}
                     </Button>
+                    <Select
+                      value={selectedPackage}
+                      onValueChange={(value: 'basic' | 'standard' | 'premium') => setSelectedPackage(value)}
+                    >
+                      <SelectTrigger className="w-[280px] border-2 border-gold/30 bg-background/50">
+                        <SelectValue placeholder="Select package" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="basic">
+                          <div className="flex flex-col">
+                            <span className="font-bold">💎 Basic - $3,000</span>
+                            <span className="text-xs text-muted-foreground">Single-page website</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="standard">
+                          <div className="flex flex-col">
+                            <span className="font-bold">🏆 Standard - $5,000</span>
+                            <span className="text-xs text-muted-foreground">Multi-page website</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="premium">
+                          <div className="flex flex-col">
+                            <span className="font-bold">👑 Premium - $8,000</span>
+                            <span className="text-xs text-muted-foreground">Full website + extras</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Button
                       onClick={() => createInvoice.mutate({ 
                         leadId: leadId!,
-                        packageType: "standard" // Default to $5k standard package
+                        packageType: selectedPackage
                       })}
                       disabled={createInvoice.isPending}
                       variant="default"
@@ -504,7 +534,7 @@ export default function LeadDetail() {
                       ) : (
                         <>
                           <DollarSign className="mr-2 h-4 w-4" />
-                          Send Invoice ($5k)
+                          Send Invoice
                         </>
                       )}
                     </Button>
