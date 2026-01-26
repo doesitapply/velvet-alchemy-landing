@@ -530,3 +530,10 @@
 - [x] Wire modal to open automatically after generation
 - [ ] Test editing Legacy Heating website with custom colors/content - READY TO TEST
 - [ ] Save checkpoint
+
+## Training Guide (COMPLETED)
+- [x] Write comprehensive training guide for operator
+- [x] Include step-by-step workflow from scraping to delivery
+- [x] Add pricing strategy and sales scripts
+- [x] Include troubleshooting section
+- [ ] Save checkpoint and deliver guide
