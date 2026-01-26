@@ -1,290 +1,116 @@
-# Velvet Alchemy
+# VELVET ALCHEMY - Revenue Instrument 💰
 
-**An autonomous, multi-agent revenue system designed to identify, audit, and close high-net-worth leads in the luxury market.**
-
-Velvet Alchemy operates as a "revenue instrument" that converts URLs into contracts through automated lead acquisition, visual auditing, asset generation, and outreach. The system is built with a safety-first approach, ensuring compliance and preventing abuse while maximizing conversion efficiency.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [System Architecture](#system-architecture)
-- [Core Agents](#core-agents)
-- [Key Features](#key-features)
-- [Quick Start](#quick-start)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Documentation](#documentation)
-- [License](#license)
+**Last Updated:** January 26, 2026 at 4:27 AM PST  
+**Version:** 2.1.0  
+**Status:** Production Ready (Payment Integration Complete)
 
 ---
 
-## Overview
+## What Is This?
 
-Velvet Alchemy is a fully autonomous revenue generation system that targets high-net-worth clients in the luxury market. The system operates through a series of specialized AI agents, each responsible for a specific stage of the lead-to-contract pipeline.
+**Velvet Alchemy** is an automated revenue generation system that finds local businesses with outdated websites, proves they're losing money, generates replacement websites with AI, and collects $3k-$8k per deal through Stripe.
 
-### What It Does
+**Think of it as:** A money-printing vending machine for website redesigns.
 
-1. **Captures leads** by taking screenshots of target websites
-2. **Audits visual quality** using GPT-4o Vision to identify design debt and calculate prestige scores
-3. **Generates marketing assets** (social posts, web banners) tailored to each lead's brand DNA
-4. **Drafts personalized outreach emails** using AI-powered copywriting
-5. **Sends emails via Gmail** with human approval workflow
-6. **Orchestrates the entire pipeline** with automated background jobs and retry logic
-
-### Design Philosophy
-
-Velvet Alchemy is built on three core principles:
-
-- **Revenue Obsession**: Every component must contribute directly to closing deals
-- **Safety First**: The Governor agent prevents spam, abuse, and compliance violations
-- **Human-in-the-Loop**: Critical actions (email sending) require human approval
-- **Full Transparency**: All operations are logged and visible in real-time dashboards
-
----
-
-## System Architecture
-
-Velvet Alchemy follows a **multi-agent architecture** where each agent is a specialized service with a single responsibility. Agents communicate through a shared database and are orchestrated by The Orchestrator.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Command Center                          │
-│         (Unified Dashboard & Control Interface)              │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     The Orchestrator                         │
-│         (Pipeline Automation & Job Management)               │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-┌───────────────┐     ┌───────────────┐     ┌───────────────┐
-│  The Curator  │────▶│ The Visionary │────▶│  The Charmer  │
-│  (Lead Audit) │     │ (Asset Gen)   │     │  (Outreach)   │
-└───────────────┘     └───────────────┘     └───────────────┘
-        │                     │                     │
-        └─────────────────────┴─────────────────────┘
-                              │
-                              ▼
-                    ┌───────────────┐
-                    │ The Governor  │
-                    │ (Safety Layer)│
-                    └───────────────┘
-```
-
----
-
-## Core Agents
-
-### The Curator
-
-**Purpose**: Lead acquisition and visual quality auditing
-
-**Capabilities**:
-- Captures full-page screenshots using Playwright
-- Uploads screenshots to S3 (Cloudflare R2)
-- Analyzes visual debt using GPT-4o Vision
-- Calculates prestige scores (0-100) based on design quality
-- Stores structured audit data (typography, color, layout, imagery issues)
-
-**Key Files**:
-- `server/screenshot.ts` - Screenshot capture logic
-- `server/visualAudit.ts` - LLM-powered visual analysis
-- `server/db.ts` - Lead and audit database operations
-
----
-
-### The Visionary
-
-**Purpose**: Automated marketing asset generation
-
-**Capabilities**:
-- Extracts "Business DNA" from visual audits (brand colors, typography, style)
-- Generates 3 social media posts + 1 web banner per lead
-- Uses Manus image generation API for high-fidelity output
-- Stores generated assets in S3 with metadata
-
-**Key Files**:
-- `server/visionary.ts` - Asset generation service
-- `server/routers.ts` - tRPC procedures for asset workflows
-
----
-
-### The Charmer
-
-**Purpose**: AI-powered outreach email generation and delivery
-
-**Capabilities**:
-- Generates personalized email copy using LLM
-- Creates campaigns and outreach drafts
-- Implements approval workflow (draft → pending → approved → sent)
-- Sends emails via Gmail MCP integration
-- Tracks email status (sent, opened, clicked, replied)
-
-**Key Files**:
-- `server/charmer.ts` - Outreach generation logic
-- `server/charmerRouter.ts` - tRPC procedures for campaign management
-- `server/gmailClient.ts` - Gmail MCP wrapper
-
----
-
-### The Governor
-
-**Purpose**: Safety, compliance, and rate limiting
-
-**Capabilities**:
-- Rate limiting (10 requests/hour per user for lead creation)
-- Domain reputation checks (blocks unsafe/blacklisted domains)
-- Kill-switch controls (global and per-user)
-- Audit logging for all critical operations
-- Admin dashboard for monitoring and controls
-
-**Key Files**:
-- `server/governor.ts` - Safety enforcement logic
-- `server/governorRouter.ts` - tRPC procedures for admin controls
-- `client/src/pages/Governor.tsx` - Admin dashboard UI
-
----
-
-### The Orchestrator
-
-**Purpose**: Automated pipeline execution and job management
-
-**Capabilities**:
-- Chains Curator → Visionary → Charmer workflows
-- Background job system with status tracking
-- Error handling and automatic retry logic (max 3 attempts)
-- Real-time progress updates via tRPC subscriptions
-- Admin dashboard for pipeline monitoring
-
-**Key Files**:
-- `server/orchestrator.ts` - Pipeline orchestration service
-- `server/orchestratorRouter.ts` - tRPC procedures for job management
-- `client/src/pages/Orchestrator.tsx` - Pipeline monitoring UI
-
----
-
-## Key Features
-
-### Command Center
-
-A unified dashboard at `/command-center` that consolidates all workflows into a single control interface. Each workflow is displayed as a card with:
-
-- Clear description and purpose
-- Launch button to trigger execution
-- Real-time progress tracking with percentage bars
-- Status indicators (idle/running/completed/failed)
-- Quick links to detailed views
-
-### Real-Time Updates
-
-All dashboards use tRPC subscriptions to provide live updates as pipelines execute. No page refresh required.
-
-### Database-Backed Persistence
-
-All leads, audits, assets, campaigns, and jobs are stored in a MySQL database (Supabase) with full ACID guarantees.
-
-### S3 Storage
-
-Screenshots and generated assets are stored in Cloudflare R2 (S3-compatible) for scalability and durability.
-
-### Gmail Integration
-
-Email sending is handled via Gmail MCP integration, providing reliable delivery and tracking.
+**Current Status:** 49 leads loaded, payment processing live, ready to generate revenue.
 
 ---
 
 ## Quick Start
 
-### Prerequisites
+### For Operators (Non-Technical)
+1. Read **[THE_MONEY_MANUAL.md](./THE_MONEY_MANUAL.md)** - Understand how this makes money
+2. Read **[OPERATOR_TRAINING_GUIDE.md](./OPERATOR_TRAINING_GUIDE.md)** - Learn how to use the system
+3. Login to the dashboard
+4. Start generating revenue
 
-- Node.js 22+
-- pnpm 9+
-- MySQL database (or Supabase)
-- Cloudflare R2 bucket (or S3-compatible storage)
-- Gmail account with MCP access
-- Manus API key (for image generation)
+### For Developers
+1. Read **[DEVELOPER_HANDOFF.md](./DEVELOPER_HANDOFF.md)** - Setup instructions
+2. Run `pnpm install && pnpm dev`
+3. Read **[SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)** - Understand the codebase
+4. Start building
 
-### Installation
+---
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd velvet-alchemy-landing
+## Documentation Index
 
-# Install dependencies
-pnpm install
+### Business Documentation
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your credentials
+**[📖 THE_MONEY_MANUAL.md](./THE_MONEY_MANUAL.md)**  
+Complete guide on how this system generates revenue. Covers business model, pricing, sales psychology, and realistic income projections.
 
-# Push database schema
-pnpm db:push
+**[👩‍💼 OPERATOR_TRAINING_GUIDE.md](./OPERATOR_TRAINING_GUIDE.md)**  
+Step-by-step playbook for non-technical operators. Learn how to scrape leads, run audits, generate websites, and collect payments.
 
-# Start development server
-pnpm dev
-```
+### Technical Documentation
 
-### Environment Variables
+**[🏗️ SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)**  
+Complete technical architecture including tech stack, data flow, deployment, and scaling considerations.
 
-Required environment variables are documented in `.env.example`. Key variables include:
+**[👨‍💻 DEVELOPER_HANDOFF.md](./DEVELOPER_HANDOFF.md)**  
+Developer onboarding guide with setup instructions, code examples, common tasks, and troubleshooting.
 
-- `DATABASE_URL` - MySQL connection string
-- `JWT_SECRET` - Session signing secret
-- `BUILT_IN_FORGE_API_KEY` - Manus API key for image generation
-- `OAUTH_SERVER_URL` - Manus OAuth server URL
-- Gmail MCP credentials (configured via Manus MCP integration)
+**[🗄️ DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)**  
+Complete database schema with table definitions, relationships, sample queries, and optimization tips.
 
-### First Steps
+**[📡 API_REFERENCE.md](./API_REFERENCE.md)**  
+Full API documentation for all tRPC endpoints with input/output schemas and usage examples.
 
-1. Navigate to `http://localhost:3000`
-2. Sign in via Manus OAuth
-3. Visit `/command-center` to access the unified dashboard
-4. Create your first lead using "Manual Lead Creation" workflow
-5. Monitor progress in real-time as the pipeline executes
+---
+
+## System Overview
+
+### What It Does
+
+1. **Scrapes leads** from Google Maps (plumbers, dentists, lawyers, etc.)
+2. **Analyzes websites** with GPT-4o Vision to calculate revenue loss
+3. **Generates replacement websites** with AI in 2-3 minutes
+4. **Sends invoices** via Stripe ($3k-$8k per deal)
+5. **Tracks revenue** in real-time dashboard
+
+### Key Features
+
+✅ **Automated Lead Generation** - Google Maps scraper finds 50+ businesses in 30 seconds  
+✅ **AI-Powered Audits** - GPT-4o Vision analyzes design quality and calculates revenue loss  
+✅ **Website Generation** - Complete HTML/CSS/JS websites generated in minutes  
+✅ **Payment Processing** - Stripe integration with automatic status updates  
+✅ **Revenue Dashboard** - Track total income, conversion rates, and deal pipeline  
+✅ **Email Outreach** - AI-generated personalized emails with audit findings  
+✅ **Asset Generation** - Marketing images for social media and web banners  
+
+### Current Stats
+
+- **49 leads** loaded and ready to audit
+- **Payment system** fully integrated and tested
+- **Revenue tracking** dashboard live
+- **$0 → $25k potential** with current lead pipeline
 
 ---
 
 ## Technology Stack
 
 ### Frontend
-
-- **React 19** - UI framework
-- **Next.js 15** (App Router) - React framework
-- **Tailwind CSS 4** - Utility-first styling
-- **shadcn/ui** - Component library
-- **React Three Fiber** - 3D visualization (Gravity Well)
-- **tRPC** - Type-safe API client
+- React 19 + TypeScript
+- Tailwind CSS 4
+- tRPC (type-safe API)
+- shadcn/ui components
 
 ### Backend
-
-- **Node.js** - Runtime environment
-- **Express 4** - HTTP server
-- **tRPC 11** - Type-safe API layer
-- **Drizzle ORM** - Database toolkit
-- **Playwright** - Browser automation for screenshots
-- **Superjson** - Type-preserving serialization
-
-### Database & Storage
-
-- **MySQL** (via Supabase) - Relational database
-- **Cloudflare R2** - S3-compatible object storage
+- Node.js 22 + Express
+- tRPC API layer
+- Drizzle ORM
+- MySQL/TiDB database
 
 ### AI Services
+- GPT-4o Vision (website analysis)
+- GPT-4o (website generation)
+- Manus AI (image generation)
 
-- **GPT-4o Vision** - Visual audit analysis
-- **Manus Image API** - Marketing asset generation
-- **LLM** (via Manus) - Outreach copy generation
-
-### External Integrations
-
-- **Gmail MCP** - Email sending and tracking
-- **Manus OAuth** - Authentication
+### External Services
+- Stripe (payment processing)
+- AWS S3 (file storage)
+- Google Maps API (lead scraping)
+- Playwright (screenshot capture)
 
 ---
 
@@ -292,59 +118,334 @@ Required environment variables are documented in `.env.example`. Key variables i
 
 ```
 velvet-alchemy-landing/
-├── client/                    # Frontend application
-│   ├── public/               # Static assets
+├── THE_MONEY_MANUAL.md            # Business guide
+├── OPERATOR_TRAINING_GUIDE.md     # User manual
+├── SYSTEM_ARCHITECTURE.md         # Technical architecture
+├── DEVELOPER_HANDOFF.md           # Developer guide
+├── DATABASE_SCHEMA.md             # Database documentation
+├── API_REFERENCE.md               # API documentation
+├── client/                         # Frontend React app
 │   ├── src/
-│   │   ├── components/       # React components
-│   │   ├── pages/            # Page components
-│   │   ├── contexts/         # React contexts
-│   │   ├── hooks/            # Custom hooks
-│   │   ├── lib/              # Utilities and tRPC client
-│   │   ├── App.tsx           # Routes and layout
-│   │   └── main.tsx          # Entry point
-├── server/                    # Backend application
-│   ├── _core/                # Framework plumbing
-│   ├── routers.ts            # tRPC procedures
-│   ├── db.ts                 # Database operations
-│   ├── screenshot.ts         # Screenshot capture
-│   ├── visualAudit.ts        # Visual debt analysis
-│   ├── visionary.ts          # Asset generation
-│   ├── charmer.ts            # Outreach generation
-│   ├── orchestrator.ts       # Pipeline orchestration
-│   ├── governor.ts           # Safety enforcement
-│   └── storage.ts            # S3 operations
-├── drizzle/                   # Database schema and migrations
-│   └── schema.ts             # Table definitions
-├── shared/                    # Shared types and constants
-├── docs/                      # Documentation
-│   ├── USER_GUIDE.md         # Step-by-step tutorials
-│   ├── ARCHITECTURE.md       # Technical deep-dive
-│   ├── DEPLOYMENT.md         # Production deployment
-│   ├── TROUBLESHOOTING.md    # Common issues
-│   └── API_REFERENCE.md      # tRPC procedures
-├── package.json              # Dependencies and scripts
-├── tsconfig.json             # TypeScript configuration
-└── README.md                 # This file
+│   │   ├── pages/                 # Page components
+│   │   ├── components/            # Reusable UI
+│   │   └── lib/                   # Utilities
+│   └── public/                    # Static assets
+├── server/                         # Backend Express + tRPC
+│   ├── *Router.ts                 # API endpoints
+│   ├── lib/                       # Business logic
+│   └── _core/                     # Framework code
+├── drizzle/                        # Database
+│   ├── schema.ts                  # Table definitions
+│   └── migrations/                # SQL migrations
+└── shared/                         # Shared code
 ```
 
 ---
 
-## Documentation
+## Getting Started
 
-Comprehensive documentation is available in the `docs/` directory:
+### Prerequisites
+- Node.js 22+
+- pnpm
+- MySQL database (or TiDB Cloud)
+- Stripe account
+- AWS S3 bucket
 
-- **[User Guide](docs/USER_GUIDE.md)** - Step-by-step tutorials for each workflow
-- **[Architecture](docs/ARCHITECTURE.md)** - Technical deep-dive on system design
-- **[Deployment](docs/DEPLOYMENT.md)** - Production deployment checklist
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-- **[API Reference](docs/API_REFERENCE.md)** - Complete tRPC procedure documentation
+### Installation
+
+```bash
+# 1. Clone repository
+git clone <repo-url>
+cd velvet-alchemy-landing
+
+# 2. Install dependencies
+pnpm install
+
+# 3. Set up environment variables
+# Copy .env.example to .env and fill in:
+# - DATABASE_URL
+# - STRIPE_SECRET_KEY
+# - STRIPE_PUBLISHABLE_KEY
+# - AWS credentials
+
+# 4. Push database schema
+pnpm db:push
+
+# 5. Start development server
+pnpm dev
+
+# 6. Open http://localhost:3000
+```
+
+### First Steps
+
+1. **Login** - Use OAuth to authenticate
+2. **Scrape leads** - Go to /scraper, enter "plumbers Austin TX"
+3. **Run audit** - Click "START AUDIT" on any lead
+4. **Generate website** - Click "Generate Website" after audit
+5. **Send invoice** - Click "Send Invoice ($5k)" to create payment link
+6. **Track revenue** - Go to /revenue to see dashboard
+
+---
+
+## Key Workflows
+
+### Lead Generation Workflow
+```
+1. Go to /scraper
+2. Enter query (e.g., "plumbers") and location (e.g., "Austin, TX")
+3. Click "SCRAPE LEADS"
+4. Wait 30 seconds
+5. View 50+ leads in /leads
+```
+
+### Audit Workflow
+```
+1. Go to /leads
+2. Click on any lead
+3. Click "START AUDIT"
+4. Wait 2-3 minutes
+5. View detailed report with revenue loss calculations
+```
+
+### Website Generation Workflow
+```
+1. Open audited lead
+2. Click "Generate Website"
+3. Wait 2-3 minutes
+4. Customize colors/content in modal
+5. Click "Download ZIP"
+6. Deliver to client
+```
+
+### Payment Workflow
+```
+1. Open lead detail page
+2. Click "Send Invoice ($5k)"
+3. Payment link auto-copies to clipboard
+4. Send link to client via email/text
+5. Client pays with credit card
+6. Webhook updates status to "paid"
+7. Revenue Dashboard shows new payment
+```
+
+---
+
+## Revenue Model
+
+### Package Pricing
+- **Basic:** $3,000 (single-page website)
+- **Standard:** $5,000 (multi-page website) ← Most popular
+- **Premium:** $8,000 (full website + blog + analytics)
+
+### Income Projections
+
+**Conservative (10% close rate):**
+- 49 leads → 5 deals → $25,000
+
+**Realistic (15% close rate):**
+- 200 leads/month → 30 deals → $150,000/month
+
+**Ambitious (20% close rate):**
+- 500 leads/month → 100 deals → $500,000/month
+
+### Cost Structure
+- **Production cost:** $0 (AI generates everything)
+- **Stripe fees:** 2.9% + $0.30 per transaction
+- **Net margin:** ~97%
+
+---
+
+## Current Status
+
+### ✅ Completed Features
+- [x] Google Maps lead scraping
+- [x] Lead pre-screening (priority scoring)
+- [x] AI website auditing (GPT-4o Vision)
+- [x] Revenue loss calculations
+- [x] Technical leak detection
+- [x] AI website generation
+- [x] Website customization UI
+- [x] ZIP file download
+- [x] Stripe payment integration
+- [x] Webhook handler for payment status
+- [x] Revenue Dashboard
+- [x] Email outreach generation
+- [x] Marketing asset generation
+
+### 🚧 In Progress
+- [ ] Automated email sequences
+- [ ] Multi-user support (team accounts)
+- [ ] CRM integration
+
+### 📋 Roadmap
+- [ ] Mobile app for operators
+- [ ] White-label version for agencies
+- [ ] Automated follow-up system
+- [ ] Custom branding for generated websites
+
+---
+
+## Testing
+
+### Run Tests
+```bash
+pnpm test                    # Run all tests
+pnpm test payment.test.ts    # Run specific test
+```
+
+### Manual Testing
+
+**Test Payment Flow:**
+1. Create checkout session
+2. Use test card: 4242 4242 4242 4242
+3. Complete payment
+4. Verify webhook updates status
+5. Check Revenue Dashboard
+
+**Test Audit Flow:**
+1. Scrape test lead
+2. Run full audit
+3. Verify prestige score calculated
+4. Check detailed report JSON
+
+---
+
+## Deployment
+
+### Manus Platform (Recommended)
+
+1. **Save checkpoint:**
+   - Click "Save Checkpoint" in Management UI
+   - Or use `webdev_save_checkpoint` tool
+
+2. **Publish:**
+   - Click "Publish" button in Management UI
+   - Deploys to production with custom domain
+
+3. **Configure Stripe webhook:**
+   - Go to Stripe Dashboard → Webhooks
+   - Add endpoint: `https://your-domain.com/api/webhooks/stripe`
+   - Select events: `checkout.session.completed`, `checkout.session.expired`
+   - Copy webhook secret to environment variables
+
+### Manual Deployment
+
+```bash
+# Build for production
+pnpm build
+
+# Deploy dist/ folder to VPS
+# Set environment variables
+# Run: node dist/index.js
+```
+
+---
+
+## Environment Variables
+
+### Required
+```bash
+DATABASE_URL="mysql://..."
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_PUBLISHABLE_KEY="pk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+AWS_ACCESS_KEY_ID="..."
+AWS_SECRET_ACCESS_KEY="..."
+S3_BUCKET_NAME="..."
+```
+
+### Auto-Injected (Manus Platform)
+```bash
+BUILT_IN_FORGE_API_KEY="..."
+OAUTH_SERVER_URL="..."
+JWT_SECRET="..."
+```
+
+---
+
+## Support & Resources
+
+### Documentation
+- **Business:** THE_MONEY_MANUAL.md, OPERATOR_TRAINING_GUIDE.md
+- **Technical:** SYSTEM_ARCHITECTURE.md, DEVELOPER_HANDOFF.md
+- **Reference:** DATABASE_SCHEMA.md, API_REFERENCE.md
+
+### External Resources
+- [tRPC Docs](https://trpc.io/docs)
+- [Stripe API](https://stripe.com/docs/api)
+- [React Docs](https://react.dev)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+
+### Common Issues
+
+**Dev server won't start:**
+```bash
+lsof -i :3000
+kill -9 <PID>
+pnpm dev
+```
+
+**Database connection failed:**
+- Check DATABASE_URL is correct
+- Verify database is running
+
+**Stripe initialization failed:**
+- Verify STRIPE_SECRET_KEY is set
+- Check key starts with `sk_test_` or `sk_live_`
+
+---
+
+## Contributing
+
+### Code Style
+- TypeScript strict mode
+- Prettier for formatting
+- ESLint for linting
+- Conventional commits
+
+### Pull Request Process
+1. Create feature branch
+2. Make changes
+3. Write tests
+4. Update documentation
+5. Submit PR
 
 ---
 
 ## License
 
-Proprietary and confidential. All rights reserved.
+Proprietary - All rights reserved
 
 ---
 
-**Built with Manus AI** - The autonomous revenue instrument for luxury market domination.
+## Contact
+
+For questions, issues, or feature requests, contact the project owner.
+
+---
+
+## Changelog
+
+### v2.1.0 (2026-01-26)
+- ✅ Added Stripe payment integration
+- ✅ Added Revenue Dashboard
+- ✅ Added webhook handler for payment status
+- ✅ Added payment tracking in database
+- ✅ Updated all documentation with timestamps
+
+### v2.0.0 (2026-01-20)
+- ✅ Complete system rebuild with tRPC
+- ✅ AI website generation
+- ✅ Batch audit processing
+- ✅ Email outreach generation
+
+### v1.0.0 (2026-01-15)
+- ✅ Initial release
+- ✅ Google Maps scraping
+- ✅ AI website auditing
+- ✅ Lead management
+
+---
+
+**Ready to print money? Read THE_MONEY_MANUAL.md and get started.** 💰🚀
