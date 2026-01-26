@@ -52,6 +52,7 @@ export const orchestratorRouter = router({
 
       const { getLeadById, getAuditByLeadId, createAudit, updateLead } = await import("./db");
       const { analyzeVisualDebt } = await import("./visualAudit");
+      const { enrichLead } = await import("./lib/enrichment");
 
       // Process leads in background (non-blocking)
       (async () => {
@@ -95,10 +96,23 @@ export const orchestratorRouter = router({
               visualDebtData: JSON.stringify(auditResult),
             });
 
-            // Update lead with prestige score
+            // Run enrichment to populate detailed report
+            const enrichmentResult = await enrichLead({
+              id: lead.id,
+              companyName: lead.companyName,
+              websiteUrl: lead.websiteUrl,
+              category: 'default', // TODO: Add category field to leads table
+              location: '', // TODO: Add location field to leads table
+              screenshotUrl: lead.screenshotUrl,
+              prestigeScore: auditResult.prestigeScore,
+            });
+
+            // Update lead with prestige score and detailed report
             await updateLead(leadId, {
               prestigeScore: auditResult.prestigeScore,
               status: 'audited',
+              detailedReport: JSON.stringify(enrichmentResult.detailedReport),
+              lastDeepScanAt: new Date(),
             });
             
             if (!audit) {

@@ -30,8 +30,14 @@ export async function captureScreenshot(
     }
 
     // Launch headless browser
+    // Use ubuntu user's Playwright cache if running as root
+    const executablePath = process.env.PLAYWRIGHT_BROWSERS_PATH 
+      ? undefined 
+      : '/home/ubuntu/.cache/ms-playwright/chromium-1200/chrome-linux64/chrome';
+    
     browser = await chromium.launch({
       headless: true,
+      executablePath,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 

@@ -58,6 +58,16 @@ export default function LeadDetail() {
     },
   });
 
+  const sendOutreachEmail = trpc.email.sendOutreach.useMutation({
+    onSuccess: () => {
+      toast.success("Outreach email sent successfully!");
+      window.location.reload();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to send outreach: ${error.message}`);
+    },
+  });
+
   const startAudit = trpc.orchestrator.executePipeline.useMutation({
     onSuccess: () => {
       toast.success("Audit started! This will take 2-3 minutes.");
@@ -413,12 +423,31 @@ export default function LeadDetail() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-serif italic">Outreach</h2>
               <div className="flex items-center gap-2">
+                {data.lead.status === 'audited' && data.lead.detailedReport && (
+                  <Button
+                    onClick={() => sendOutreachEmail.mutate({ leadId: leadId! })}
+                    disabled={sendOutreachEmail.isPending}
+                    variant="default"
+                  >
+                    {sendOutreachEmail.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Send Outreach Email
+                      </>
+                    )}
+                  </Button>
+                )}
                 <Button
                   onClick={() => setEmailDialogOpen(true)}
-                  variant="default"
+                  variant="outline"
                 >
-                  <Send className="mr-2 h-4 w-4" />
-                  Send Email
+                  <Mail className="mr-2 h-4 w-4" />
+                  Custom Email
                 </Button>
                 <Button
                   onClick={() => generateDraft.mutate({ leadId: leadId! })}
