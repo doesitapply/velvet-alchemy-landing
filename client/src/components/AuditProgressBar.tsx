@@ -35,14 +35,21 @@ export function AuditProgressBar({ leadId, onComplete, onError }: AuditProgressB
     { leadId },
     {
       refetchInterval: (query) => {
-        // Stop polling if completed or failed
+        // Stop polling if no jobs exist yet
         const data = query?.state?.data;
-        if (!data || !Array.isArray(data) || data.length === 0) return 2000;
-        const latestJob = data[0];
-        if (latestJob.status === "completed" || latestJob.status === "failed") {
-          return false;
+        if (!data || !Array.isArray(data) || data.length === 0) {
+          return false; // Don't poll if no jobs exist
         }
-        return 2000; // Poll every 2 seconds
+        
+        const latestJob = data[0];
+        
+        // Only poll if job is actively running
+        if (latestJob.status === "running") {
+          return 2000; // Poll every 2 seconds while running
+        }
+        
+        // Stop polling for completed, failed, or pending jobs
+        return false;
       },
     }
   );
