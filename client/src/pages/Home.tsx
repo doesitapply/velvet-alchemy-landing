@@ -1,231 +1,339 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { ArrowRight, Terminal as TerminalIcon, ShieldCheck, Zap, Database, Globe, Lock, Volume2, VolumeX } from "lucide-react";
-import { Terminal } from "@/components/Terminal";
-import { LiveTicker } from "@/components/LiveTicker";
-import { RequestAccessDialog } from "@/components/RequestAccessDialog";
-import { GravityWell } from "@/components/GravityWell";
-import { useSound } from "@/contexts/SoundContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Check, Zap, DollarSign, TrendingUp, Clock, Shield, Sparkles, Target, BarChart3 } from "lucide-react";
+import { Link } from "wouter";
+import { getLoginUrl } from "@/const";
+import { useState } from "react";
 
 export default function Home() {
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
-  const { playClick, playHover, isMuted, toggleMute } = useSound();
+  const [leadsFound, setLeadsFound] = useState(10);
+  const potentialRevenue = leadsFound * 5000;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground overflow-x-hidden pb-8">
+    <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black text-white">
       
-      <Terminal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} />
-      <RequestAccessDialog open={isAccessDialogOpen} onOpenChange={setIsAccessDialogOpen} />
-      <LiveTicker />
-
-      {/* Navigation / Header */}
-      <header className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/50 backdrop-blur-md">
-        <div className="container flex h-16 items-center justify-between">
+      {/* Navigation */}
+      <header className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/80 backdrop-blur-md">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+            <div className="h-8 w-8 bg-gradient-to-br from-gold to-yellow-600 rounded-sm"></div>
             <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
           </div>
-          <nav className="hidden md:flex items-center gap-8 text-sm font-mono text-muted-foreground">
-            <a href="#manifest" className="hover:text-foreground transition-colors">MANIFEST</a>
-            <a href="#architecture" className="hover:text-foreground transition-colors">ARCHITECTURE</a>
-            <a href="#status" className="hover:text-foreground transition-colors">SYSTEM STATUS</a>
-          </nav>
           <div className="flex items-center gap-4">
-            <span className="hidden sm:inline-block text-xs font-mono text-terminal animate-pulse">● SYSTEM ONLINE</span>
-            <button onClick={toggleMute} className="text-muted-foreground hover:text-white transition-colors">
-              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </button>
+            <a href="#pricing" className="hidden md:inline text-sm hover:text-gold transition-colors">Pricing</a>
+            <a href="#how-it-works" className="hidden md:inline text-sm hover:text-gold transition-colors">How It Works</a>
             <Button 
+              asChild
               variant="outline" 
-              className="font-mono text-xs border-white/20 hover:bg-white/5 hover:text-gold rounded-none h-9"
-              onClick={() => { playClick(); setIsTerminalOpen(true); }}
-              onMouseEnter={playHover}
+              className="border-gold/30 text-gold hover:bg-gold/10"
             >
-              ACCESS TERMINAL
+              <a href={getLoginUrl()}>Login</a>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 pt-16">
-        
-        {/* Hero Section: The Gravity Well */}
-        <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden border-b border-white/10">
-          {/* Interactive 3D Background */}
-          <GravityWell />
-          
-          {/* Overlays for texture and depth */}
-          <div className="absolute inset-0 z-0 pointer-events-none">
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent"></div>
-            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
-          </div>
-
-          <div className="container relative z-10 grid lg:grid-cols-2 gap-12 items-center pointer-events-none">
-            <div className="space-y-8 pointer-events-auto">
-              <div className="inline-flex items-center gap-2 px-3 py-1 border border-white/10 bg-white/5 backdrop-blur-sm rounded-none">
-                <span className="w-2 h-2 bg-terminal rounded-full animate-pulse"></span>
-                <span className="text-xs font-mono tracking-widest text-muted-foreground">REVENUE ENGINE V2.0 ACTIVE</span>
-              </div>
-              
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif italic leading-[0.9] text-white">
-                The Art of <br/>
-                <span className="text-gold">Automated Seduction</span>
-              </h1>
-              
-              <p className="text-lg md:text-xl text-muted-foreground max-w-xl font-mono leading-relaxed border-l-2 border-gold/50 pl-6">
-                An autonomous, multi-agent system designed to audit, synthesize, and close high-net-worth leads without human intervention.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Button 
-                  size="lg" 
-                  className="rounded-none bg-gold text-black hover:bg-white font-mono text-sm h-14 px-8 border border-transparent"
-                  onClick={() => { playClick(); setIsAccessDialogOpen(true); }}
-                  onMouseEnter={playHover}
-                >
-                  INITIATE SEQUENCE <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="rounded-none border-white/20 text-white hover:bg-white/5 font-mono text-sm h-14 px-8"
-                  onClick={() => { playClick(); document.getElementById('architecture')?.scrollIntoView({ behavior: 'smooth' }); }}
-                  onMouseEnter={playHover}
-                >
-                  VIEW ARCHITECTURE
-                </Button>
-              </div>
-            </div>
-
-            {/* Right Side: Simulated Terminal/Dashboard Preview */}
-            <div className="hidden lg:block relative">
-              <div className="glass-panel p-1 rounded-none border border-white/10 transform rotate-y-12 hover:rotate-0 transition-transform duration-700 perspective-1000">
-                <img 
-                  src="/images/dashboard-ui-mockup.jpg" 
-                  alt="Velvet Alchemy Dashboard" 
-                  className="w-full h-auto border border-white/5 opacity-90"
-                />
-                {/* Floating Data Points */}
-                <div className="absolute -left-12 top-1/4 glass-panel p-4 border-l-4 border-terminal max-w-[200px]">
-                  <div className="text-xs font-mono text-muted-foreground mb-1">LEAD VELOCITY</div>
-                  <div className="text-2xl font-mono text-white">84.3% <span className="text-terminal text-sm">▲</span></div>
-                </div>
-                <div className="absolute -right-8 bottom-1/3 glass-panel p-4 border-l-4 border-gold max-w-[200px]">
-                  <div className="text-xs font-mono text-muted-foreground mb-1">REVENUE PROJECTED</div>
-                  <div className="text-2xl font-mono text-gold">$1.2M</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* The Manifest / Philosophy Section */}
-        <section id="manifest" className="py-24 border-b border-white/10 bg-black relative">
-          <div className="container">
-            <div className="grid md:grid-cols-12 gap-12">
-              <div className="md:col-span-4">
-                <h2 className="text-4xl font-serif italic text-white mb-6">The Manifest</h2>
-                <p className="font-mono text-sm text-muted-foreground leading-relaxed">
-                  We do not build tools. We build organisms. Velvet Alchemy is a living system that feeds on data and excretes revenue. It operates in the shadows, ensuring your brand is the only one that matters.
-                </p>
-              </div>
-              <div className="md:col-span-8 grid sm:grid-cols-2 gap-6">
-                {[
-                  { title: "The Curator", icon: Database, desc: "Scours the void for high-value targets. Audits visual debt instantly." },
-                  { title: "The Visionary", icon: Zap, desc: "Synthesizes bespoke visual assets. Shows them what they could be." },
-                  { title: "The Charmer", icon: TerminalIcon, desc: "Crafts seductive, high-status outreach. Never begs, only offers." },
-                  { title: "The Governor", icon: ShieldCheck, desc: "Ensures domain safety and reputation. The immune system." }
-                ].map((agent, i) => (
-                  <Card key={i} className="bg-white/5 border-white/10 rounded-none p-6 hover:bg-white/10 transition-colors group">
-                    <agent.icon className="h-8 w-8 text-gold mb-4 group-hover:text-white transition-colors" />
-                    <h3 className="text-xl font-serif italic text-white mb-2">{agent.title}</h3>
-                    <p className="font-mono text-xs text-muted-foreground leading-relaxed">{agent.desc}</p>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Architecture / Tech Stack */}
-        <section id="architecture" className="py-24 border-b border-white/10 bg-[#080808]">
-          <div className="container">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
-              <div>
-                <div className="text-terminal font-mono text-xs mb-2">SYSTEM ARCHITECTURE</div>
-                <h2 className="text-4xl md:text-5xl font-serif italic text-white">Built for <span className="text-gold">War</span></h2>
-              </div>
-              <div className="font-mono text-xs text-muted-foreground max-w-md text-right">
-                STACK_VERSION: 2.0.4<br/>
-                INFRASTRUCTURE: DISTRIBUTED<br/>
-                LATENCY: &lt;40ms
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10 border border-white/10">
-              {[
-                { label: "CORE", val: "Next.js 15" },
-                { label: "DATABASE", val: "Supabase" },
-                { label: "MEMORY", val: "Pinecone" },
-                { label: "AUTH", val: "Clerk" },
-                { label: "DEPLOY", val: "Vercel / Fly" },
-                { label: "PAYMENTS", val: "Stripe Connect" },
-                { label: "EMAIL", val: "Instantly.ai" },
-                { label: "VISION", val: "GPT-4o" }
-              ].map((item, i) => (
-                <div key={i} className="bg-background p-8 hover:bg-white/5 transition-colors group">
-                  <div className="text-xs font-mono text-muted-foreground mb-2 group-hover:text-terminal transition-colors">{item.label}</div>
-                  <div className="text-lg font-serif italic text-white">{item.val}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Live Status / Footer */}
-        <section id="status" className="py-24 bg-black relative overflow-hidden">
-          <div className="absolute inset-0 bg-[url('/images/gravity-well-hero.jpg')] opacity-10 bg-cover bg-center mix-blend-screen"></div>
-          <div className="container relative z-10 text-center">
-            <div className="inline-block mb-8">
-              <div className="h-16 w-16 mx-auto bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-full border border-gold/30 shadow-[0_0_30px_rgba(247,231,206,0.2)]"></div>
-            </div>
-            <h2 className="text-5xl md:text-7xl font-serif italic text-white mb-8">Ready to <span className="text-gold">Ascend?</span></h2>
-            <p className="font-mono text-muted-foreground mb-12 max-w-lg mx-auto">
-              The system is currently accepting a limited number of pilot workspaces. Access is granted by invitation only.
-            </p>
+      {/* Hero Section */}
+      <section className="pt-32 pb-20 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center space-y-8">
+            <Badge className="bg-gold/20 text-gold border-gold/30 text-sm px-4 py-1">
+              <Sparkles className="h-4 w-4 mr-2 inline" />
+              AI-Powered Revenue Engine
+            </Badge>
             
-            <div className="flex flex-col items-center gap-4">
+            <h1 className="text-5xl md:text-7xl font-bold leading-tight">
+              Turn Local Businesses<br />
+              Into <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-400 to-gold">$5K Paychecks</span>
+            </h1>
+            
+            <p className="text-xl md:text-2xl text-white/70 max-w-3xl mx-auto">
+              Find businesses with terrible websites, prove it with AI audits, and sell them new ones for $3k-$8k per deal. Everything automated.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button 
-                size="lg" 
-                className="rounded-none bg-white text-black hover:bg-gold font-mono text-sm h-14 px-12 min-w-[200px]"
-                onClick={() => { playClick(); setIsAccessDialogOpen(true); }}
-                onMouseEnter={playHover}
+                asChild
+                size="lg"
+                className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
               >
-                REQUEST ACCESS
+                <a href={getLoginUrl()}>
+                  Start Free Audit
+                  <ArrowRight className="ml-2 h-6 w-6" />
+                </a>
               </Button>
-              <div className="flex items-center gap-6 mt-12 text-xs font-mono text-muted-foreground">
-                <span className="flex items-center gap-2"><Lock className="h-3 w-3" /> ENCRYPTED</span>
-                <span className="flex items-center gap-2"><Globe className="h-3 w-3" /> GLOBAL NODES</span>
-                <span className="flex items-center gap-2"><ShieldCheck className="h-3 w-3" /> AUDITED</span>
+              
+              <Button 
+                asChild
+                size="lg"
+                variant="outline"
+                className="text-xl px-12 py-8 border-white/20 hover:bg-white/5"
+              >
+                <Link href="/command-center">
+                  See Demo Dashboard
+                </Link>
+              </Button>
+            </div>
+
+            {/* Social Proof */}
+            <div className="flex flex-wrap justify-center gap-8 pt-8 text-sm text-white/60">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-gold" />
+                <span>Avg. deal closes in <strong className="text-white">3 days</strong></span>
+              </div>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-gold" />
+                <span><strong className="text-white">87%</strong> of audited businesses respond</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-gold" />
+                <span>Stripe secure payments</span>
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-      </main>
+      {/* ROI Calculator */}
+      <section className="py-20 px-4 bg-gradient-to-r from-gold/10 via-yellow-600/10 to-gold/10">
+        <div className="container mx-auto max-w-4xl">
+          <Card className="bg-black/50 border-gold/30 backdrop-blur-sm">
+            <CardHeader className="text-center">
+              <CardTitle className="text-3xl text-gold">Revenue Calculator</CardTitle>
+              <CardDescription className="text-lg">See how much you can make</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <label className="text-sm text-white/70 mb-2 block">
+                  How many leads can you find per week?
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="50"
+                  value={leadsFound}
+                  onChange={(e) => setLeadsFound(parseInt(e.target.value))}
+                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
+                />
+                <div className="flex justify-between text-sm text-white/50 mt-2">
+                  <span>5 leads</span>
+                  <span className="text-gold font-bold text-lg">{leadsFound} leads</span>
+                  <span>50 leads</span>
+                </div>
+              </div>
 
-      <footer className="border-t border-white/10 bg-black py-8">
-        <div className="container flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-xs font-mono text-muted-foreground">
-            © 2026 VELVET ALCHEMY SYSTEMS. ALL RIGHTS RESERVED.
+              <div className="grid md:grid-cols-3 gap-4 pt-4">
+                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
+                  <div className="text-3xl font-bold text-gold">{leadsFound}</div>
+                  <div className="text-sm text-white/60">Leads Found</div>
+                </div>
+                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
+                  <div className="text-3xl font-bold text-green-400">{Math.round(leadsFound * 0.3)}</div>
+                  <div className="text-sm text-white/60">Deals Closed (30%)</div>
+                </div>
+                <div className="text-center p-4 bg-gradient-to-br from-gold/20 to-yellow-600/20 rounded-lg border border-gold/30">
+                  <div className="text-3xl font-bold text-gold">${(potentialRevenue * 0.3).toLocaleString()}</div>
+                  <div className="text-sm text-white/80">Monthly Revenue</div>
+                </div>
+              </div>
+
+              <p className="text-center text-white/60 text-sm">
+                Based on industry average 30% close rate and $5k average deal size
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how-it-works" className="py-20 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">How It Works</h2>
+            <p className="text-xl text-white/70">Four simple steps to your first $5k</p>
           </div>
-          <div className="text-xs font-mono text-muted-foreground">
-            SYSTEM_ID: VA-8842-X
+
+          <div className="grid md:grid-cols-4 gap-8">
+            {[
+              {
+                step: "1",
+                icon: <Target className="h-12 w-12" />,
+                title: "Find Targets",
+                description: "Search Google Maps for local businesses. Our scraper finds 50+ leads in 2 minutes."
+              },
+              {
+                step: "2",
+                icon: <BarChart3 className="h-12 w-12" />,
+                title: "AI Audits",
+                description: "AI analyzes their website and generates a professional audit report with a 0-100 score."
+              },
+              {
+                step: "3",
+                icon: <DollarSign className="h-12 w-12" />,
+                title: "Send Invoice",
+                description: "Click 'Send Invoice', choose package ($3k-$8k), and paste the Stripe payment link."
+              },
+              {
+                step: "4",
+                icon: <Zap className="h-12 w-12" />,
+                title: "Get Paid",
+                description: "Webhook automatically updates status when they pay. Track everything in your dashboard."
+              }
+            ].map((item) => (
+              <Card key={item.step} className="bg-gradient-to-b from-white/5 to-white/0 border-white/10 hover:border-gold/30 transition-all">
+                <CardContent className="pt-6 text-center space-y-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gold/20 text-gold">
+                    {item.icon}
+                  </div>
+                  <div className="text-sm font-mono text-gold">STEP {item.step}</div>
+                  <h3 className="text-xl font-bold">{item.title}</h3>
+                  <p className="text-white/60">{item.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="py-20 px-4 bg-gradient-to-b from-black to-gray-900">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">Pricing Packages</h2>
+            <p className="text-xl text-white/70">Choose the right package for your clients</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                name: "Basic",
+                price: "$3,000",
+                description: "Perfect for small businesses",
+                features: [
+                  "Single-page website",
+                  "Mobile responsive",
+                  "Basic SEO setup",
+                  "Contact form",
+                  "2-week delivery",
+                  "1 month support"
+                ],
+                badge: null
+              },
+              {
+                name: "Standard",
+                price: "$5,000",
+                description: "Most popular choice",
+                features: [
+                  "Multi-page website (up to 5 pages)",
+                  "Mobile responsive",
+                  "Advanced SEO",
+                  "Contact form + integrations",
+                  "1-week delivery",
+                  "3 months support",
+                  "Google Analytics setup"
+                ],
+                badge: "MOST POPULAR"
+              },
+              {
+                name: "Premium",
+                price: "$8,000",
+                description: "Full-service package",
+                features: [
+                  "Multi-page website (unlimited)",
+                  "Mobile responsive",
+                  "Advanced SEO + content",
+                  "Custom integrations",
+                  "3-day delivery",
+                  "6 months support",
+                  "Google Analytics + ads setup",
+                  "Social media integration"
+                ],
+                badge: "BEST VALUE"
+              }
+            ].map((pkg) => (
+              <Card 
+                key={pkg.name} 
+                className={`relative ${pkg.badge ? 'border-gold/50 bg-gradient-to-b from-gold/10 to-black' : 'bg-white/5 border-white/10'}`}
+              >
+                {pkg.badge && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-gold text-black font-bold px-4 py-1">
+                      {pkg.badge}
+                    </Badge>
+                  </div>
+                )}
+                <CardHeader className="text-center pb-8 pt-8">
+                  <CardTitle className="text-2xl mb-2">{pkg.name}</CardTitle>
+                  <div className="text-5xl font-bold text-gold mb-2">{pkg.price}</div>
+                  <CardDescription>{pkg.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {pkg.features.map((feature, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <Check className="h-5 w-5 text-gold shrink-0 mt-0.5" />
+                        <span className="text-white/80">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <p className="text-center text-white/60 mt-12">
+            💡 <strong className="text-white">Pro tip:</strong> Start with Standard package for most clients. Upsell to Premium for established businesses with high traffic.
+          </p>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto max-w-4xl">
+          <Card className="bg-gradient-to-r from-gold/20 via-yellow-600/20 to-gold/20 border-gold/30">
+            <CardContent className="text-center py-16 space-y-6">
+              <h2 className="text-4xl md:text-5xl font-bold">
+                Ready to Start Making Money?
+              </h2>
+              <p className="text-xl text-white/80 max-w-2xl mx-auto">
+                Get instant access to the dashboard. Run your first audit in 60 seconds.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+                <Button 
+                  asChild
+                  size="lg"
+                  className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
+                >
+                  <a href={getLoginUrl()}>
+                    Get Dashboard Access
+                    <ArrowRight className="ml-2 h-6 w-6" />
+                  </a>
+                </Button>
+              </div>
+              <p className="text-sm text-white/60">
+                ✨ First audit is FREE • No credit card required • Start earning today
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 py-12 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 bg-gradient-to-br from-gold to-yellow-600 rounded-sm"></div>
+              <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
+            </div>
+            <div className="text-white/60 text-sm">
+              © 2026 Velvet Alchemy. Turn websites into revenue.
+            </div>
           </div>
         </div>
       </footer>
+
     </div>
   );
 }
