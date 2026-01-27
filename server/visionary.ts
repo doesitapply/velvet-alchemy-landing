@@ -49,9 +49,10 @@ export function extractBusinessDNA(
     const hexPattern = /#[0-9A-Fa-f]{6}/g;
     const colors = colorMentions
       .map((issue: any) => issue.description?.match(hexPattern))
+      .filter((match: any) => match !== null && match !== undefined) // Remove null/undefined before flat
       .flat()
       .filter(Boolean);
-    if (colors.length > 0) {
+    if (colors && colors.length > 0) {
       dna.primaryColor = colors[0] || dna.primaryColor;
       dna.secondaryColor = colors[1] || dna.secondaryColor;
       dna.accentColor = colors[2] || dna.accentColor;

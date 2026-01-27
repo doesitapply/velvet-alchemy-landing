@@ -727,3 +727,5 @@
 - [ ] Test clean audit flow end-to-end
 - [ ] Verify screenshot capture works
 - [ ] Save checkpoint
+
+- [x] Fix "Cannot read properties of undefined (reading '0')" error on lead detail page
