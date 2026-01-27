@@ -702,3 +702,15 @@
 - [x] Test public access - landing page loads without redirect
 - [x] Test "Start Free Audit" button - goes to command center (which then requires auth)
 - [x] Save checkpoint
+
+
+## Demo Video Creation (COMPLETE)
+- [x] Write 90-second video script with narration (complete with timing)
+- [x] Create detailed shot list (what to show on screen, 17 scenes)
+- [x] Build recording instructions (Loom setup, pre-recording checklist, advanced tips)
+- [x] Add video embed section to landing page (placeholder with instructions)
+- [ ] Record demo video following script (USER ACTION REQUIRED)
+- [ ] Upload video to hosting (Loom recommended)
+- [ ] Replace placeholder with Loom iframe embed code
+- [ ] Test video playback on mobile/desktop
+- [x] Save checkpoint

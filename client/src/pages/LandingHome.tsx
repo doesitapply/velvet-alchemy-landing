@@ -196,6 +196,49 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Video Demo */}
+      <section className="py-24 px-4">
+        <div className="container mx-auto max-w-5xl">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">See It In Action</h2>
+            <p className="text-xl text-white/70">Watch how to close your first $5K deal in 90 seconds</p>
+          </div>
+          
+          <div className="relative rounded-xl overflow-hidden border-2 border-gold/30 shadow-2xl">
+            <div className="aspect-video bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
+              <div className="text-center space-y-4">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gold/20 text-gold">
+                  <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                  </svg>
+                </div>
+                <p className="text-white/80 font-mono text-sm">
+                  📹 Demo video coming soon
+                </p>
+                <p className="text-white/50 text-xs max-w-md mx-auto px-4">
+                  Record your demo using the DEMO_VIDEO_PRODUCTION_GUIDE.md<br/>
+                  Then replace this placeholder with your Loom embed code
+                </p>
+              </div>
+              {/* Replace the above placeholder with your Loom iframe:
+              <iframe
+                src="YOUR_LOOM_EMBED_URL"
+                frameBorder="0"
+                allowFullScreen
+                className="w-full h-full"
+              ></iframe>
+              */}
+            </div>
+          </div>
+          
+          <div className="mt-8 text-center">
+            <p className="text-white/60 text-sm">
+              🎥 90-second demo • No sound required • Watch at 2x speed
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section id="pricing" className="py-20 px-4 bg-gradient-to-b from-black to-gray-900">
         <div className="container mx-auto max-w-6xl">
