@@ -729,3 +729,9 @@
 - [ ] Save checkpoint
 
 - [x] Fix "Cannot read properties of undefined (reading '0')" error on lead detail page
+
+## Public Audit Form Feature
+- [x] Add audit form UI to landing page
+- [x] Connect form to backend audit pipeline  
+- [x] Test complete audit flow
+- [ ] Save checkpoint

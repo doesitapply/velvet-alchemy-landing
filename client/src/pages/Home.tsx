@@ -5,10 +5,13 @@ import { ArrowRight, Check, Zap, DollarSign, TrendingUp, Clock, Shield, Sparkles
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
 import { useState } from "react";
+import { AuditRequestDialog } from "@/components/AuditRequestDialog";
 
+// Public audit form enabled
 export default function Home() {
   const [leadsFound, setLeadsFound] = useState(10);
   const potentialRevenue = leadsFound * 5000;
+  const [auditDialogOpen, setAuditDialogOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black text-white">
@@ -54,14 +57,12 @@ export default function Home() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button 
-                asChild
                 size="lg"
+                onClick={() => setAuditDialogOpen(true)}
                 className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
               >
-                <a href={getLoginUrl()}>
-                  Start Free Audit
-                  <ArrowRight className="ml-2 h-6 w-6" />
-                </a>
+                Start Free Audit
+                <ArrowRight className="ml-2 h-6 w-6" />
               </Button>
               
               <Button 
@@ -334,6 +335,7 @@ export default function Home() {
         </div>
       </footer>
 
+      <AuditRequestDialog open={auditDialogOpen} onOpenChange={setAuditDialogOpen} />
     </div>
   );
 }
