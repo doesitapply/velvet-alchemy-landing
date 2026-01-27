@@ -8,7 +8,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { CircularProgress } from "@/components/CircularProgress";
 import { ActivityFeed } from "@/components/ActivityFeed";
-import { OnboardingWizard } from "@/components/OnboardingWizard";
+import { OperatorWizard } from "@/components/OperatorWizard";
 
 export default function CommandCenter() {
   const [isAuditingAll, setIsAuditingAll] = useState(false);
@@ -83,8 +83,8 @@ export default function CommandCenter() {
             </p>
           </div>
 
-          {/* Onboarding Wizard */}
-          <OnboardingWizard />
+          {/* Operator Wizard */}
+          <OperatorWizard />
 
           {/* Loading State */}
           {isLoading && (
