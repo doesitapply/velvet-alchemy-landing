@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, decimal } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -53,6 +53,11 @@ export const leads = mysqlTable("leads", {
   hasOutreach: boolean("hasOutreach").default(false).notNull(), // True if Charmer sent outreach
   detailedReport: text("detailedReport"), // JSON string for technical leak detection data
   lastDeepScanAt: timestamp("lastDeepScanAt"), // Timestamp of last enrichment scan
+  // Traffic data from SimilarWeb
+  monthlyVisits: int("monthlyVisits"), // Estimated monthly visitors
+  globalRank: int("globalRank"), // Global traffic ranking
+  bounceRate: decimal("bounceRate", { precision: 5, scale: 2 }), // Bounce rate percentage
+  trafficDataFetchedAt: timestamp("trafficDataFetchedAt"), // When traffic data was last fetched
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

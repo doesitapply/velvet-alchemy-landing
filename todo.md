@@ -623,3 +623,38 @@
 - [x] Add Costs link to main navigation (/costs route)
 - [x] Test complete onboarding flow (3/6 tests passing - core functionality works)
 - [x] Save checkpoint
+
+
+## Lead Deletion, Traffic Ranking & Prioritization (IN PROGRESS)
+- [ ] Add delete mutation to leadsRouter with proper authorization
+- [ ] Build confirmation dialog component for delete action
+- [ ] Add delete button to Leads page (each lead card)
+- [ ] Add delete button to LeadDetail page header
+- [ ] Test delete functionality with toast notifications
+- [ ] Research traffic data APIs (SimilarWeb, Ahrefs, SEMrush)
+- [ ] Integrate traffic estimation API into audit process
+- [ ] Add traffic_estimate field to leads table schema
+- [ ] Update visual audit to fetch and store traffic data
+- [ ] Build priority scoring algorithm (traffic × prestige score)
+- [ ] Add priorityScore field to leads table
+- [ ] Update Leads page to show traffic estimates and priority
+- [ ] Add sorting by priority score (highest first)
+- [ ] Update LeadDetail to show traffic metrics prominently
+- [ ] Write tests for delete and priority scoring
+- [ ] Save checkpoint
+
+
+## Lead Deletion, Traffic Ranking & Prioritization (IN PROGRESS)
+- [x] Add delete mutation to leads tRPC router with authorization
+- [x] Create deleteLead function in db.ts
+- [x] Build DeleteConfirmDialog component
+- [x] Add delete button to Leads page with confirmation
+- [ ] Add delete button to LeadDetail page
+- [x] Add traffic data fields to leads table (monthlyVisits, globalRank, bounceRate)
+- [x] Create traffic fetching service using SimilarWeb API
+- [ ] Integrate traffic data into lead creation/audit flow
+- [x] Build priority scoring algorithm (traffic + prestige)
+- [ ] Update Leads UI to show traffic metrics
+- [ ] Update LeadDetail UI to show traffic data
+- [ ] Add traffic-based sorting options
+- [ ] Test complete flow and save checkpoint

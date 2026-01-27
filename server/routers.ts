@@ -258,6 +258,36 @@ export const appRouter = router({
 
         return { success: true, lead: updatedLead, screenshotUrl: uploadResult.url };
       }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const lead = await getLeadById(input.id);
+        if (!lead) {
+          throw new Error('Lead not found');
+        }
+
+        // Authorization: only owner or admin can delete
+        if (lead.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+          throw new Error('Unauthorized to delete this lead');
+        }
+
+        // Delete lead from database
+        const { deleteLead } = await import('./db');
+        await deleteLead(input.id);
+
+        // Governor: Log lead deletion
+        await logAudit({
+          userId: ctx.user.id,
+          action: 'lead_delete',
+          resource: 'leads',
+          resourceId: input.id,
+          details: `Deleted lead for ${lead.companyName}`,
+          status: 'success',
+        });
+
+        return { success: true };
+      }),
   }),
 });
 

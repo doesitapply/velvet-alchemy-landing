@@ -235,3 +235,23 @@ export async function getAuditByLeadId(leadId: number): Promise<Audit | null> {
   const result = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
   return result[0] || null;
 }
+
+export async function deleteLead(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot delete lead: database not available");
+    return false;
+  }
+
+  try {
+    // Delete related audits first (foreign key constraint)
+    await db.delete(audits).where(eq(audits.leadId, id));
+    
+    // Delete the lead
+    await db.delete(leads).where(eq(leads.id, id));
+    return true;
+  } catch (error) {
+    console.error("[Database] Failed to delete lead:", error);
+    return false;
+  }
+}

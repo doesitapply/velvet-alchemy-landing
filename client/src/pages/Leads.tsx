@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square, Camera } from "lucide-react";
+import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square, Camera, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 
 export default function Leads() {
   const { data: leads, isLoading, refetch } = trpc.leads.listAll.useQuery();
@@ -35,8 +36,33 @@ export default function Leads() {
   const [isAuditing, setIsAuditing] = useState(false);
   const [auditProgress, setAuditProgress] = useState({ current: 0, total: 0 });
   const [capturingScreenshot, setCapturingScreenshot] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<{ id: number; name: string } | null>(null);
 
   const batchAuditMutation = trpc.orchestrator.batchAuditSelected.useMutation();
+  
+  const deleteLead = trpc.leads.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Lead deleted successfully");
+      refetch();
+      setDeleteDialogOpen(false);
+      setLeadToDelete(null);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleDeleteClick = (id: number, name: string) => {
+    setLeadToDelete({ id, name });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (leadToDelete) {
+      deleteLead.mutate({ id: leadToDelete.id });
+    }
+  };
 
   const filteredLeads = leads
     ?.filter((lead) =>
@@ -481,6 +507,15 @@ export default function Leads() {
                           View Details
                         </Link>
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteClick(lead.id, lead.companyName)}
+                        className="gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -505,6 +540,15 @@ export default function Leads() {
           </Card>
         )}
       </div>
+
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        itemName={leadToDelete?.name}
+        title="Delete Lead"
+        description="This will permanently delete this lead and all associated data (audits, assets, outreach). This action cannot be undone."
+      />
     </div>
   );
 }
