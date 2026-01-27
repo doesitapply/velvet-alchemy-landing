@@ -714,3 +714,15 @@
 - [ ] Replace placeholder with Loom iframe embed code
 - [ ] Test video playback on mobile/desktop
 - [x] Save checkpoint
+
+
+## Fix Playwright Error & Clean Database (IN PROGRESS)
+- [ ] Test audit flow to reproduce Playwright error
+- [ ] Find remaining Playwright references in codebase
+- [ ] Replace all Playwright calls with serverless screenshot API
+- [ ] Delete all existing leads from database
+- [ ] Delete all existing payments from database
+- [ ] Reset API usage tracking
+- [ ] Test clean audit flow end-to-end
+- [ ] Verify screenshot capture works
+- [ ] Save checkpoint
