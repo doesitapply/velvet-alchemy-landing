@@ -309,7 +309,7 @@
 - [ ] Save checkpoint
 
 ## Navigation Routing Fixes (Current)
-- [x] Fix Orchestrator page constantly refreshing/glitching
+- [x] Deep debug and fix page constantly refreshing/glitching
 - [x] Fix /dashboard links to /command-center in LeadDetail.tsx (2 links)
 - [x] Fix /dashboard link to /command-center in Orchestrator.tsx (1 link)
 - [x] Fix /dashboard link to /command-center in GovernorDashboard.tsx (2 links)

@@ -1,0 +1,31 @@
+{
+  "query": "SELECT COUNT(*) as total_leads FROM leads; SELECT id, companyName, websiteUrl, status, prestigeScore FROM leads LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT COUNT(*) as total_leads FROM leads; SELECT id, companyName, websiteUrl, status, prestigeScore FROM leads LIMIT 5;",
+  "rows": [
+    {
+      "total_leads": "20"
+    },
+    {
+      "total_leads": "id\tcompanyName\twebsiteUrl\tstatus\tprestigeScore"
+    },
+    {
+      "total_leads": "300001\tWild River Grille\thttps://www.wildrivergrille.com/\tpending\tNULL"
+    },
+    {
+      "total_leads": "300002\tThe Twisted Fork\thttps://www.twistedforkreno.com/\tpending\tNULL"
+    },
+    {
+      "total_leads": "300003\tTwo Chicks\thttp://www.twochicksreno.com/\tpending\tNULL"
+    },
+    {
+      "total_leads": "300004\tLand Ocean Restaurant Reno\thttps://landoceanrestaurants.com/reno/\tpending\tNULL"
+    },
+    {
+      "total_leads": "300005\tReno Bar and Grill\thttp://renobarandgrill.com/\tpending\tNULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_leads\n20\nid\tcompanyName\twebsiteUrl\tstatus\tprestigeScore\n300001\tWild River Grille\thttps://www.wildrivergrille.com/\tpending\tNULL\n300002\tThe Twisted Fork\thttps://www.twistedforkreno.com/\tpending\tNULL\n300003\tTwo Chicks\thttp://www.twochicksreno.com/\tpending\tNULL\n300004\tLand Ocean Restaurant Reno\thttps://landoceanrestaurants.com/reno/\tpending\tNULL\n300005\tReno Bar and Grill\thttp://renobarandgrill.com/\tpending\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1708
+}

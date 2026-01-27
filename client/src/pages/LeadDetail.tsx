@@ -147,10 +147,7 @@ export default function LeadDetail() {
   const startAudit = trpc.orchestrator.executePipeline.useMutation({
     onSuccess: () => {
       toast.success("Audit started! This will take 2-3 minutes.");
-      // Refetch lead data after a delay to show updated status
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
+      // No need to refetch - AuditProgressBar will handle updates
     },
     onError: (error: any) => {
       toast.error(`Failed to start audit: ${error.message}`);
@@ -279,8 +276,8 @@ export default function LeadDetail() {
             <AuditProgressBar 
               leadId={lead.id} 
               onComplete={() => {
-                toast.success("Audit completed! Refreshing page...");
-                setTimeout(() => window.location.reload(), 1500);
+                toast.success("Audit completed!");
+                refetch(); // Refetch lead data instead of reloading page
               }}
               onError={(error) => {
                 toast.error(`Audit failed: ${error}`);

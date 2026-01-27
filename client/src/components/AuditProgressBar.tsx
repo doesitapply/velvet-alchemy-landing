@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
@@ -29,11 +29,13 @@ export function AuditProgressBar({ leadId, onComplete, onError }: AuditProgressB
   const [currentStage, setCurrentStage] = useState<string | null>(null);
   const [status, setStatus] = useState<"pending" | "running" | "completed" | "failed">("pending");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const completedJobIdRef = useRef<number | null>(null); // Track which job we've already called onComplete for
 
   // Get the latest job for this lead
   const { data: jobs } = trpc.orchestrator.getJobsForLead.useQuery(
     { leadId },
     {
+      enabled: true, // Always enabled to check for jobs
       refetchInterval: (query) => {
         // Stop polling if no jobs exist yet
         const data = query?.state?.data;
@@ -51,6 +53,9 @@ export function AuditProgressBar({ leadId, onComplete, onError }: AuditProgressB
         // Stop polling for completed, failed, or pending jobs
         return false;
       },
+      refetchOnWindowFocus: false, // Disable refetch on window focus
+      refetchOnMount: false, // Disable refetch on mount
+      refetchOnReconnect: false, // Disable refetch on reconnect
     }
   );
 
@@ -65,11 +70,15 @@ export function AuditProgressBar({ leadId, onComplete, onError }: AuditProgressB
     setStatus(latestJob.status);
     setErrorMessage(latestJob.errorMessage);
 
-    if (latestJob.status === "completed" && onComplete) {
+    // Only call onComplete once per job
+    if (latestJob.status === "completed" && onComplete && completedJobIdRef.current !== latestJob.id) {
+      completedJobIdRef.current = latestJob.id;
       onComplete();
     }
 
-    if (latestJob.status === "failed" && onError && latestJob.errorMessage) {
+    // Only call onError once per job
+    if (latestJob.status === "failed" && onError && latestJob.errorMessage && completedJobIdRef.current !== latestJob.id) {
+      completedJobIdRef.current = latestJob.id;
       onError(latestJob.errorMessage);
     }
   }, [jobs, onComplete, onError]);
