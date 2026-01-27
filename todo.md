@@ -692,3 +692,13 @@
 - [x] Optimize for mobile responsiveness (responsive grid, stacked cards)
 - [x] Test conversion flow (all CTAs working)
 - [x] Save checkpoint
+
+
+## Fix Landing Page OAuth Redirect (COMPLETE)
+- [x] Identify why landing page redirects to OAuth login (CTAs linked to getLoginUrl())
+- [x] Change "Start Free Audit" button to link to /command-center
+- [x] Change "Get Dashboard Access" button to link to /command-center
+- [x] Keep "Login" button in nav linking to OAuth
+- [x] Test public access - landing page loads without redirect
+- [x] Test "Start Free Audit" button - goes to command center (which then requires auth)
+- [x] Save checkpoint

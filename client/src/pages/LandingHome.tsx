@@ -58,10 +58,10 @@ export default function Home() {
                 size="lg"
                 className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
               >
-                <a href={getLoginUrl()}>
+                <Link href="/command-center">
                   Start Free Audit
                   <ArrowRight className="ml-2 h-6 w-6" />
-                </a>
+                </Link>
               </Button>
               
               <Button 
@@ -305,10 +305,10 @@ export default function Home() {
                   size="lg"
                   className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
                 >
-                  <a href={getLoginUrl()}>
-                    Get Dashboard Access
-                    <ArrowRight className="ml-2 h-6 w-6" />
-                  </a>
+                <Link href="/command-center">
+                  Get Dashboard Access
+                  <ArrowRight className="ml-2 h-6 w-6" />
+                </Link>
                 </Button>
               </div>
               <p className="text-sm text-white/60">
