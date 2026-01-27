@@ -223,3 +223,40 @@ export const payments = mysqlTable("payments", {
 
 export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = typeof payments.$inferInsert;
+
+/**
+ * API usage tracking for cost monitoring
+ */
+export const apiCalls = mysqlTable("api_calls", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  leadId: int("leadId"), // Optional: link to specific lead if applicable
+  service: varchar("service", { length: 64 }).notNull(), // 'llm', 'screenshot', 'storage', etc.
+  operation: varchar("operation", { length: 128 }).notNull(), // 'audit_generation', 'screenshot_capture', etc.
+  tokensUsed: int("tokensUsed"), // For LLM calls
+  estimatedCost: int("estimatedCost").notNull(), // Cost in cents (e.g., 50 = $0.50)
+  requestData: text("requestData"), // JSON metadata about the request
+  responseStatus: varchar("responseStatus", { length: 32 }).notNull(), // 'success', 'error', 'timeout'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ApiCall = typeof apiCalls.$inferSelect;
+export type InsertApiCall = typeof apiCalls.$inferInsert;
+
+/**
+ * User onboarding progress tracking
+ */
+export const userOnboarding = mysqlTable("user_onboarding", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  hasCompletedScraper: boolean("hasCompletedScraper").default(false).notNull(),
+  hasReviewedAudit: boolean("hasReviewedAudit").default(false).notNull(),
+  hasSentInvoice: boolean("hasSentInvoice").default(false).notNull(),
+  hasReceivedPayment: boolean("hasReceivedPayment").default(false).notNull(),
+  onboardingCompletedAt: timestamp("onboardingCompletedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserOnboarding = typeof userOnboarding.$inferSelect;
+export type InsertUserOnboarding = typeof userOnboarding.$inferInsert;

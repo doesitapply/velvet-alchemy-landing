@@ -1,3 +1,5 @@
+import { trackApiCall, SCREENSHOT_COST_CENTS } from "./apiCostTracker";
+
 export interface ScreenshotResult {
   buffer: Buffer;
   success: boolean;
@@ -72,6 +74,16 @@ export async function captureScreenshot(
     }
 
     const buffer = await response.arrayBuffer();
+    
+    // Track API cost (async, don't block response)
+    trackApiCall({
+      userId: 0, // Will be set by caller if available
+      service: 'screenshot',
+      operation: 'capture_screenshot',
+      estimatedCostCents: SCREENSHOT_COST_CENTS,
+      requestData: { url, viewport: '1024x600' },
+      responseStatus: 'success',
+    }).catch(err => console.error('[Screenshot] Cost tracking failed:', err));
 
     return {
       buffer: Buffer.from(buffer),

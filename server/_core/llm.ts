@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { trackApiCall, estimateLLMCost } from "../apiCostTracker";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -328,5 +329,30 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     );
   }
 
-  return (await response.json()) as InvokeResult;
+  const result = (await response.json()) as InvokeResult;
+  
+  // Track API cost (async, don't block response)
+  if (result.usage) {
+    const costCents = estimateLLMCost(
+      result.usage.prompt_tokens,
+      result.usage.completion_tokens
+    );
+    
+    // Track in background, don't await
+    trackApiCall({
+      userId: 0, // Will be set by caller if available
+      service: 'llm',
+      operation: 'chat_completion',
+      tokensUsed: result.usage.total_tokens,
+      estimatedCostCents: costCents,
+      requestData: {
+        model: result.model,
+        prompt_tokens: result.usage.prompt_tokens,
+        completion_tokens: result.usage.completion_tokens,
+      },
+      responseStatus: 'success',
+    }).catch(err => console.error('[LLM] Cost tracking failed:', err));
+  }
+  
+  return result;
 }

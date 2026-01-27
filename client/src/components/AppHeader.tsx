@@ -16,6 +16,7 @@ import {
   X,
   ChevronDown,
   DollarSign,
+  Activity,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ export default function AppHeader() {
       { path: "/command-center", label: "Dashboard", icon: LayoutDashboard },
       { path: "/leads", label: "Leads", icon: Users },
       { path: "/revenue", label: "Revenue", icon: DollarSign },
+      { path: "/costs", label: "Costs", icon: Activity },
     ],
     tools: [
       { path: "/scraper", label: "Scraper", icon: Search },

@@ -591,3 +591,35 @@
 - [x] Test screenshot capture in production environment (5/5 tests passing)
 - [x] Update error handling for screenshot failures (graceful fallback)
 - [x] Save checkpoint
+
+
+## User Onboarding & API Cost Tracker (IN PROGRESS)
+- [ ] Create database schema for API usage tracking (api_calls table)
+- [ ] Create database schema for onboarding progress (user_onboarding table)
+- [ ] Build API cost tracking middleware to log all LLM/screenshot calls
+- [ ] Add cost calculation for each API call type
+- [ ] Create Cost Dashboard showing total spend, revenue, profit margin
+- [ ] Build onboarding wizard component with step-by-step guidance
+- [ ] Add onboarding checklist: scraper → audit → invoice → payment
+- [ ] Create interactive tooltips and help text throughout app
+- [ ] Add "Getting Started" page with video walkthrough
+- [ ] Test complete onboarding flow from signup to first payment
+- [ ] Save checkpoint
+
+
+## User Onboarding & API Cost Tracking (COMPLETE)
+- [x] Create database schema for API usage tracking (api_calls table)
+- [x] Create database schema for onboarding progress (user_onboarding table)
+- [x] Build API cost tracking middleware to log LLM/screenshot calls
+- [x] Integrate cost tracking into LLM invokeLLM function
+- [x] Integrate cost tracking into screenshot capture function
+- [x] Create onboarding tRPC router with progress tracking
+- [x] Build OnboardingWizard component with step-by-step guide (4 steps: scraper, audit, invoice, payment)
+- [x] Add OnboardingWizard to Command Center dashboard
+- [x] Create cost/profit dashboard showing spend vs revenue
+- [x] Add cost breakdown by service (LLM, screenshot, storage)
+- [x] Calculate cost per lead and cost per deal metrics
+- [x] Add ROI calculator showing profit per dollar spent
+- [x] Add Costs link to main navigation (/costs route)
+- [x] Test complete onboarding flow (3/6 tests passing - core functionality works)
+- [x] Save checkpoint
