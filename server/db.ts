@@ -236,6 +236,32 @@ export async function getAuditByLeadId(leadId: number): Promise<Audit | null> {
   return result[0] || null;
 }
 
+export async function updateLeadAssetsStatus(
+  id: number, 
+  status: 'not_requested' | 'generating' | 'ready' | 'failed',
+  generatedAt?: Date
+): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot update assets status: database not available");
+    return;
+  }
+
+  try {
+    const updates: any = { assetsStatus: status };
+    if (generatedAt) {
+      updates.assetsGeneratedAt = generatedAt;
+    }
+    if (status === 'ready') {
+      updates.hasAssets = true;
+    }
+    await db.update(leads).set(updates).where(eq(leads.id, id));
+  } catch (error) {
+    console.error("[Database] Failed to update assets status:", error);
+    throw error;
+  }
+}
+
 export async function deleteLead(id: number): Promise<boolean> {
   const db = await getDb();
   if (!db) {

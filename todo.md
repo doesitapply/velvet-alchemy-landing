@@ -772,3 +772,26 @@
 - [x] Add visual workflow diagrams (WORKFLOW_DIAGRAM.md)
 - [x] Create troubleshooting section (TROUBLESHOOTING.md)
 - [ ] Save checkpoint
+
+## Backend Architecture Audit & Optimization
+- [x] Map current pipeline flow and credit usage per operation
+- [x] Identify credit-burning operations (screenshot, GPT-4o audit, asset generation)
+- [x] Calculate cost per lead for current pipeline ($0.21-0.46)
+- [x] Make asset generation optional/on-demand instead of automatic
+- [x] Remove asset generation from orchestrator pipeline (now 2-stage: screenshot+audit → outreach)
+- [x] Generate Assets button already exists on LeadDetail page
+- [ ] Test optimized pipeline (scrape → audit → outreach)
+- [ ] Document final lean architecture
+- [ ] Save checkpoint
+
+## Asset Generation Safety Rails
+- [x] Add assetsStatus field to leads table schema ('not_requested' | 'generating' | 'ready' | 'failed')
+- [x] Add assetsGeneratedAt timestamp to leads table
+- [x] Columns already exist in database
+- [x] Implement idempotency check in visionary.generateAssets (return existing if already generated)
+- [x] Add force parameter to allow regeneration
+- [x] Add 24h cooldown check (prevent regeneration within 24 hours unless force=true)
+- [x] Add updateLeadAssetsStatus function to db.ts
+- [ ] Test: generate assets → click again → returns existing
+- [ ] Test: force regenerate → creates new assets
+- [ ] Save checkpoint

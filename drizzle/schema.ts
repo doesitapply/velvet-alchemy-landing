@@ -50,6 +50,8 @@ export const leads = mysqlTable("leads", {
   prestigeScore: int("prestigeScore"), // 0-100, copied from audit for quick access
   priorityScore: int("priorityScore"), // 0-100, pre-screening score for lead value (domain age, SSL, mobile, etc.)
   hasAssets: boolean("hasAssets").default(false).notNull(), // True if Visionary generated assets
+  assetsStatus: mysqlEnum("assetsStatus", ["not_requested", "generating", "ready", "failed"]).default("not_requested").notNull(),
+  assetsGeneratedAt: timestamp("assetsGeneratedAt"), // When assets were last generated
   hasOutreach: boolean("hasOutreach").default(false).notNull(), // True if Charmer sent outreach
   detailedReport: text("detailedReport"), // JSON string for technical leak detection data
   lastDeepScanAt: timestamp("lastDeepScanAt"), // Timestamp of last enrichment scan

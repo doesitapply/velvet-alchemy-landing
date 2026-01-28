@@ -1,0 +1,2 @@
+ALTER TABLE `leads` ADD `assetsStatus` enum('not_requested','generating','ready','failed') DEFAULT 'not_requested' NOT NULL;--> statement-breakpoint
+ALTER TABLE `leads` ADD `assetsGeneratedAt` timestamp;

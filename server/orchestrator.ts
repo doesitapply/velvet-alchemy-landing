@@ -13,7 +13,7 @@ import { logAudit } from "./governor";
  * Automates the complete pipeline from lead creation to outreach draft generation
  */
 
-export type PipelineStage = "screenshot" | "audit" | "assets" | "outreach";
+export type PipelineStage = "screenshot" | "audit" | "outreach";
 
 export interface PipelineResult {
   success: boolean;
@@ -138,51 +138,8 @@ async function runScreenshotAndAuditStage(leadId: number, userId: number): Promi
 }
 
 /**
- * Stage 2: Asset Generation
- */
-async function runAssetGenerationStage(leadId: number, userId: number): Promise<PipelineResult> {
-  try {
-    const db = await getDb();
-    if (!db) throw new Error("Database not available");
-
-    // Fetch lead and audit
-    const leadResult = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
-    if (leadResult.length === 0) {
-      return { success: false, stage: "assets", error: "Lead not found" };
-    }
-    const lead = leadResult[0];
-
-    const auditResult = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
-    if (auditResult.length === 0) {
-      return { success: false, stage: "assets", error: "Audit not found" };
-    }
-    const audit = auditResult[0];
-
-    const visualDebt = audit.visualDebtData ? JSON.parse(audit.visualDebtData) : null;
-    await generateAssetsForLead(leadId, lead.companyName, lead.websiteUrl, visualDebt);
-
-    await logAudit({
-      userId,
-      action: "pipeline_stage_complete",
-      resource: "pipeline",
-      resourceId: leadId,
-      details: JSON.stringify({ stage: "asset_generation", leadId }),
-      status: "success",
-    });
-
-    return { success: true, stage: "assets" };
-  } catch (error) {
-    console.error("[Orchestrator] Asset generation stage failed:", error);
-    return {
-      success: false,
-      stage: "assets",
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-}
-
-/**
- * Stage 3: Outreach Draft Generation
+ * Stage 2: Outreach Draft Generation
+ * Note: Asset generation has been moved to on-demand (manual trigger via LeadDetail page)
  */
 async function runOutreachDraftStage(leadId: number, userId: number): Promise<PipelineResult> {
   try {
@@ -239,7 +196,7 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
   try {
     await updatePipelineJob(jobId, { status: "running", currentStage: "screenshot", progressPercentage: 0 });
 
-    // Stage 1: Screenshot + Audit (0-75%)
+    // Stage 1: Screenshot + Audit (0-66%)
     const stage1Result = await runScreenshotAndAuditStage(leadId, userId);
     if (!stage1Result.success) {
       await updatePipelineJob(jobId, {
@@ -250,44 +207,28 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
       return;
     }
     await updatePipelineJob(jobId, {
-      currentStage: "assets",
-      progressPercentage: 75,
+      currentStage: "outreach",
+      progressPercentage: 66,
       stagesCompleted: ["screenshot"],
     });
 
-    // Stage 2: Asset Generation (75-90%)
-    const stage2Result = await runAssetGenerationStage(leadId, userId);
+    // Stage 2: Outreach Draft (66-100%)
+    const stage2Result = await runOutreachDraftStage(leadId, userId);
     if (!stage2Result.success) {
       await updatePipelineJob(jobId, {
         status: "failed",
-        errorMessage: stage2Result.error || "Asset generation stage failed",
-        currentStage: "assets",
+        errorMessage: stage2Result.error || "Outreach draft stage failed",
+        currentStage: "outreach",
       });
       return;
     }
-    await updatePipelineJob(jobId, {
-      currentStage: "outreach",
-      progressPercentage: 90,
-      stagesCompleted: ["screenshot", "assets"],
-    });
 
-    // Stage 3: Outreach Draft (DISABLED - Manual outreach only)
-    // const stage3Result = await runOutreachDraftStage(leadId, userId);
-    // if (!stage3Result.success) {
-    //   await updatePipelineJob(jobId, {
-    //     status: "failed",
-    //     errorMessage: stage3Result.error || "Outreach draft stage failed",
-    //     currentStage: "outreach",
-    //   });
-    //   return;
-    // }
-
-    // Pipeline complete (without outreach automation)
+    // Pipeline complete (assets generation is now on-demand via LeadDetail page)
     await updatePipelineJob(jobId, {
       status: "completed",
       currentStage: null,
       progressPercentage: 100,
-      stagesCompleted: ["screenshot", "assets"],
+      stagesCompleted: ["screenshot", "outreach"],
       completedAt: new Date(),
     });
 
