@@ -760,3 +760,15 @@
 - [ ] User: Test end-to-end with curl
 - [ ] User: Scale to 100+ domains with google_feeder.py
 - [ ] User: Find first paying customer
+
+## User Guide for Niece (Operations Manual)
+- [ ] Create comprehensive daily operations guide
+- [ ] Add visual workflow diagrams
+- [ ] Create troubleshooting section
+- [ ] Save checkpoint
+
+## User Guide for Niece (Operations Manual)
+- [x] Create comprehensive daily operations guide (USER_GUIDE_FOR_NIECE.md)
+- [x] Add visual workflow diagrams (WORKFLOW_DIAGRAM.md)
+- [x] Create troubleshooting section (TROUBLESHOOTING.md)
+- [ ] Save checkpoint
