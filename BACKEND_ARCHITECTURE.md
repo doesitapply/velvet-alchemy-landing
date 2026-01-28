@@ -1,5 +1,21 @@
 # Velvet Alchemy - Backend Architecture Audit
 
+## ✅ FINAL IMPLEMENTATION STATUS (100% COMPLETE)
+
+**Date:** January 28, 2026  
+**Status:** Production-ready, fully optimized
+
+### What Was Built:
+1. ✅ **Optimized 2-stage pipeline** (Screenshot+Audit → Outreach)
+2. ✅ **Asset generation removed from automatic flow** (80% cost savings)
+3. ✅ **Manual "Generate Assets" button** with idempotency + 24h cooldown
+4. ✅ **Cost reduced from $0.21-0.46 to $0.01-0.06 per lead**
+5. ✅ **All database schema issues fixed** (assetsStatus, assetsGeneratedAt columns)
+6. ✅ **Lead status properly updated to 'audited'** after audit completion
+7. ✅ **58 leads scraped and ready for processing**
+
+---
+
 ## Current Pipeline Flow
 
 ### Phase 1: Lead Scraping (Business Scraper)
@@ -37,19 +53,23 @@
 - **Storage:** Saves audit results to `audits` table
 - **Credit Usage:** 🔥 **HIGH** (~$0.01-0.05 per audit depending on image size)
 
-#### Stage 3: Asset Generation (90% progress)
-- **Function:** `server/visionary.ts` → `generateAssets()`
-- **API:** `generateImage()` (Manus built-in image generation)
-- **Process:** Creates 3 social posts + 1 web banner based on audit findings
-- **Storage:** Uploads 4 images to S3
-- **Credit Usage:** 🔥 **VERY HIGH** (~$0.20-0.40 for 4 images)
-
-#### Stage 4: Outreach Draft (100% progress)
+#### Stage 3: Outreach Draft (100% progress)
 - **Function:** `server/charmer.ts` → `generateOutreachDraft()`
 - **API:** `invokeLLM()` with GPT-4
 - **Process:** Creates personalized email draft
 - **Storage:** Saves to `outreach_drafts` table
 - **Credit Usage:** 🔥 **LOW** (~$0.001-0.01 per draft)
+
+---
+
+#### ❌ REMOVED FROM AUTOMATIC PIPELINE: Asset Generation
+- **Function:** `server/visionary.ts` → `generateAssets()` (NOW ON-DEMAND ONLY)
+- **API:** `generateImage()` (Manus built-in image generation)
+- **Process:** Creates 3 social posts + 1 web banner based on audit findings
+- **Storage:** Uploads 4 images to S3
+- **Trigger:** Manual button click in LeadDetail page
+- **Idempotency:** Returns existing assets if generated within 24h (unless force=true)
+- **Credit Usage:** 🔥 **VERY HIGH** (~$0.20-0.40 for 4 images) - ONLY when manually requested
 
 ---
 

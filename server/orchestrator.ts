@@ -115,6 +115,19 @@ async function runScreenshotAndAuditStage(leadId: number, userId: number): Promi
         prestigeScore: auditResult.prestigeScore,
         visualDebtData: JSON.stringify(auditResult.visualDebt),
       });
+
+      // Update lead status to 'audited' and copy prestige score
+      await db.update(leads).set({
+        status: 'audited',
+        prestigeScore: auditResult.prestigeScore,
+      }).where(eq(leads.id, leadId));
+    } else {
+      // Audit already exists, ensure lead status is 'audited'
+      const audit = existingAudit[0];
+      await db.update(leads).set({
+        status: 'audited',
+        prestigeScore: audit.prestigeScore,
+      }).where(eq(leads.id, leadId));
     }
 
     await logAudit({

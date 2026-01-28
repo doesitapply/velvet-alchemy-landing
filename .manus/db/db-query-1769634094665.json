@@ -1,0 +1,31 @@
+{
+  "query": "SELECT * FROM leads LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT * FROM leads LIMIT 1;",
+  "rows": [
+    {
+      "id": "300001",
+      "userId": "1",
+      "companyName": "Wild River Grille",
+      "websiteUrl": "https://www.wildrivergrille.com/",
+      "screenshotUrl": "NULL",
+      "screenshotKey": "NULL",
+      "status": "pending",
+      "createdAt": "2026-01-27 19:37:50",
+      "updatedAt": "2026-01-27 19:37:50",
+      "prestigeScore": "NULL",
+      "hasAssets": "0",
+      "hasOutreach": "0",
+      "priorityScore": "NULL",
+      "detailedReport": "NULL",
+      "lastDeepScanAt": "NULL",
+      "monthlyVisits": "NULL",
+      "globalRank": "NULL",
+      "bounceRate": "NULL",
+      "trafficDataFetchedAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tcompanyName\twebsiteUrl\tscreenshotUrl\tscreenshotKey\tstatus\tcreatedAt\tupdatedAt\tprestigeScore\thasAssets\thasOutreach\tpriorityScore\tdetailedReport\tlastDeepScanAt\tmonthlyVisits\tglobalRank\tbounceRate\ttrafficDataFetchedAt\n300001\t1\tWild River Grille\thttps://www.wildrivergrille.com/\tNULL\tNULL\tpending\t2026-01-27 19:37:50\t2026-01-27 19:37:50\tNULL\t0\t0\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1531
+}
