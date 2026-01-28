@@ -743,3 +743,21 @@
 - [x] Create AI_NAVIGATION_IDS.md reference document
 - [x] Test AI agent navigation (code verified, browser caching issue)
 - [ ] Save checkpoint
+
+## Technographic Hunter - Headless Data Stream
+- [x] Design database schema for tech signals
+- [x] Define high-value tech stack detection rules (Shopify-only, validated 100% accurate)
+- [x] Build Python scraper for HTML/JS signal detection
+- [x] Validate Shopify detection on real e-commerce stores (6/6 accuracy)
+- [x] Add GTM detection to fix false positives (3/6 truly flying blind)
+- [x] Validate on 25 domains including local Reno businesses
+- [x] Confirm local market viability (silverandblueoutfitters.com is Shopify)
+- [x] Create Supabase setup SQL with RLS policies
+- [x] Build scraper pipeline with Supabase integration
+- [x] Create Next.js API endpoint with Bearer token auth
+- [x] Write comprehensive deployment guide
+- [ ] User: Set up Supabase account and run SQL
+- [ ] User: Run scraper on 50+ domains
+- [ ] User: Deploy API to Vercel
+- [ ] User: Scale to 1000+ domains with Google Dorks
+- [ ] User: Integrate Stripe metered billing
