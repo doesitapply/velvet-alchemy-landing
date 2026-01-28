@@ -76,7 +76,8 @@ export function AuditRequestDialog({ open, onOpenChange }: AuditRequestDialogPro
               <div className="space-y-2">
                 <Label htmlFor="companyName" className="text-white">Company Name</Label>
                 <Input
-                  id="companyName"
+                  id="audit-form-input-company-name"
+                  name="companyName"
                   placeholder="e.g., Acme Restaurant"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
@@ -88,7 +89,8 @@ export function AuditRequestDialog({ open, onOpenChange }: AuditRequestDialogPro
               <div className="space-y-2">
                 <Label htmlFor="websiteUrl" className="text-white">Website URL</Label>
                 <Input
-                  id="websiteUrl"
+                  id="audit-form-input-website-url"
+                  name="websiteUrl"
                   type="url"
                   placeholder="https://example.com"
                   value={websiteUrl}
@@ -99,6 +101,7 @@ export function AuditRequestDialog({ open, onOpenChange }: AuditRequestDialogPro
               </div>
 
               <Button
+                id="audit-form-button-submit"
                 type="submit"
                 disabled={createAudit.isPending}
                 className="w-full bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
@@ -131,6 +134,7 @@ export function AuditRequestDialog({ open, onOpenChange }: AuditRequestDialogPro
               You can close this window. We'll email you when your audit is ready, or check back in a few minutes.
             </p>
             <Button
+              id="audit-form-button-close"
               onClick={handleClose}
               variant="outline"
               className="border-gold/30 text-gold hover:bg-gold/10"

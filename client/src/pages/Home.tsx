@@ -24,14 +24,14 @@ export default function Home() {
             <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
           </div>
           <div className="flex items-center gap-4">
-            <a href="#pricing" className="hidden md:inline text-sm hover:text-gold transition-colors">Pricing</a>
-            <a href="#how-it-works" className="hidden md:inline text-sm hover:text-gold transition-colors">How It Works</a>
+            <a id="nav-link-pricing" href="#pricing" className="hidden md:inline text-sm hover:text-gold transition-colors">Pricing</a>
+            <a id="nav-link-how-it-works" href="#how-it-works" className="hidden md:inline text-sm hover:text-gold transition-colors">How It Works</a>
             <Button 
               asChild
               variant="outline" 
               className="border-gold/30 text-gold hover:bg-gold/10"
             >
-              <a href={getLoginUrl()}>Login</a>
+              <a id="nav-button-login" href={getLoginUrl()}>Login</a>
             </Button>
           </div>
         </div>
@@ -57,6 +57,7 @@ export default function Home() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button 
+                id="hero-button-start-audit"
                 size="lg"
                 onClick={() => setAuditDialogOpen(true)}
                 className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
@@ -71,7 +72,7 @@ export default function Home() {
                 variant="outline"
                 className="text-xl px-12 py-8 border-white/20 hover:bg-white/5"
               >
-                <Link href="/command-center">
+                <Link id="hero-button-demo-dashboard" href="/command-center">
                   See Demo Dashboard
                 </Link>
               </Button>
@@ -110,12 +111,14 @@ export default function Home() {
                   How many leads can you find per week?
                 </label>
                 <input
+                  id="revenue-calculator-slider"
                   type="range"
                   min="5"
                   max="50"
                   value={leadsFound}
                   onChange={(e) => setLeadsFound(parseInt(e.target.value))}
                   className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
+                  aria-label="Number of leads per week"
                 />
                 <div className="flex justify-between text-sm text-white/50 mt-2">
                   <span>5 leads</span>
@@ -134,7 +137,7 @@ export default function Home() {
                   <div className="text-sm text-white/60">Deals Closed (30%)</div>
                 </div>
                 <div className="text-center p-4 bg-gradient-to-br from-gold/20 to-yellow-600/20 rounded-lg border border-gold/30">
-                  <div className="text-3xl font-bold text-gold">${(potentialRevenue * 0.3).toLocaleString()}</div>
+                  <div className="text-3xl font-bold text-gold break-words">${(potentialRevenue * 0.3).toLocaleString()}</div>
                   <div className="text-sm text-white/80">Monthly Revenue</div>
                 </div>
               </div>
@@ -306,7 +309,7 @@ export default function Home() {
                   size="lg"
                   className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
                 >
-                  <a href={getLoginUrl()}>
+                  <a id="cta-button-get-dashboard-access" href={getLoginUrl()}>
                     Get Dashboard Access
                     <ArrowRight className="ml-2 h-6 w-6" />
                   </a>
