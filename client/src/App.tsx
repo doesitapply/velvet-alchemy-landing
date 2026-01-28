@@ -21,6 +21,8 @@ import BusinessScraper from "./pages/BusinessScraper";
 import Export from "./pages/Export";
 import RevenueDashboard from "./pages/RevenueDashboard";
 import CostDashboard from "./pages/CostDashboard";
+import OutreachApproval from "./pages/OutreachApproval";
+import VoiceSetup from "./pages/VoiceSetup";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -44,6 +46,8 @@ function Router() {
       <Route path="/export" component={Export} />
       <Route path="/revenue" component={RevenueDashboard} />
       <Route path="/costs" component={CostDashboard} />
+      <Route path="/outreach-approval" component={OutreachApproval} />
+      <Route path="/voice-setup" component={VoiceSetup} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

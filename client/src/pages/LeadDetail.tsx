@@ -53,6 +53,16 @@ export default function LeadDetail() {
     },
   });
 
+  const generateOutreach = trpc.outreach.generateOutreachEmail.useMutation({
+    onSuccess: () => {
+      toast.success("Outreach email generated! Check the Approval Queue to review.");
+      window.location.href = "/outreach-approval";
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to generate outreach: ${error.message}`);
+    },
+  });
+
   const generateWebsite = trpc.websiteGenerator.generate.useMutation({
     onSuccess: (data) => {
       toast.success("Website generated! Opening editor...");
@@ -616,7 +626,25 @@ export default function LeadDetail() {
                   ) : (
                     <>
                       <Mail className="mr-2 h-4 w-4" />
-                      Generate Draft
+                      Generate Draft (Old)
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => {
+                    generateOutreach.mutate({ leadId: leadId! });
+                  }}
+                  disabled={generateOutreach.isPending}
+                >
+                  {generateOutreach.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate AI Outreach
                     </>
                   )}
                 </Button>

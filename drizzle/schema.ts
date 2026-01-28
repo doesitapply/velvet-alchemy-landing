@@ -192,6 +192,86 @@ export type OutreachDraft = typeof outreachDrafts.$inferSelect;
 export type InsertOutreachDraft = typeof outreachDrafts.$inferInsert;
 
 /**
+ * Voice profiles table for storing user's writing style
+ */
+export const voiceProfiles = mysqlTable("voice_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(), // One profile per user
+  formality: mysqlEnum("formality", ["casual", "professional", "technical", "mixed"]).notNull(),
+  directness: mysqlEnum("directness", ["blunt", "direct", "diplomatic", "verbose"]).notNull(),
+  enthusiasm: mysqlEnum("enthusiasm", ["high", "moderate", "low", "neutral"]).notNull(),
+  avgSentenceLength: int("avgSentenceLength").notNull(),
+  avgParagraphLength: int("avgParagraphLength").notNull(),
+  usesContractions: boolean("usesContractions").notNull(),
+  usesEmoji: boolean("usesEmoji").notNull(),
+  usesProfanity: boolean("usesProfanity").notNull(),
+  commonPhrases: text("commonPhrases").notNull(), // JSON array
+  industryJargon: text("industryJargon").notNull(), // JSON array
+  signOffStyle: varchar("signOffStyle", { length: 100 }).notNull(),
+  greetingStyle: varchar("greetingStyle", { length: 100 }).notNull(),
+  usesLists: boolean("usesLists").notNull(),
+  usesBoldText: boolean("usesBoldText").notNull(),
+  usesQuestions: boolean("usesQuestions").notNull(),
+  exampleEmails: text("exampleEmails").notNull(), // JSON array of example emails
+  calibrationCount: int("calibrationCount").default(0).notNull(), // Number of emails reviewed
+  isCalibrated: boolean("isCalibrated").default(false).notNull(), // True after 5+ approvals
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VoiceProfile = typeof voiceProfiles.$inferSelect;
+export type InsertVoiceProfile = typeof voiceProfiles.$inferInsert;
+
+/**
+ * Email queue for automated outreach
+ */
+export const emailQueue = mysqlTable("email_queue", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  campaignId: int("campaignId").references(() => campaigns.id, { onDelete: "cascade" }),
+  draftId: int("draftId").references(() => outreachDrafts.id, { onDelete: "cascade" }),
+  recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
+  recipientName: varchar("recipientName", { length: 255 }),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  status: mysqlEnum("status", ["pending", "pending_approval", "approved", "sending", "sent", "failed", "bounced"]).default("pending").notNull(),
+  scheduledFor: timestamp("scheduledFor"), // When to send (for follow-ups)
+  sentAt: timestamp("sentAt"),
+  gmailMessageId: varchar("gmailMessageId", { length: 255 }),
+  gmailThreadId: varchar("gmailThreadId", { length: 255 }),
+  openedAt: timestamp("openedAt"),
+  clickedAt: timestamp("clickedAt"),
+  repliedAt: timestamp("repliedAt"),
+  replyContent: text("replyContent"),
+  errorMessage: text("errorMessage"),
+  retryCount: int("retryCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmailQueue = typeof emailQueue.$inferSelect;
+export type InsertEmailQueue = typeof emailQueue.$inferInsert;
+
+/**
+ * Follow-up sequences for automated nurture
+ */
+export const followUpSequences = mysqlTable("follow_up_sequences", {
+  id: int("id").autoincrement().primaryKey(),
+  leadId: int("leadId").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  initialEmailId: int("initialEmailId").references(() => emailQueue.id),
+  sequenceType: mysqlEnum("sequenceType", ["cold_outreach", "demo_follow_up", "proposal_follow_up", "nurture"]).notNull(),
+  currentStep: int("currentStep").default(0).notNull(), // 0 = initial email, 1+ = follow-ups
+  maxSteps: int("maxSteps").default(3).notNull(),
+  status: mysqlEnum("status", ["active", "paused", "completed", "stopped"]).default("active").notNull(),
+  stopReason: varchar("stopReason", { length: 100 }), // 'replied', 'unsubscribed', 'bounced', 'manual_stop'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FollowUpSequence = typeof followUpSequences.$inferSelect;
+export type InsertFollowUpSequence = typeof followUpSequences.$inferInsert;
+
+/**
  * Pipeline jobs table for The Orchestrator
  */
 export const pipelineJobs = mysqlTable("pipeline_jobs", {

@@ -795,3 +795,91 @@
 - [ ] Test: generate assets → click again → returns existing
 - [ ] Test: force regenerate → creates new assets
 - [ ] Save checkpoint
+
+## Autonomous Sales Pipeline (Week 1-4)
+
+### Week 1: Automated Outreach System
+- [ ] Build voice analysis system (analyze user's Gmail sent emails)
+- [ ] Extract writing patterns (tone, sentence length, vocabulary, sign-offs)
+- [ ] Create email template engine with dynamic personalization
+- [ ] Build approval workflow UI (review/edit emails before sending)
+- [ ] Integrate Gmail MCP for sending emails
+- [ ] Add email tracking (opens, clicks, replies)
+- [ ] Build outreach queue dashboard
+- [ ] Test voice calibration with first 5 emails
+- [ ] Write unit tests for voice analysis and email generation
+
+### Week 1: Follow-Up Automation
+- [ ] Build multi-step sequence engine (Day 3, 7, 14 follow-ups)
+- [ ] Implement response detection system
+- [ ] Create intent classification (interested/not now/not interested/question)
+- [ ] Build auto-reply drafting for common questions
+- [ ] Add escalation workflow for complex objections
+- [ ] Create follow-up templates library
+- [ ] Test follow-up sequences with real leads
+- [ ] Write unit tests for sequence logic
+
+### Week 2: Demo Scheduling
+- [ ] Integrate calendar system (Calendly API or custom)
+- [ ] Build interest signal detection
+- [ ] Auto-trigger asset generation on demo booking
+- [ ] Create demo packet assembly (audit + assets + proposal)
+- [ ] Build reminder system (24h before demo)
+- [ ] Add demo prep checklist for user
+- [ ] Test scheduling flow end-to-end
+
+### Week 2: Proposal & Negotiation
+- [ ] Create proposal template engine
+- [ ] Build pricing tier system (configurable)
+- [ ] Implement objection handling library
+- [ ] Add negotiation boundaries (max discount, payment terms)
+- [ ] Build contract generation system
+- [ ] Create approval workflow for proposals
+- [ ] Test negotiation scenarios
+
+### Week 3: Payment & Onboarding
+- [ ] Enhance Stripe integration for automated payment links
+- [ ] Build payment tracking dashboard
+- [ ] Create onboarding email sequence
+- [ ] Add client status updates to CRM
+- [ ] Build notification system for payment events
+- [ ] Test payment flow with test mode
+
+### Week 3: Control Panel & Dashboard
+- [ ] Build pipeline overview dashboard
+- [ ] Create approval queue UI
+- [ ] Add AI activity log viewer
+- [ ] Build voice calibration controls
+- [ ] Add override controls (pause AI, edit emails, skip stages)
+- [ ] Create notification system
+- [ ] Add "Emergency Stop" button
+- [ ] Test all control features
+
+### Week 4: Testing & Refinement
+- [ ] Run end-to-end test with 50 real leads
+- [ ] Measure conversion rates at each stage
+- [ ] Calculate cost per acquisition
+- [ ] Refine voice matching based on user feedback
+- [ ] Optimize email timing and sequences
+- [ ] Document all workflows
+- [ ] Create operator training guide
+- [ ] Final stress test and bug fixes
+
+## Autonomous Sales Pipeline - Phase 1 Complete
+
+### Week 1: Automated Outreach System (COMPLETED)
+- [x] Build voice analysis system (analyze user's Gmail sent emails)
+- [x] Extract writing patterns (tone, sentence length, vocabulary, sign-offs)
+- [x] Create email template engine with dynamic personalization
+- [x] Build approval workflow UI (review/edit emails before sending)
+- [x] Integrate Gmail MCP for sending emails
+- [x] Build outreach queue dashboard
+- [x] Add voice profile database schema
+- [x] Add email queue database schema
+- [x] Create outreachRouter with all procedures
+- [x] Create VoiceSetup page
+- [x] Create OutreachApproval page
+- [x] Add "Generate AI Outreach" button to LeadDetail
+- [ ] Add email tracking (opens, clicks, replies) - needs webhook setup
+- [ ] Test voice calibration with first 5 emails
+- [ ] Write unit tests for voice analysis and email generation
