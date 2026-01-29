@@ -1,0 +1,50 @@
+{
+  "query": "SELECT l.id, l.companyName, l.websiteUrl, l.status, a.summary, a.prestigeScore \nFROM leads l \nINNER JOIN audits a ON l.id = a.leadId \nWHERE l.id != 360018\nLIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT l.id, l.companyName, l.websiteUrl, l.status, a.summary, a.prestigeScore \nFROM leads l \nINNER JOIN audits a ON l.id = a.leadId \nWHERE l.id != 360018\nLIMIT 5;",
+  "rows": [
+    {
+      "id": "300020",
+      "companyName": "Homegrown Gastropub",
+      "websiteUrl": "http://homegrowngastropub.com/",
+      "status": "pending",
+      "summary": "This website has successfully placed critical contact information and a conversion button above the fold, which is a strong start. However, the design choices, particularly the harsh color palette and lack of a clear value proposition, significantly undermine trust and modern aesthetic standards. It functions adequately but fails to impress or convert optimally.",
+      "prestigeScore": "55"
+    },
+    {
+      "id": "330013",
+      "companyName": "Reno Dental Care - Anastasia Owens, DDS",
+      "websiteUrl": "http://www.renodentalcare.com/",
+      "status": "pending",
+      "summary": "The website is currently inaccessible, displaying a critical Cloudflare Error 1005 (Access Denied). This technical failure prevents all users from viewing the site, leading to zero conversions and a devastating impact on local credibility and search performance.",
+      "prestigeScore": "0"
+    },
+    {
+      "id": "330003",
+      "companyName": "Damonte Ranch Dental Care - South Reno",
+      "websiteUrl": "https://www.damonteranchdentalcare.com/?utm_source=GMBlisting&utm_medium=organic",
+      "status": "pending",
+      "summary": "This website presents a clean, modern aesthetic with clear navigation and strong local keyword inclusion in the hero area. However, it suffers from poor conversion optimization due to three competing calls-to-action and the omission of essential contact information in the header, forcing users to work harder to connect.",
+      "prestigeScore": "62"
+    },
+    {
+      "id": "330001",
+      "companyName": "The Reno Dentist",
+      "websiteUrl": "https://www.therenodentist.com/?utm_source=google.com&utm_medium=business+profile&utm_campaign=",
+      "status": "pending",
+      "summary": "This website presents a modern, professional appearance using high-quality video and clear contact information. However, the design suffers from poor visual hierarchy, a weak primary call-to-action, and a vague headline that fails to immediately convert visitors.",
+      "prestigeScore": "68"
+    },
+    {
+      "id": "330018",
+      "companyName": "Cypress Dental - Dr. Brian G. Chan",
+      "websiteUrl": "http://www.renosmiles.com",
+      "status": "pending",
+      "summary": "The website is currently non-functional, displaying a critical Cloudflare access denied error (1005). This technical failure prevents all users and search engines from accessing the site, resulting in zero conversions and severe damage to online credibility and local search performance.",
+      "prestigeScore": "5"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcompanyName\twebsiteUrl\tstatus\tsummary\tprestigeScore\n300020\tHomegrown Gastropub\thttp://homegrowngastropub.com/\tpending\tThis website has successfully placed critical contact information and a conversion button above the fold, which is a strong start. However, the design choices, particularly the harsh color palette and lack of a clear value proposition, significantly undermine trust and modern aesthetic standards. It functions adequately but fails to impress or convert optimally.\t55\n330013\tReno Dental Care - Anastasia Owens, DDS\thttp://www.renodentalcare.com/\tpending\tThe website is currently inaccessible, displaying a critical Cloudflare Error 1005 (Access Denied). This technical failure prevents all users from viewing the site, leading to zero conversions and a devastating impact on local credibility and search performance.\t0\n330003\tDamonte Ranch Dental Care - South Reno\thttps://www.damonteranchdentalcare.com/?utm_source=GMBlisting&utm_medium=organic\tpending\tThis website presents a clean, modern aesthetic with clear navigation and strong local keyword inclusion in the hero area. However, it suffers from poor conversion optimization due to three competing calls-to-action and the omission of essential contact information in the header, forcing users to work harder to connect.\t62\n330001\tThe Reno Dentist\thttps://www.therenodentist.com/?utm_source=google.com&utm_medium=business+profile&utm_campaign=\tpending\tThis website presents a modern, professional appearance using high-quality video and clear contact information. However, the design suffers from poor visual hierarchy, a weak primary call-to-action, and a vague headline that fails to immediately convert visitors.\t68\n330018\tCypress Dental - Dr. Brian G. Chan\thttp://www.renosmiles.com\tpending\tThe website is currently non-functional, displaying a critical Cloudflare access denied error (1005). This technical failure prevents all users and search engines from accessing the site, resulting in zero conversions and severe damage to online credibility and local search performance.\t5\n",
+  "stderr": "",
+  "execution_time_ms": 1489
+}

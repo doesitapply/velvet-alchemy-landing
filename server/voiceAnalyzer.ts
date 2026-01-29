@@ -206,7 +206,7 @@ VOICE PROFILE:
 - Uses contractions: ${voiceProfile.usesContractions ? "YES" : "NO"}
 - Uses emoji: ${voiceProfile.usesEmoji ? "YES" : "NO"}
 - Uses profanity: ${voiceProfile.usesProfanity ? "YES (keep it light)" : "NO"}
-- Common phrases: ${voiceProfile.commonPhrases.join(", ")}
+- Common phrases: ${Array.isArray(voiceProfile.commonPhrases) ? voiceProfile.commonPhrases.join(", ") : voiceProfile.commonPhrases}
 - Sign-off: ${voiceProfile.signOffStyle}
 - Greeting: ${voiceProfile.greetingStyle}
 - Uses lists: ${voiceProfile.usesLists ? "YES" : "NO"}
@@ -214,7 +214,7 @@ VOICE PROFILE:
 - Asks questions: ${voiceProfile.usesQuestions ? "YES" : "NO"}
 
 EXAMPLE EMAILS (for reference):
-${voiceProfile.exampleEmails.slice(0, 2).join("\n\n---\n\n")}
+${Array.isArray(voiceProfile.exampleEmails) ? voiceProfile.exampleEmails.slice(0, 2).join("\n\n---\n\n") : ""}
 `;
 
   const emailPrompt = `You are writing a cold outreach email to a business owner. Write in the EXACT voice and style described below.
@@ -232,18 +232,25 @@ AUDIT FINDINGS:
 - Top Issues:
 ${context.topIssues.map((issue, i) => `  ${i + 1}. ${issue}`).join("\n")}
 
-GOALS:
-1. Get their attention (mention specific issue from their site)
-2. Establish credibility (you ran a professional audit)
-3. Offer value (free audit report + recommendations)
-4. Low-pressure CTA (reply if interested, no hard sell)
+WRITING INSTRUCTIONS:
+1. Open with humor/sarcasm about a specific fixable problem on their site
+2. Use "Here's the thing" or similar casual transition
+3. Explain why the problem costs them money (lost calls, missed leads)
+4. Add "No judgment!" or similar self-aware comment
+5. Use "The good news" / "The bad news" structure
+6. List 3 specific fixes (bullet points)
+7. Present pricing naturally (3 tiers: DIY $500, Done-For-You $2,500, Revenue Instrument $5,000)
+8. End with low-pressure CTA ("Want me to send over the audit?")
+9. Add self-aware P.S. ("I'm roasting because I care")
 
-CONSTRAINTS:
-- Keep it SHORT (3-4 paragraphs max)
-- Match the voice profile EXACTLY
-- Sound human, not like a template
-- Don't oversell or sound desperate
-- Make it about THEM, not you
+TONE RULES:
+- Funny but not mean
+- Sarcastic but helpful
+- Only roast fixable problems (not their business/industry)
+- Explain the joke ("Plot twist: minimalist ≠ invisible")
+- Use emoji sparingly (1-2 max)
+- Keep paragraphs short (2-3 sentences)
+- Sound like a friend giving tough love, not a salesman
 
 Return JSON with "subject" and "body" fields.`;
 

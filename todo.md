@@ -883,3 +883,16 @@
 - [ ] Add email tracking (opens, clicks, replies) - needs webhook setup
 - [ ] Test voice calibration with first 5 emails
 - [ ] Write unit tests for voice analysis and email generation
+
+
+## Autonomous Sales Pipeline (Phase 1: Voice Calibration) ✅
+- [x] Gmail MCP integration working
+- [x] Voice profile system implemented (sarcastic, funny, approachable salesman)
+- [x] Email generation logic updated with new tone
+- [x] Approval workflow UI built (/outreach-approval)
+- [x] Voice setup page created (/voice-setup)
+- [x] Example emails written and approved by user
+- [x] Database tables created (voice_profiles, email_queue, follow_up_sequences)
+- [ ] Test complete outreach flow (generate → approve → send via Gmail)
+- [ ] Build follow-up automation (Day 3, 7, 14 sequences)
+- [ ] Add reply detection and intent classification

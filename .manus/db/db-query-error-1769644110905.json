@@ -1,0 +1,8 @@
+{
+  "query": "SELECT l.id, l.companyName, l.websiteUrl, l.contactEmail, a.summary, a.prestigeScore, a.detailedReport \nFROM leads l \nLEFT JOIN audits a ON l.id = a.leadId \nWHERE l.id = 360018 \nLIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT l.id, l.companyName, l.websiteUrl, l.contactEmail, a.summary, a.prestigeScore, a.detailedReport \nFROM leads l \nLEFT JOIN audits a ON l.id = a.leadId \nWHERE l.id = 360018 \nLIMIT 1;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'l.contactemail' in 'field list'"
+  ]
+}
