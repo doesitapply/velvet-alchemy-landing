@@ -20,7 +20,7 @@ function getStripe() {
  */
 export function registerStripeWebhook(app: Express) {
   app.post(
-    "/api/webhooks/stripe",
+    "/api/stripe/webhook",
     // Use raw body for Stripe signature verification
     express.raw({ type: "application/json" }),
     async (req: Request, res: Response) => {
@@ -48,6 +48,12 @@ export function registerStripeWebhook(app: Express) {
       } catch (err: any) {
         console.error("Webhook signature verification failed:", err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+
+      // Handle test events from Stripe CLI
+      if (event.id.startsWith('evt_test_')) {
+        console.log("[Webhook] Test event detected, returning verification response");
+        return res.json({ verified: true });
       }
 
       // Handle the event

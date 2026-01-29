@@ -1,4 +1,4 @@
-import { invokeLLM } from "./_core/llm";
+import { invokeAI } from "./aiProvider";
 import type { Lead, Audit, Asset } from "../drizzle/schema";
 
 export interface OutreachCopyResult {
@@ -92,7 +92,7 @@ Write a short, high-impact outreach email (150-200 words) that:
 
 Generate the email now.`;
 
-  const response = await invokeLLM({
+  const response = await invokeAI({
     messages: [
       {
         role: "system",
@@ -104,41 +104,37 @@ Generate the email now.`;
         content: prompt,
       },
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "outreach_email",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            subject: {
-              type: "string",
-              description: "Email subject line (5-8 words)",
-            },
-            body: {
-              type: "string",
-              description: "Email body in plain text",
-            },
-            recipientName: {
-              type: ["string", "null"],
-              description: "Inferred recipient name or null",
-            },
+    responseFormat: "json_schema",
+    schema: {
+      name: "outreach_email",
+      strict: true,
+      schema: {
+        type: "object",
+        properties: {
+          subject: {
+            type: "string",
+            description: "Email subject line (5-8 words)",
           },
-          required: ["subject", "body", "recipientName"],
-          additionalProperties: false,
+          body: {
+            type: "string",
+            description: "Email body in plain text",
+          },
+          recipientName: {
+            type: ["string", "null"],
+            description: "Inferred recipient name or null",
+          },
         },
+        required: ["subject", "body", "recipientName"],
+        additionalProperties: false,
       },
     },
   });
 
-  const message = response.choices[0]?.message;
-  if (!message || !message.content) {
+  if (!response.content) {
     throw new Error("LLM returned empty response");
   }
 
-  const content = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
-  const parsed = JSON.parse(content);
+  const parsed = JSON.parse(response.content);
 
   // Infer recipient email (for now, use a placeholder or website domain)
   // In production, this would come from lead enrichment or manual input

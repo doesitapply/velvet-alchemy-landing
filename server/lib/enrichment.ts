@@ -1,4 +1,4 @@
-import { invokeLLM } from "../_core/llm";
+import { invokeAI } from "../aiProvider";
 
 /**
  * Revenue Calculator
@@ -100,7 +100,7 @@ export async function performTechnicalAudit(websiteUrl: string): Promise<{
  */
 export async function detectConversionLeaks(screenshotUrl: string, companyName: string): Promise<string[]> {
   try {
-    const response = await invokeLLM({
+    const response = await invokeAI({
       messages: [
         {
           role: "system",
@@ -123,29 +123,29 @@ export async function detectConversionLeaks(screenshotUrl: string, companyName: 
           ],
         },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "conversion_leaks",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              leaks: {
-                type: "array",
-                items: { type: "string" },
-                description: "List of specific conversion leaks found",
-              },
+      responseFormat: "json_schema",
+      schema: {
+        name: "conversion_leaks",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            leaks: {
+              type: "array",
+              items: { type: "string" },
+              description: "List of specific conversion leaks found",
             },
-            required: ["leaks"],
-            additionalProperties: false,
           },
+          required: ["leaks"],
+          additionalProperties: false,
         },
       },
     });
     
-    const content = response.choices[0].message.content;
-    const result = JSON.parse(typeof content === 'string' ? content : JSON.stringify(content));
+    if (!response.content) {
+      throw new Error("No response from LLM");
+    }
+    const result = JSON.parse(response.content);
     return result.leaks || [];
   } catch (error) {
     console.error('[ConversionLeaks] Error:', error);

@@ -1,4 +1,4 @@
-import { invokeLLM } from "../_core/llm";
+import { invokeAI } from "../aiProvider";
 
 /**
  * AI Website Generator
@@ -145,7 +145,7 @@ Generate ONLY the HTML code. Use inline CSS for styling. Make it production-read
 
   console.log('[WebsiteGenerator] Generating website for:', input.companyName);
 
-  const response = await invokeLLM({
+  const response = await invokeAI({
     messages: [
       {
         role: "system",
@@ -158,18 +158,11 @@ Generate ONLY the HTML code. Use inline CSS for styling. Make it production-read
     ],
   });
 
-  const rawContent = response.choices[0].message.content;
-  let htmlContent = "";
-  
-  if (typeof rawContent === 'string') {
-    htmlContent = rawContent;
-  } else if (Array.isArray(rawContent)) {
-    // Handle array content (extract text)
-    htmlContent = rawContent
-      .filter((item: any) => item.type === 'text')
-      .map((item: any) => item.text)
-      .join('');
+  if (!response.content) {
+    throw new Error("No response from LLM");
   }
+  
+  let htmlContent = response.content;
   
   // Clean up markdown code blocks if AI added them
   htmlContent = htmlContent.replace(/```html\n?/g, '').replace(/```\n?/g, '').trim();

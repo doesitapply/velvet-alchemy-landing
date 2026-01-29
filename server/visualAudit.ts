@@ -1,4 +1,4 @@
-import { invokeLLM } from "./_core/llm";
+import { invokeAI } from "./aiProvider";
 
 export interface VisualDebtItem {
   category: "design" | "ux" | "branding" | "content" | "technical";
@@ -30,7 +30,7 @@ export async function analyzeVisualDebt(
   companyName: string
 ): Promise<VisualAuditResult> {
   try {
-    const response = await invokeLLM({
+    const response = await invokeAI({
       messages: [
         {
           role: "system",
@@ -77,60 +77,55 @@ Be honest and specific. Focus on issues that directly impact local search rankin
           ],
         },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "visual_audit",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              visualDebt: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    category: {
-                      type: "string",
-                      enum: ["design", "ux", "branding", "content", "technical"],
-                    },
-                    severity: {
-                      type: "string",
-                      enum: ["critical", "high", "medium", "low"],
-                    },
-                    issue: { type: "string" },
-                    recommendation: { type: "string" },
+      responseFormat: "json_schema",
+      schema: {
+        name: "visual_audit",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            visualDebt: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  category: {
+                    type: "string",
+                    enum: ["design", "ux", "branding", "content", "technical"],
                   },
-                  required: ["category", "severity", "issue", "recommendation"],
-                  additionalProperties: false,
+                  severity: {
+                    type: "string",
+                    enum: ["critical", "high", "medium", "low"],
+                  },
+                  issue: { type: "string" },
+                  recommendation: { type: "string" },
                 },
-              },
-              prestigeScore: { type: "integer", minimum: 0, maximum: 100 },
-              summary: { type: "string" },
-              strengths: {
-                type: "array",
-                items: { type: "string" },
-              },
-              weaknesses: {
-                type: "array",
-                items: { type: "string" },
+                required: ["category", "severity", "issue", "recommendation"],
+                additionalProperties: false,
               },
             },
-            required: ["visualDebt", "prestigeScore", "summary", "strengths", "weaknesses"],
-            additionalProperties: false,
+            prestigeScore: { type: "integer", minimum: 0, maximum: 100 },
+            summary: { type: "string" },
+            strengths: {
+              type: "array",
+              items: { type: "string" },
+            },
+            weaknesses: {
+              type: "array",
+              items: { type: "string" },
+            },
           },
+          required: ["visualDebt", "prestigeScore", "summary", "strengths", "weaknesses"],
+          additionalProperties: false,
         },
       },
     });
 
-    const message = response.choices[0]?.message;
-    if (!message || !message.content) {
+    if (!response.content) {
       throw new Error("No response from LLM");
     }
 
-    const content = typeof message.content === 'string' 
-      ? message.content 
-      : JSON.stringify(message.content);
+    const content = response.content;
 
     const result: VisualAuditResult = JSON.parse(content);
     return result;

@@ -14,7 +14,7 @@ import { eq, and, asc } from "drizzle-orm";
 export interface AIRequest {
   messages: Array<{
     role: "system" | "user" | "assistant";
-    content: string;
+    content: string | Array<{ type: string; text?: string; image_url?: { url: string; detail?: string } }>;
   }>;
   model?: string;
   temperature?: number;

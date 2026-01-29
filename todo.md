@@ -912,3 +912,21 @@
 - [ ] Write unit tests for failover scenarios
 - [ ] Test with intentional rate limit triggers
 - [ ] Document provider setup and configuration
+
+
+## Migrate to Multi-Provider AI System
+- [ ] Find all invokeLLM() calls in codebase
+- [ ] Migrate orchestrator.ts to use invokeAI()
+- [ ] Migrate visualAudit.ts to use invokeAI()
+- [ ] Migrate voiceAnalyzer.ts to use invokeAI()
+- [ ] Migrate charmerRouter.ts to use invokeAI()
+- [ ] Migrate visionaryRouter.ts to use invokeAI()
+- [ ] Migrate websiteGeneratorRouter.ts to use invokeAI()
+- [ ] Test orchestrator with automatic failover
+- [ ] Verify all AI operations work with multi-provider system
+
+
+## Stripe Product Setup
+- [x] Create products via Stripe API (6 products created)
+- [x] Build products.ts configuration file
+- [ ] Test checkout with real products
