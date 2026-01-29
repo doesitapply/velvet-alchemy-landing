@@ -23,6 +23,7 @@ import RevenueDashboard from "./pages/RevenueDashboard";
 import CostDashboard from "./pages/CostDashboard";
 import OutreachApproval from "./pages/OutreachApproval";
 import VoiceSetup from "./pages/VoiceSetup";
+import AIProviders from "./pages/AIProviders";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -48,6 +49,7 @@ function Router() {
       <Route path="/costs" component={CostDashboard} />
       <Route path="/outreach-approval" component={OutreachApproval} />
       <Route path="/voice-setup" component={VoiceSetup} />
+      <Route path="/ai-providers" component={AIProviders} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

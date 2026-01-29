@@ -347,3 +347,64 @@ export const userOnboarding = mysqlTable("user_onboarding", {
 
 export type UserOnboarding = typeof userOnboarding.$inferSelect;
 export type InsertUserOnboarding = typeof userOnboarding.$inferInsert;
+
+/**
+ * AI Provider Management - Multi-provider fallback system
+ */
+export const aiProviders = mysqlTable("ai_providers", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 50 }).notNull().unique(), // 'manus', 'openai', 'anthropic', 'google'
+  displayName: varchar("displayName", { length: 100 }).notNull(),
+  apiKey: text("apiKey"), // Encrypted, NULL for Manus (uses built-in)
+  isEnabled: boolean("isEnabled").default(true).notNull(),
+  priority: int("priority").default(0).notNull(), // Lower = higher priority
+  maxRequestsPerMinute: int("maxRequestsPerMinute"),
+  maxTokensPerDay: int("maxTokensPerDay"),
+  costPer1kTokens: int("costPer1kTokens"), // Cost in cents (e.g., 500 = $0.005 per 1k tokens)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AIProvider = typeof aiProviders.$inferSelect;
+export type InsertAIProvider = typeof aiProviders.$inferInsert;
+
+/**
+ * API usage logs for cost monitoring and analytics
+ */
+export const apiUsageLogs = mysqlTable("api_usage_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  providerId: int("providerId").notNull(),
+  userId: int("userId"), // Optional: track per-user usage
+  leadId: int("leadId"), // Optional: link to specific lead
+  operation: varchar("operation", { length: 100 }).notNull(), // 'visual_audit', 'email_generation', 'asset_generation'
+  model: varchar("model", { length: 100 }), // 'gpt-4o', 'claude-3-5-sonnet', etc.
+  promptTokens: int("promptTokens").notNull(),
+  completionTokens: int("completionTokens").notNull(),
+  totalTokens: int("totalTokens").notNull(),
+  cost: int("cost"), // Cost in cents (e.g., 50 = $0.50)
+  latencyMs: int("latencyMs"), // Response time in milliseconds
+  success: boolean("success").notNull(),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type APIUsageLog = typeof apiUsageLogs.$inferSelect;
+export type InsertAPIUsageLog = typeof apiUsageLogs.$inferInsert;
+
+/**
+ * Provider health tracking for automatic failover
+ */
+export const providerHealth = mysqlTable("provider_health", {
+  id: int("id").autoincrement().primaryKey(),
+  providerId: int("providerId").notNull().unique(),
+  status: mysqlEnum("status", ["healthy", "degraded", "down"]).default("healthy").notNull(),
+  lastSuccessAt: timestamp("lastSuccessAt"),
+  lastFailureAt: timestamp("lastFailureAt"),
+  consecutiveFailures: int("consecutiveFailures").default(0).notNull(),
+  avgLatencyMs: int("avgLatencyMs"),
+  successRate: int("successRate"), // Percentage * 100 (e.g., 9500 = 95.00%)
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProviderHealth = typeof providerHealth.$inferSelect;
+export type InsertProviderHealth = typeof providerHealth.$inferInsert;
