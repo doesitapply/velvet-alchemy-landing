@@ -67,6 +67,8 @@ export async function captureScreenshot(
       }
       
       console.log('[Screenshot] Microlink failed with status:', response.status);
+      const responseBody = await response.text();
+      console.log('[Screenshot] Microlink response body:', responseBody);
     } catch (microlinkError: any) {
       console.log('[Screenshot] Microlink error:', microlinkError.message);
     }
@@ -83,7 +85,8 @@ export async function captureScreenshot(
     });
 
     if (!fallbackResponse.ok) {
-      throw new Error(`All screenshot services failed. Last status: ${fallbackResponse.status}`);
+      const errorBody = await fallbackResponse.text();
+      throw new Error(`All screenshot services failed. Last status: ${fallbackResponse.status}. Body: ${errorBody}`);
     }
 
     const buffer = await fallbackResponse.arrayBuffer();

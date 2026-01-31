@@ -30,6 +30,10 @@ export async function analyzeVisualDebt(
   companyName: string
 ): Promise<VisualAuditResult> {
   try {
+    if (!screenshotUrl || !/^https?:\/\//.test(screenshotUrl)) {
+      throw new Error("Invalid screenshot URL");
+    }
+
     const response = await invokeAI({
       messages: [
         {

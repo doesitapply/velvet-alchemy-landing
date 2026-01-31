@@ -2,7 +2,7 @@ import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { leads, audits, voiceProfiles, emailQueue, followUpSequences } from "../drizzle/schema";
-import { eq, and, or, lt, isNull } from "drizzle-orm";
+import { eq, and, or, lt, isNull, ne } from "drizzle-orm";
 import { analyzeVoice, generateEmailInVoice, refineVoiceProfile, type EmailSample } from "./voiceAnalyzer";
 import { TRPCError } from "@trpc/server";
 import { sendGmailMessage, getSentEmails } from "./gmailClient";
@@ -127,9 +127,9 @@ export const outreachRouter = router({
       // Get voice profile
       const profileResult = await db.select().from(voiceProfiles).where(eq(voiceProfiles.userId, ctx.user.id)).limit(1);
       if (profileResult.length === 0) {
-        throw new TRPCError({ 
-          code: "PRECONDITION_FAILED", 
-          message: "Voice profile not initialized. Please analyze your emails first." 
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Voice profile not initialized. Please analyze your emails first."
         });
       }
 
@@ -207,10 +207,10 @@ export const outreachRouter = router({
         scheduledFor: emailQueue.scheduledFor,
         createdAt: emailQueue.createdAt,
       })
-      .from(emailQueue)
-      .leftJoin(leads, eq(emailQueue.leadId, leads.id))
-      .where(eq(emailQueue.status, "pending_approval"))
-      .orderBy(emailQueue.createdAt);
+        .from(emailQueue)
+        .leftJoin(leads, eq(emailQueue.leadId, leads.id))
+        .where(eq(emailQueue.status, "pending_approval"))
+        .orderBy(emailQueue.createdAt);
 
       return emails;
     }),
@@ -364,5 +364,68 @@ export const outreachRouter = router({
       }
 
       return { sent: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, results };
+    }),
+
+  /**
+   * Generate a reply draft to an incoming email
+   */
+  generateReplyDraft: protectedProcedure
+    .input(z.object({
+      leadId: z.number(),
+      replyMessageId: z.number(), // The ID in our emailQueue table for the incoming reply
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      // 1. Get lead
+      const leadResult = await db.select().from(leads).where(eq(leads.id, input.leadId)).limit(1);
+      if (leadResult.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
+      const lead = leadResult[0];
+
+      // 2. Get the incoming reply
+      const replyResult = await db.select().from(emailQueue).where(eq(emailQueue.id, input.replyMessageId)).limit(1);
+      if (replyResult.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Incoming reply not found" });
+      const incomingReply = replyResult[0];
+
+      // 3. Get the original sent email (to provide context to the reply generator)
+      const sentEmailResult = await db.select().from(emailQueue)
+        .where(
+          and(
+            eq(emailQueue.leadId, input.leadId),
+            eq(emailQueue.status, "sent"),
+            ne(emailQueue.id, input.replyMessageId)
+          )
+        )
+        .orderBy(emailQueue.sentAt)
+        .limit(1);
+
+      const originalEmail = sentEmailResult.length > 0 ? sentEmailResult[0] : { subject: "", body: "" };
+
+      // 4. Generate the reply
+      const { generateReply } = await import("./charmer");
+      const draft = await generateReply(lead, originalEmail, {
+        from: incomingReply.recipientEmail,
+        subject: incomingReply.subject,
+        body: incomingReply.body,
+      });
+
+      // 5. Add the draft to the email queue
+      const queueResult = await db.insert(emailQueue).values({
+        leadId: input.leadId,
+        recipientEmail: incomingReply.recipientEmail,
+        recipientName: lead.companyName,
+        subject: draft.subject,
+        body: draft.body,
+        status: "pending_approval",
+        gmailThreadId: incomingReply.gmailThreadId,
+      });
+
+      return {
+        success: true,
+        emailId: queueResult[0].insertId,
+        subject: draft.subject,
+        body: draft.body,
+      };
     }),
 });

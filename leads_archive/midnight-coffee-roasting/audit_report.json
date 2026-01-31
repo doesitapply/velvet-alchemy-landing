@@ -1,0 +1,46 @@
+{
+  "visualDebt": [
+    {
+      "category": "design",
+      "severity": "medium",
+      "issue": "Typography lacks contrast making text hard to read against background colors.",
+      "recommendation": "Increase text contrast by using darker fonts on lighter backgrounds or vice versa."
+    },
+    {
+      "category": "ux",
+      "severity": "high",
+      "issue": "Navigation menu is cluttered and hard to find on mobile devices.",
+      "recommendation": "Optimize the mobile navigation by using a collapsible menu and ensuring items are clearly labeled."
+    },
+    {
+      "category": "content",
+      "severity": "medium",
+      "issue": "Value proposition is not immediately clear on the homepage.",
+      "recommendation": "Highlight the unique selling points prominently above the fold on the homepage."
+    },
+    {
+      "category": "technical",
+      "severity": "medium",
+      "issue": "Website is not fully responsive on smaller screens.",
+      "recommendation": "Implement responsive design techniques to ensure all elements reformat correctly on mobile devices."
+    },
+    {
+      "category": "branding",
+      "severity": "low",
+      "issue": "Lacks consistent branding across different pages of the website.",
+      "recommendation": "Ensure consistent use of colors, fonts, and logo placement throughout the site."
+    }
+  ],
+  "prestigeScore": 65,
+  "summary": "Midnight Coffee Roasting's website has a visually appealing design with a warm aesthetic but faces challenges in clarity and technical execution. Improving navigation clarity and strengthening responsive design will enhance user experience and trust.",
+  "strengths": [
+    "Warm and inviting color scheme.",
+    "Professional quality images of products.",
+    "Intuitive layout on desktop."
+  ],
+  "weaknesses": [
+    "Cluttered mobile navigation.",
+    "Inconsistent branding elements.",
+    "Lack of clear value proposition on homepage."
+  ]
+}

@@ -1,6 +1,5 @@
-import { getDb } from "./db";
-import { rateLimits, systemConfig, auditLog, type InsertAuditLog, type InsertRateLimit } from "../drizzle/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { insertAuditLogEntry, findActiveRateLimit, createRateLimitRecord, incrementRateLimitRecord, getSystemConfigValue, setSystemConfigValue, getSystemConfigEntries } from "./db";
+import type { InsertAuditLog } from "../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 
 /**
@@ -17,12 +16,6 @@ const RATE_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
  * @throws TRPCError if rate limit exceeded
  */
 export async function checkRateLimit(userId: number, action: string): Promise<void> {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Governor] Database unavailable, skipping rate limit check");
-    return;
-  }
-
   const config = RATE_LIMITS[action];
   if (!config) {
     console.warn(`[Governor] No rate limit configured for action: ${action}`);
@@ -32,37 +25,20 @@ export async function checkRateLimit(userId: number, action: string): Promise<vo
   const now = new Date();
   const windowStart = new Date(now.getTime() - config.windowMs);
 
-  // Find existing rate limit record within the current window
-  const existing = await db
-    .select()
-    .from(rateLimits)
-    .where(
-      and(
-        eq(rateLimits.userId, userId),
-        eq(rateLimits.action, action),
-        gte(rateLimits.windowEnd, now)
-      )
-    )
-    .limit(1);
+  const existing = await findActiveRateLimit(userId, action, now);
 
-  if (existing.length > 0) {
-    const record = existing[0];
-    if (record.count >= config.maxRequests) {
+  if (existing) {
+    if (existing.count >= config.maxRequests) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
         message: `Rate limit exceeded for ${action}. Try again later.`,
       });
     }
 
-    // Increment count
-    await db
-      .update(rateLimits)
-      .set({ count: record.count + 1, updatedAt: now })
-      .where(eq(rateLimits.id, record.id));
+    await incrementRateLimitRecord(existing.id);
   } else {
-    // Create new rate limit record
     const windowEnd = new Date(now.getTime() + config.windowMs);
-    await db.insert(rateLimits).values({
+    await createRateLimitRecord({
       userId,
       action,
       count: 1,
@@ -77,20 +53,8 @@ export async function checkRateLimit(userId: number, action: string): Promise<vo
  * @throws TRPCError if system is disabled
  */
 export async function checkKillSwitch(userId?: number): Promise<void> {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Governor] Database unavailable, skipping kill-switch check");
-    return;
-  }
-
-  // Check global kill-switch
-  const globalSwitch = await db
-    .select()
-    .from(systemConfig)
-    .where(eq(systemConfig.key, "global_kill_switch"))
-    .limit(1);
-
-  if (globalSwitch.length > 0 && globalSwitch[0].value === "true") {
+  const globalSwitch = await getSystemConfigValue("global_kill_switch");
+  if (globalSwitch && globalSwitch.value === "true") {
     throw new TRPCError({
       code: "SERVICE_UNAVAILABLE",
       message: "System is temporarily disabled for maintenance.",
@@ -99,13 +63,8 @@ export async function checkKillSwitch(userId?: number): Promise<void> {
 
   // Check user-specific kill-switch
   if (userId) {
-    const userSwitch = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.key, `user_kill_switch_${userId}`))
-      .limit(1);
-
-    if (userSwitch.length > 0 && userSwitch[0].value === "true") {
+    const userSwitch = await getSystemConfigValue(`user_kill_switch_${userId}`);
+    if (userSwitch && userSwitch.value === "true") {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "Your account has been temporarily suspended.",
@@ -118,14 +77,8 @@ export async function checkKillSwitch(userId?: number): Promise<void> {
  * Log an action to the audit log for compliance
  */
 export async function logAudit(entry: InsertAuditLog): Promise<void> {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Governor] Database unavailable, skipping audit log");
-    return;
-  }
-
   try {
-    await db.insert(auditLog).values(entry);
+    await insertAuditLogEntry(entry);
   } catch (error) {
     console.error("[Governor] Failed to write audit log:", error);
   }
@@ -158,12 +111,6 @@ export async function checkDomainReputation(domain: string): Promise<boolean> {
  * Initialize default system config values
  */
 export async function initializeSystemConfig(): Promise<void> {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Governor] Database unavailable, skipping config initialization");
-    return;
-  }
-
   const defaults = [
     { key: "global_kill_switch", value: "false", description: "Global system kill-switch" },
     { key: "rate_limit_enabled", value: "true", description: "Enable rate limiting" },
@@ -171,14 +118,9 @@ export async function initializeSystemConfig(): Promise<void> {
   ];
 
   for (const config of defaults) {
-    const existing = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.key, config.key))
-      .limit(1);
-
-    if (existing.length === 0) {
-      await db.insert(systemConfig).values(config);
+    const existing = await getSystemConfigValue(config.key);
+    if (!existing) {
+      await setSystemConfigValue(config.key, config.value, config.description);
     }
   }
 }

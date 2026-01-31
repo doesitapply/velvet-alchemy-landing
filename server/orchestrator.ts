@@ -151,8 +151,67 @@ async function runScreenshotAndAuditStage(leadId: number, userId: number): Promi
 }
 
 /**
- * Stage 2: Outreach Draft Generation
- * Note: Asset generation has been moved to on-demand (manual trigger via LeadDetail page)
+ * Stage 2: Generative Assets (The Visionary)
+ */
+async function runAssetsStage(leadId: number, userId: number): Promise<PipelineResult> {
+  try {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    // Fetch lead and audit
+    const leadResult = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+    if (leadResult.length === 0) return { success: false, stage: "audit", error: "Lead not found" };
+    const lead = leadResult[0];
+
+    // Check if audit exists (needed for DNA extraction)
+    const auditResult = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
+    const audit = auditResult.length > 0 ? auditResult[0] : null;
+    const visualDebt = audit?.visualDebtData ? JSON.parse(audit.visualDebtData) : null;
+
+    // Check if assets already exist
+    const existingAssets = await db.select().from(assets).where(eq(assets.leadId, leadId));
+    if (existingAssets.length > 0) {
+      console.log(`[Orchestrator] Assets already exist for lead ${leadId}, skipping generation.`);
+      return { success: true, stage: "audit" }; // Use "audit" as stage name to map to "assets" step
+    }
+
+    console.log(`[Orchestrator] Generating assets for lead ${leadId}...`);
+    const result = await generateAssetsForLead(
+      leadId,
+      lead.companyName,
+      lead.websiteUrl,
+      visualDebt
+    );
+
+    if (!result.success) {
+      return { success: false, stage: "audit", error: result.error || "Asset generation failed" };
+    }
+
+    await db.update(leads).set({ hasAssets: true }).where(eq(leads.id, leadId));
+
+    await logAudit({
+      userId,
+      action: "pipeline_stage_complete",
+      resource: "pipeline",
+      resourceId: leadId,
+      details: JSON.stringify({ stage: "assets_generation", count: result.assetCount }),
+      status: "success",
+    });
+
+    return { success: true, stage: "audit" }; // "audit" stage maps to assets in pipeline context
+
+  } catch (error) {
+    console.error("[Orchestrator] Asset generation stage failed:", error);
+    return {
+      success: false,
+      stage: "audit",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Stage 3: Outreach Draft Generation
  */
 async function runOutreachDraftStage(leadId: number, userId: number): Promise<PipelineResult> {
   try {
@@ -178,8 +237,9 @@ async function runOutreachDraftStage(leadId: number, userId: number): Promise<Pi
     // Generate outreach copy
     const outreach = await generateOutreachCopy(lead, audit, assetsResult);
 
-    // Create campaign and draft (this will be handled by the charmer router in the UI)
-    // For now, we just log that outreach was generated
+    // Update lead to show outreach is ready
+    await db.update(leads).set({ hasOutreach: true }).where(eq(leads.id, leadId));
+
     await logAudit({
       userId,
       action: "pipeline_stage_complete",
@@ -209,7 +269,7 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
   try {
     await updatePipelineJob(jobId, { status: "running", currentStage: "screenshot", progressPercentage: 0 });
 
-    // Stage 1: Screenshot + Audit (0-66%)
+    // Stage 1: Screenshot + Audit (0-50%)
     const stage1Result = await runScreenshotAndAuditStage(leadId, userId);
     if (!stage1Result.success) {
       await updatePipelineJob(jobId, {
@@ -219,29 +279,50 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
       });
       return;
     }
+
     await updatePipelineJob(jobId, {
-      currentStage: "outreach",
-      progressPercentage: 66,
+      currentStage: "assets",
+      progressPercentage: 50,
       stagesCompleted: ["screenshot"],
     });
 
-    // Stage 2: Outreach Draft (66-100%)
-    const stage2Result = await runOutreachDraftStage(leadId, userId);
+    // Stage 2: Assets (50-80%)
+    const stage2Result = await runAssetsStage(leadId, userId);
     if (!stage2Result.success) {
+      // We log but don't fail the WHOLE pipeline if assets fail? 
+      // No, velocity alchemy promises assets. Let's fail or warn.
+      // For now, fail to be loud.
       await updatePipelineJob(jobId, {
         status: "failed",
-        errorMessage: stage2Result.error || "Outreach draft stage failed",
+        errorMessage: stage2Result.error || "Asset generation stage failed",
+        currentStage: "assets",
+      });
+      return;
+    }
+
+    await updatePipelineJob(jobId, {
+      currentStage: "outreach",
+      progressPercentage: 80,
+      stagesCompleted: ["screenshot", "assets"],
+    });
+
+    // Stage 3: Outreach Draft (80-100%)
+    const stage3Result = await runOutreachDraftStage(leadId, userId);
+    if (!stage3Result.success) {
+      await updatePipelineJob(jobId, {
+        status: "failed",
+        errorMessage: stage3Result.error || "Outreach draft stage failed",
         currentStage: "outreach",
       });
       return;
     }
 
-    // Pipeline complete (assets generation is now on-demand via LeadDetail page)
+    // Pipeline complete
     await updatePipelineJob(jobId, {
       status: "completed",
       currentStage: null,
       progressPercentage: 100,
-      stagesCompleted: ["screenshot", "outreach"],
+      stagesCompleted: ["screenshot", "assets", "outreach"],
       completedAt: new Date(),
     });
 

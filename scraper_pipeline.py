@@ -8,6 +8,10 @@ import os
 import sys
 from datetime import datetime
 from hunter import TechnographicHunter
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Check for supabase library
 try:
@@ -23,17 +27,15 @@ class ScraperPipeline:
         supabase_url = os.environ.get("SUPABASE_URL")
         supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
         
-        if not supabase_url or not supabase_key:
-            print("❌ Error: Missing Supabase credentials")
-            print("Set environment variables:")
-            print("  export SUPABASE_URL='your-project-url'")
-            print("  export SUPABASE_SERVICE_ROLE_KEY='your-service-role-key'")
+        print(f"Attempting to connect to Supabase at: {supabase_url}")
+        
+        try:
+            self.supabase: Client = create_client(supabase_url, supabase_key)
+            self.hunter = TechnographicHunter()
+            print("✅ Successfully initialized Supabase client")
+        except Exception as e:
+            print(f"❌ Error initializing Supabase client: {e}")
             sys.exit(1)
-        
-        self.supabase: Client = create_client(supabase_url, supabase_key)
-        self.hunter = TechnographicHunter()
-        
-        print("✅ Connected to Supabase")
     
     def scan_and_store(self, domain: str) -> bool:
         """

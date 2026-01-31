@@ -1,4 +1,83 @@
 import { invokeAI } from "../aiProvider";
+import axios from "axios";
+
+/**
+ * Extract email addresses from a string using regex
+ */
+function extractEmails(text: string): string[] {
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  return Array.from(new Set(text.match(emailRegex) || []));
+}
+
+/**
+ * Find contact email on a website by crawling homepage and contact pages
+ */
+export async function findContactEmail(websiteUrl: string): Promise<string | null> {
+  if (!websiteUrl) return null;
+
+  const baseUrl = new URL(websiteUrl).origin;
+  const targetPages = new Set([
+    baseUrl,
+    `${baseUrl}/contact`,
+    `${baseUrl}/contact-us`,
+    `${baseUrl}/about`,
+    (`${baseUrl}/contact/`).replace(/\/+$/, '/'), // handles some trailing slash cases
+  ]);
+
+  console.log(`[Enrichment] Searching for contact info on ${baseUrl}...`);
+
+  const visited = new Set<string>();
+  const emailScores: Record<string, number> = {};
+
+  for (const url of Array.from(targetPages)) {
+    if (visited.has(url)) continue;
+    visited.add(url);
+
+    try {
+      const response = await axios.get(url, {
+        timeout: 5000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+      });
+      const html = response.data;
+      const emails = extractEmails(html);
+
+      // Filter and score emails
+      emails.forEach(email => {
+        const e = email.toLowerCase();
+        if (e.endsWith('.png') || e.endsWith('.jpg') || e.endsWith('.svg') || e.includes('wixpress.com')) return;
+
+        let score = 1;
+        if (e.includes('info') || e.includes('hello') || e.includes('contact')) score += 5;
+        if (e.includes('hi@') || e.includes('hey@')) score += 3;
+
+        emailScores[e] = (emailScores[e] || 0) + score;
+      });
+
+      // If we found a good amount of emails, no need to crawl further
+      if (Object.keys(emailScores).length > 2) break;
+
+      // Extract potential sub-links if we haven't found anything yet
+      const linkRegex = /href=["']([^"']*(?:contact|about|team|reach)[^"']*)["']/gi;
+      let match;
+      while ((match = linkRegex.exec(html)) !== null) {
+        let link = match[1];
+        if (link.startsWith('/')) link = baseUrl + link;
+        if (link.startsWith(baseUrl)) targetPages.add(link);
+      }
+    } catch (e) {
+      // ignore failures
+    }
+  }
+
+  const sortedEmails = Object.entries(emailScores).sort((a, b) => b[1] - a[1]);
+  if (sortedEmails.length > 0) {
+    const bestEmail = sortedEmails[0][0];
+    console.log(`   ✅ Best contact found: ${bestEmail} (Confidence: ${sortedEmails[0][1]})`);
+    return bestEmail;
+  }
+
+  return null;
+}
 
 /**
  * Revenue Calculator
@@ -12,11 +91,11 @@ export function calculateRevenueLoss(prestigeScore: number, category: string): {
   // Base conversion rate assumptions
   const avgMonthlyTraffic = 500; // Conservative estimate for local businesses
   const avgConversionRate = 0.02; // 2% baseline
-  
+
   // Calculate lost conversion rate based on prestige gap
   const prestigeGap = 100 - prestigeScore;
   const lostConversionRate = (prestigeGap / 100) * avgConversionRate;
-  
+
   // Category-specific average transaction values
   const categoryValues: Record<string, number> = {
     electrician: 850,
@@ -27,18 +106,18 @@ export function calculateRevenueLoss(prestigeScore: number, category: string): {
     restaurant: 35,
     default: 500,
   };
-  
+
   const avgTransactionValue = categoryValues[category.toLowerCase()] || categoryValues.default;
-  
+
   // Calculate lost customers per month
   const lostCustomersPerMonth = avgMonthlyTraffic * lostConversionRate;
-  
+
   // Calculate revenue loss
   const monthlyLoss = Math.round(lostCustomersPerMonth * avgTransactionValue);
   const annualLoss = monthlyLoss * 12;
-  
+
   const explanation = `Based on an estimated ${avgMonthlyTraffic} monthly visitors and a prestige gap of ${prestigeGap} points, your website is likely losing ${lostCustomersPerMonth.toFixed(1)} potential customers per month at $${avgTransactionValue} average transaction value.`;
-  
+
   return {
     annualLoss,
     monthlyLoss,
@@ -57,26 +136,26 @@ export async function performTechnicalAudit(websiteUrl: string): Promise<{
   issues: string[];
 }> {
   const issues: string[] = [];
-  
+
   try {
     // Check SSL
     const sslEnabled = websiteUrl.startsWith('https://');
     if (!sslEnabled) {
       issues.push("No SSL certificate - browsers show 'Not Secure' warning");
     }
-    
+
     // Simulate page speed check (in production, use Lighthouse API)
     const loadSpeed = "3.2s"; // Placeholder
     if (parseFloat(loadSpeed) > 3.0) {
       issues.push(`Slow load time (${loadSpeed}) - 53% of users abandon sites that take >3s to load`);
     }
-    
+
     // Simulate mobile-friendly check
     const mobileFriendly = Math.random() > 0.3; // 70% chance of being mobile-friendly
     if (!mobileFriendly) {
       issues.push("Not mobile-optimized - 60% of traffic is mobile");
     }
-    
+
     return {
       loadSpeed,
       mobileFriendly,
@@ -141,7 +220,7 @@ export async function detectConversionLeaks(screenshotUrl: string, companyName: 
         },
       },
     });
-    
+
     if (!response.content) {
       throw new Error("No response from LLM");
     }
@@ -186,26 +265,26 @@ export async function enrichLead(lead: {
   revenueLoss: { annual: number; monthly: number };
 }> {
   console.log(`[Enrichment] Starting enrichment for ${lead.companyName}`);
-  
+
   // Calculate revenue loss
   const revenueLoss = calculateRevenueLoss(lead.prestigeScore || 50, lead.category);
-  
+
   // Technical audit
   const technicalAudit = await performTechnicalAudit(lead.websiteUrl);
-  
+
   // Conversion leaks (only if screenshot exists)
   let conversionLeaks: string[] = [];
   if (lead.screenshotUrl) {
     conversionLeaks = await detectConversionLeaks(lead.screenshotUrl, lead.companyName);
   }
-  
+
   // Competitor analysis
   const competitorAnalysis = await findCompetitorGaps(
     lead.companyName,
     lead.category,
     lead.location
   );
-  
+
   // Build detailed report
   const detailedReport = {
     visual_audit: {
@@ -230,9 +309,9 @@ export async function enrichLead(lead: {
     },
     suggested_fix: `Redesign with modern UI, optimize for mobile, add clear CTAs, and improve page speed to recover an estimated $${revenueLoss.annualLoss.toLocaleString()}/year in lost revenue.`,
   };
-  
+
   console.log(`[Enrichment] Completed for ${lead.companyName} - Annual loss: $${revenueLoss.annualLoss}`);
-  
+
   return {
     detailedReport,
     revenueLoss: {

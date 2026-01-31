@@ -13,25 +13,28 @@ import { ENV } from "./env";
 // Configuration
 // ============================================================================
 
+// ============================================================================
+// Configuration
+// ============================================================================
+
 type MapsConfig = {
   baseUrl: string;
   apiKey: string;
+  isDirect: boolean;
 };
 
 function getMapsConfig(): MapsConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
-
-  if (!baseUrl || !apiKey) {
-    throw new Error(
-      "Google Maps proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
-    );
+  if (ENV.googleApiKey) {
+    return {
+      baseUrl: "https://maps.googleapis.com",
+      apiKey: ENV.googleApiKey,
+      isDirect: true
+    };
   }
 
-  return {
-    baseUrl: baseUrl.replace(/\/+$/, ""),
-    apiKey,
-  };
+  throw new Error(
+    "Google Maps credentials missing: set GOOGLE_API_KEY in .env"
+  );
 }
 
 // ============================================================================
@@ -56,10 +59,12 @@ export async function makeRequest<T = unknown>(
   params: Record<string, unknown> = {},
   options: RequestOptions = {}
 ): Promise<T> {
-  const { baseUrl, apiKey } = getMapsConfig();
+  const { baseUrl, apiKey, isDirect } = getMapsConfig();
 
-  // Construct full URL: baseUrl + /v1/maps/proxy + endpoint
-  const url = new URL(`${baseUrl}/v1/maps/proxy${endpoint}`);
+  // Construct URL
+  const urlStr = `${baseUrl}${endpoint}`;
+
+  const url = new URL(urlStr);
 
   // Add API key as query parameter (standard Google Maps API authentication)
   url.searchParams.append("key", apiKey);
@@ -82,7 +87,7 @@ export async function makeRequest<T = unknown>(
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(
-      `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
+      `Google Maps API request failed (${url.toString()} - ${response.status} ${response.statusText}): ${errorText}`
     );
   }
 

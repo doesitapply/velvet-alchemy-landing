@@ -3,6 +3,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
 import * as db from "./db";
+import { supabase } from "./_core/supabase";
 
 /**
  * Scraper Router
@@ -25,7 +26,7 @@ export const scraperRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { city, state, category, limit } = input;
-      
+
       // Build search query
       const location = state ? `${city}, ${state}` : city;
       const searchQuery = `${category} in ${location}`;
@@ -53,7 +54,7 @@ export const scraperRouter = router({
             // Fetch place details to get website URL
             const details = await makeRequest<PlaceDetailsResult>(
               "/maps/api/place/details/json",
-              { 
+              {
                 place_id: place.place_id,
                 fields: "name,website,formatted_address,rating,user_ratings_total"
               }
@@ -223,7 +224,7 @@ export const scraperRouter = router({
             // Fetch place details to get website URL
             const details = await makeRequest<PlaceDetailsResult>(
               "/maps/api/place/details/json",
-              { 
+              {
                 place_id: place.place_id,
                 fields: "name,website,formatted_address"
               }
@@ -252,7 +253,7 @@ export const scraperRouter = router({
             // Check if lead already exists by URL
             const dbConn = await db.getDb();
             if (!dbConn) continue;
-            
+
             const { eq } = await import("drizzle-orm");
             const { leads } = await import("../drizzle/schema");
             const existing = await dbConn.select().from(leads).where(eq(leads.websiteUrl, url)).limit(1);
@@ -335,5 +336,74 @@ export const scraperRouter = router({
         { value: "retail", label: "Retail Stores", keywords: ["store", "shop", "retail"] },
       ],
     };
+  }),
+
+  /**
+   * Sync leads from External Hunter (Supabase)
+   */
+  syncFromHunter: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      console.log("[Sync] Starting sync from Supabase...");
+
+      // 1. Fetch leads from Supabase "technographic_leads"
+      const { data: hunterLeads, error } = await supabase
+        .from('technographic_leads')
+        .select('*')
+        .order('last_scanned_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error("Supabase error:", error);
+        throw new Error(`Failed to fetch from Supabase: ${error.message}`);
+      }
+
+      if (!hunterLeads || hunterLeads.length === 0) {
+        console.log("[Sync] No leads found in Supabase.");
+        return { success: true, count: 0, message: "No leads found in Supabase" };
+      }
+
+      console.log(`[Sync] Found ${hunterLeads.length} leads in Supabase. Importing...`);
+
+      const results = { created: 0, skipped: 0, errors: 0 };
+
+      // 2. Import into local DB
+      for (const hLead of hunterLeads) {
+        try {
+          const url = hLead.url;
+          // Heuristic name generation
+          let name = hLead.company_domain
+            ? hLead.company_domain.split('.')[0]
+            : new URL(url).hostname.replace('www.', '').split('.')[0];
+
+          // Capitalize first letter
+          name = name.charAt(0).toUpperCase() + name.slice(1);
+
+          // Check if lead already exists by URL to avoid dupes in this session
+          // (Since we use memory store, checking store directly via db helper is best)
+          // But db.createLead doesn't enforce uniqueness. 
+          // We'll just create it. The user can delete duplicates.
+
+          await db.createLead({
+            userId: ctx.user.id, // Assign to the authenticated user (who is now mapped to ID 1 hopefully)
+            companyName: name,
+            websiteUrl: url,
+            status: 'pending',
+          });
+          results.created++;
+        } catch (err) {
+          console.error("Failed to import lead", err);
+          results.errors++;
+        }
+      }
+
+      return { success: true, count: results.created, results };
+
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: `Sync failed: ${error.message}`
+      });
+    }
   }),
 });

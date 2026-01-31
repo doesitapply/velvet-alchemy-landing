@@ -1,8 +1,6 @@
 import { router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { getDb } from "./db";
-import { systemConfig, rateLimits, auditLog } from "../drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { getSystemConfigEntries, getSystemConfigValue, setSystemConfigValue, getRateLimitRecords, getAuditLogEntries } from "./db";
 import { TRPCError } from "@trpc/server";
 
 export const governorRouter = router({
@@ -14,12 +12,7 @@ export const governorRouter = router({
       throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
     }
 
-    const db = await getDb();
-    if (!db) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    }
-
-    return await db.select().from(systemConfig);
+    return await getSystemConfigEntries();
   }),
 
   /**
@@ -30,34 +23,16 @@ export const governorRouter = router({
       throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
     }
 
-    const db = await getDb();
-    if (!db) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    }
-
-    const existing = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.key, "global_kill_switch"))
-      .limit(1);
-
-    if (existing.length === 0) {
-      // Create if doesn't exist
-      await db.insert(systemConfig).values({
-        key: "global_kill_switch",
-        value: "false",
-        description: "Global system kill-switch",
-      });
+    const existing = await getSystemConfigValue("global_kill_switch");
+    if (!existing) {
+      await setSystemConfigValue("global_kill_switch", "false", "Global system kill-switch");
       return { enabled: false };
     }
 
-    const currentValue = existing[0].value === "true";
+    const currentValue = existing.value === "true";
     const newValue = !currentValue;
 
-    await db
-      .update(systemConfig)
-      .set({ value: newValue ? "true" : "false", updatedAt: new Date() })
-      .where(eq(systemConfig.key, "global_kill_switch"));
+    await setSystemConfigValue("global_kill_switch", newValue ? "true" : "false", existing.description);
 
     return { enabled: newValue };
   }),
@@ -70,18 +45,10 @@ export const governorRouter = router({
       throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
     }
 
-    const db = await getDb();
-    if (!db) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-    }
-
-    const now = new Date();
-    return await db
-      .select()
-      .from(rateLimits)
-      .where(eq(rateLimits.windowEnd, now))
-      .orderBy(desc(rateLimits.updatedAt))
-      .limit(50);
+    const records = await getRateLimitRecords();
+    return records
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, 50);
   }),
 
   /**
@@ -94,15 +61,6 @@ export const governorRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
       }
 
-      const db = await getDb();
-      if (!db) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      }
-
-      return await db
-        .select()
-        .from(auditLog)
-        .orderBy(desc(auditLog.createdAt))
-        .limit(input.limit);
+      return await getAuditLogEntries(input.limit);
     }),
 });

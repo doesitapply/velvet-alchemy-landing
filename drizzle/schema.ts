@@ -46,7 +46,7 @@ export const leads = mysqlTable("leads", {
   websiteUrl: varchar("websiteUrl", { length: 512 }).notNull(),
   screenshotUrl: varchar("screenshotUrl", { length: 512 }),
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for deletion
-  status: mysqlEnum("status", ["pending", "audited", "contacted", "closed", "paid"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "audited", "contacted", "replied", "closed", "paid"]).default("pending").notNull(),
   prestigeScore: int("prestigeScore"), // 0-100, copied from audit for quick access
   priorityScore: int("priorityScore"), // 0-100, pre-screening score for lead value (domain age, SSL, mobile, etc.)
   hasAssets: boolean("hasAssets").default(false).notNull(), // True if Visionary generated assets
@@ -60,6 +60,7 @@ export const leads = mysqlTable("leads", {
   globalRank: int("globalRank"), // Global traffic ranking
   bounceRate: decimal("bounceRate", { precision: 5, scale: 2 }), // Bounce rate percentage
   trafficDataFetchedAt: timestamp("trafficDataFetchedAt"), // When traffic data was last fetched
+  contactEmail: varchar("contactEmail", { length: 320 }), // Discovered contact email
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -408,3 +409,22 @@ export const providerHealth = mysqlTable("provider_health", {
 
 export type ProviderHealth = typeof providerHealth.$inferSelect;
 export type InsertProviderHealth = typeof providerHealth.$inferInsert;
+
+/**
+ * Technographics table for The Hunter
+ */
+export const technographicLeads = mysqlTable("technographic_leads", {
+  id: int("id").autoincrement().primaryKey(),
+  url: varchar("url", { length: 512 }).notNull().unique(),
+  detected_cms: varchar("detected_cms", { length: 100 }),
+  has_pixel: boolean("has_pixel").default(false),
+  has_ga4: boolean("has_ga4").default(false),
+  ssl_error: boolean("ssl_error").default(false),
+  neglected: boolean("neglected").default(false),
+  last_scanned_at: timestamp("last_scanned_at"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TechnographicLead = typeof technographicLeads.$inferSelect;
+export type InsertTechnographicLead = typeof technographicLeads.$inferInsert;

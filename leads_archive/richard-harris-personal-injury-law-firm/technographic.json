@@ -1,0 +1,20 @@
+[
+  {
+    "url": "https://richardharrislaw.com/personal-injury-attorney-reno/",
+    "status": "active",
+    "signals": {
+      "shopify": false,
+      "klaviyo": false,
+      "stripe": false,
+      "meta_pixel": false,
+      "ga4": true,
+      "gtm": true
+    },
+    "pain_points": {
+      "ssl_error": false,
+      "missing_analytics": false,
+      "neglected_site": false
+    },
+    "error_detail": ""
+  }
+]

@@ -137,17 +137,17 @@ export default function LeadDetail() {
 
   // Email generation query (returns email content for manual sending via Gmail MCP)
   const [emailData, setEmailData] = useState<any>(null);
-  
+
   const handleGenerateEmail = async () => {
     try {
       const utils = trpc.useUtils();
       const result = await utils.email.generateOutreach.fetch({ leadId: leadId! });
       setEmailData(result);
-      
+
       // Copy email to clipboard for easy pasting
       const emailText = `To: ${result.to}\nSubject: ${result.subject}\n\n${result.body}`;
       await navigator.clipboard.writeText(emailText);
-      
+
       toast.success("Email content copied to clipboard! Use Gmail to send.");
     } catch (error: any) {
       toast.error(`Failed to generate email: ${error.message}`);
@@ -238,12 +238,11 @@ export default function LeadDetail() {
               <div className="flex items-center gap-4 text-sm text-muted-foreground font-mono">
                 <span>Created: {new Date(lead.createdAt).toLocaleDateString()}</span>
                 <span>•</span>
-                <span className={`px-2 py-1 rounded-sm ${
-                  lead.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
-                  lead.status === 'audited' ? 'bg-green-500/10 text-green-500' :
-                  lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-500' :
-                  'bg-gray-500/10 text-gray-500'
-                }`}>
+                <span className={`px-2 py-1 rounded-sm ${lead.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
+                    lead.status === 'audited' ? 'bg-green-500/10 text-green-500' :
+                      lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-500' :
+                        'bg-gray-500/10 text-gray-500'
+                  }`}>
                   {lead.status.toUpperCase()}
                 </span>
               </div>
@@ -283,8 +282,8 @@ export default function LeadDetail() {
 
           {/* Progress Bar */}
           {lead.status === 'pending' && (
-            <AuditProgressBar 
-              leadId={lead.id} 
+            <AuditProgressBar
+              leadId={lead.id}
               onComplete={() => {
                 toast.success("Audit completed!");
                 refetch(); // Refetch lead data instead of reloading page
@@ -300,8 +299,8 @@ export default function LeadDetail() {
             <Card className="p-4">
               <h2 className="text-xl font-serif italic mb-4">Visual Capture</h2>
               <div className="border border-border rounded-sm overflow-hidden">
-                <img 
-                  src={lead.screenshotUrl} 
+                <img
+                  src={lead.screenshotUrl}
                   alt={`Screenshot of ${lead.companyName}`}
                   className="w-full h-auto"
                 />
@@ -318,7 +317,7 @@ export default function LeadDetail() {
                   <h3 className="text-sm font-mono text-muted-foreground mb-2">SUMMARY</h3>
                   <p className="text-sm">{audit.summary || "No summary available"}</p>
                 </div>
-                
+
                 {audit.prestigeScore !== null && (
                   <div>
                     <h3 className="text-sm font-mono text-muted-foreground mb-2">PRESTIGE SCORE</h3>
@@ -326,21 +325,20 @@ export default function LeadDetail() {
                       <div className="text-5xl font-serif italic">{audit.prestigeScore}</div>
                       <div className="flex-1">
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all ${
-                              audit.prestigeScore >= 80 ? 'bg-green-500' :
-                              audit.prestigeScore >= 60 ? 'bg-yellow-500' :
-                              audit.prestigeScore >= 40 ? 'bg-orange-500' :
-                              'bg-red-500'
-                            }`}
+                          <div
+                            className={`h-full transition-all ${audit.prestigeScore >= 80 ? 'bg-green-500' :
+                                audit.prestigeScore >= 60 ? 'bg-yellow-500' :
+                                  audit.prestigeScore >= 40 ? 'bg-orange-500' :
+                                    'bg-red-500'
+                              }`}
                             style={{ width: `${audit.prestigeScore}%` }}
                           />
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                           {audit.prestigeScore >= 80 ? 'Exceptional' :
-                           audit.prestigeScore >= 60 ? 'Good' :
-                           audit.prestigeScore >= 40 ? 'Needs Improvement' :
-                           'Critical Issues'}
+                            audit.prestigeScore >= 60 ? 'Good' :
+                              audit.prestigeScore >= 40 ? 'Needs Improvement' :
+                                'Critical Issues'}
                         </p>
                       </div>
                     </div>
@@ -398,12 +396,11 @@ export default function LeadDetail() {
                               {auditData.visualDebt.map((item: any, i: number) => (
                                 <div key={i} className="border border-border rounded-sm p-4 space-y-2">
                                   <div className="flex items-center gap-2">
-                                    <span className={`text-xs px-2 py-1 rounded-sm font-mono ${
-                                      item.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
-                                      item.severity === 'high' ? 'bg-orange-500/10 text-orange-500' :
-                                      item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
-                                      'bg-blue-500/10 text-blue-500'
-                                    }`}>
+                                    <span className={`text-xs px-2 py-1 rounded-sm font-mono ${item.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                                        item.severity === 'high' ? 'bg-orange-500/10 text-orange-500' :
+                                          item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
+                                            'bg-blue-500/10 text-blue-500'
+                                      }`}>
                                       {item.severity.toUpperCase()}
                                     </span>
                                     <span className="text-xs px-2 py-1 rounded-sm font-mono bg-muted">
@@ -525,7 +522,7 @@ export default function LeadDetail() {
                       </SelectContent>
                     </Select>
                     <Button
-                      onClick={() => createInvoice.mutate({ 
+                      onClick={() => createInvoice.mutate({
                         leadId: leadId!,
                         packageType: selectedPackage
                       })}
@@ -560,7 +557,7 @@ export default function LeadDetail() {
                   <div key={asset.id} className="border border-border rounded-sm p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-mono uppercase text-muted-foreground">
-                        {asset.type.replace(/_/g, " ")}
+                        {(asset.type || '').replace(/_/g, " ")}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(asset.createdAt).toLocaleDateString()}

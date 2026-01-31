@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square, Camera, Trash2 } from "lucide-react";
+import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square, Camera, Trash2, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -40,7 +40,7 @@ export default function Leads() {
   const [leadToDelete, setLeadToDelete] = useState<{ id: number; name: string } | null>(null);
 
   const batchAuditMutation = trpc.orchestrator.batchAuditSelected.useMutation();
-  
+
   const deleteLead = trpc.leads.delete.useMutation({
     onSuccess: () => {
       toast.success("Lead deleted successfully");
@@ -51,6 +51,16 @@ export default function Leads() {
     onError: (error) => {
       toast.error(error.message);
     },
+  });
+
+  const syncHunter = trpc.scraper.syncFromHunter.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Synced ${data.count} leads from Hunter`);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`Sync failed: ${error.message}`);
+    }
   });
 
   const handleDeleteClick = (id: number, name: string) => {
@@ -96,7 +106,7 @@ export default function Leads() {
 
     // CSV headers
     const headers = ["Company Name", "Website", "Status", "Prestige Score", "Has Assets", "Has Outreach", "Created Date"];
-    
+
     // CSV rows
     const rows = leads.map(lead => [
       lead.companyName,
@@ -165,7 +175,7 @@ export default function Leads() {
 
   const handleAuditSelected = async () => {
     const leadIds = Array.from(selectedLeads);
-    
+
     if (leadIds.length === 0) {
       toast.error("No leads selected");
       return;
@@ -183,7 +193,7 @@ export default function Leads() {
     try {
       // Trigger background processing
       await batchAuditMutation.mutateAsync({ leadIds });
-      
+
       // Poll for progress every 5 seconds
       const pollInterval = setInterval(async () => {
         const updated = await refetch();
@@ -191,9 +201,9 @@ export default function Leads() {
           const lead = updated.data?.find(l => l.id === id);
           return lead?.status === 'audited';
         }).length;
-        
+
         setAuditProgress({ current: completedCount, total: leadIds.length });
-        
+
         if (completedCount === leadIds.length) {
           clearInterval(pollInterval);
           setIsAuditing(false);
@@ -209,7 +219,7 @@ export default function Leads() {
         setIsAuditing(false);
         setAuditProgress({ current: 0, total: 0 });
       }, 600000);
-      
+
     } catch (error) {
       toast.error(`Batch audit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsAuditing(false);
@@ -251,13 +261,23 @@ export default function Leads() {
           </div>
 
           <div className="flex gap-3">
-            <Button 
+            <Button
               onClick={handleExportCSV}
               variant="outline"
               className="gap-2 border-gold/30 text-gold hover:bg-gold/10"
             >
               <Download className="h-4 w-4" />
               Export CSV
+            </Button>
+
+            <Button
+              onClick={() => syncHunter.mutate()}
+              variant="outline"
+              disabled={syncHunter.isPending}
+              className="gap-2 border-gold/30 text-gold hover:bg-gold/10"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncHunter.isPending ? "animate-spin" : ""}`} />
+              Sync Hunter
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -267,63 +287,63 @@ export default function Leads() {
                   Create Lead
                 </Button>
               </DialogTrigger>
-            <DialogContent className="bg-black border-white/10">
-              <DialogHeader>
-                <DialogTitle className="text-gold">Create New Lead</DialogTitle>
-                <DialogDescription>
-                  Enter the company details to capture and audit their website
-                </DialogDescription>
-              </DialogHeader>
+              <DialogContent className="bg-black border-white/10">
+                <DialogHeader>
+                  <DialogTitle className="text-gold">Create New Lead</DialogTitle>
+                  <DialogDescription>
+                    Enter the company details to capture and audit their website
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name</Label>
-                  <Input
-                    id="companyName"
-                    placeholder="e.g., Luxury Watches Inc."
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Company Name</Label>
+                    <Input
+                      id="companyName"
+                      placeholder="e.g., Luxury Watches Inc."
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="websiteUrl">Website URL</Label>
+                    <Input
+                      id="websiteUrl"
+                      placeholder="https://example.com"
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="websiteUrl">Website URL</Label>
-                  <Input
-                    id="websiteUrl"
-                    placeholder="https://example.com"
-                    value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                  className="border-white/10"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateLead}
-                  disabled={createLead.isPending}
-                  className="bg-gold text-black hover:bg-gold/90"
-                >
-                  {createLead.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Create Lead"
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                    className="border-white/10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateLead}
+                    disabled={createLead.isPending}
+                    className="bg-gold text-black hover:bg-gold/90"
+                  >
+                    {createLead.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Lead"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 

@@ -1,8 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { checkRateLimit, checkKillSwitch, checkDomainReputation, initializeSystemConfig } from "./governor";
-import { getDb } from "./db";
-import { rateLimits, systemConfig } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { setSystemConfigValue, deleteSystemConfigKey, getSystemConfigEntries } from "./db";
 
 describe("Governor", () => {
   beforeEach(async () => {
@@ -43,56 +41,29 @@ describe("Governor", () => {
 
   describe("checkKillSwitch", () => {
     it("allows requests when kill-switch is disabled", async () => {
-      const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
-
-      // Ensure kill-switch is off
-      await db
-        .update(systemConfig)
-        .set({ value: "false" })
-        .where(eq(systemConfig.key, "global_kill_switch"));
+      await setSystemConfigValue("global_kill_switch", "false");
 
       await expect(checkKillSwitch(996)).resolves.toBeUndefined();
     });
 
     it("blocks requests when global kill-switch is enabled", async () => {
-      const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
-
-      // Enable kill-switch
-      await db
-        .update(systemConfig)
-        .set({ value: "true" })
-        .where(eq(systemConfig.key, "global_kill_switch"));
+      await setSystemConfigValue("global_kill_switch", "true");
 
       await expect(checkKillSwitch(995)).rejects.toThrow("temporarily disabled");
 
       // Clean up: disable kill-switch
-      await db
-        .update(systemConfig)
-        .set({ value: "false" })
-        .where(eq(systemConfig.key, "global_kill_switch"));
+      await setSystemConfigValue("global_kill_switch", "false");
     });
 
     it("blocks specific user when user kill-switch is enabled", async () => {
-      const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
-
       const userId = 994;
 
       // Create user-specific kill-switch
-      await db.insert(systemConfig).values({
-        key: `user_kill_switch_${userId}`,
-        value: "true",
-        description: "User-specific kill-switch",
-      });
+      await setSystemConfigValue(`user_kill_switch_${userId}`, "true", "User-specific kill-switch");
 
       await expect(checkKillSwitch(userId)).rejects.toThrow("suspended");
 
-      // Clean up
-      await db
-        .delete(systemConfig)
-        .where(eq(systemConfig.key, `user_kill_switch_${userId}`));
+      await deleteSystemConfigKey(`user_kill_switch_${userId}`);
     });
   });
 
@@ -120,12 +91,9 @@ describe("Governor", () => {
 
   describe("initializeSystemConfig", () => {
     it("creates default config values", async () => {
-      const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
-
       await initializeSystemConfig();
 
-      const config = await db.select().from(systemConfig);
+      const config = await getSystemConfigEntries();
       
       expect(config.length).toBeGreaterThan(0);
       expect(config.some((c) => c.key === "global_kill_switch")).toBe(true);

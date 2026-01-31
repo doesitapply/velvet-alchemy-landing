@@ -24,9 +24,10 @@ import { onboardingRouter } from "./onboardingRouter";
 import { costRouter } from "./costRouter";
 import { outreachRouter } from "./outreachRouter";
 import { providerRouter } from "./providerRouter";
+import { testRouter } from "./routers/testRouter";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   governor: governorRouter,
   charmer: charmerRouter,
@@ -43,6 +44,7 @@ export const appRouter = router({
   cost: costRouter,
   outreach: outreachRouter,
   provider: providerRouter,
+  test: testRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -78,7 +80,7 @@ export const appRouter = router({
 
         // Capture screenshot
         const screenshot = await captureScreenshot(input.websiteUrl);
-        
+
         if (!screenshot.success) {
           throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }
@@ -152,7 +154,7 @@ export const appRouter = router({
 
         // Capture screenshot
         const screenshot = await captureScreenshot(input.websiteUrl);
-        
+
         if (!screenshot.success) {
           throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }
@@ -229,9 +231,9 @@ export const appRouter = router({
         if (!lead) {
           throw new Error('Lead not found');
         }
-        
+
         const audit = await getAuditByLeadId(lead.id);
-        
+
         return { lead, audit };
       }),
 
@@ -245,7 +247,7 @@ export const appRouter = router({
 
         // Capture screenshot
         const screenshot = await captureScreenshot(lead.websiteUrl);
-        
+
         if (!screenshot.success) {
           throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }
