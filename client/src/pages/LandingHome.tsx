@@ -18,7 +18,27 @@ export default function LandingHome() {
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
 
-  const createLead = trpc.leads.createPublic.useMutation();
+  // Funnel-only on Vercel: use a simple serverless endpoint.
+  // (We keep tRPC for internal tools later, but the public funnel must be dead-simple.)
+  const createLead = {
+    mutateAsync: async (input: {
+      companyName: string;
+      websiteUrl: string;
+      contactEmail: string;
+      hp?: string;
+    }) => {
+      const res = await fetch("/api/public-lead", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "Lead submit failed");
+      }
+      return (await res.json()) as { ok: boolean; paymentLinkUrl: string | null };
+    },
+  };
 
   const handleFreeAudit = async (e: React.FormEvent) => {
     e.preventDefault();
