@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getSupabaseAdmin } from "../server/lib/supabaseAdmin";
+import { createClient } from "@supabase/supabase-js";
 
 const BodySchema = z.object({
   companyName: z.string().min(1),
@@ -55,11 +55,20 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const supabase = getSupabaseAdmin();
-  if (!supabase) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseServiceKey) {
     sendJson(res, 500, { ok: false, error: "Supabase not configured" });
     return;
   }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
 
   const ip =
     (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
