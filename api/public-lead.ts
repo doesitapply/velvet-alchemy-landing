@@ -8,26 +8,42 @@ const BodySchema = z.object({
   hp: z.string().optional(),
 });
 
+function sendJson(res: any, statusCode: number, payload: unknown) {
+  res.statusCode = statusCode;
+  res.setHeader("content-type", "application/json; charset=utf-8");
+  res.end(JSON.stringify(payload));
+}
+
+async function readJsonBody(req: any): Promise<unknown> {
+  // Some Vercel runtimes don't pre-parse req.body.
+  if (req.body !== undefined) return req.body;
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const raw = Buffer.concat(chunks).toString("utf-8");
+  if (!raw) return undefined;
+  return JSON.parse(raw);
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
-    res.status(405).json({ ok: false, error: "Method Not Allowed" });
+    sendJson(res, 405, { ok: false, error: "Method Not Allowed" });
     return;
   }
 
-  let body: unknown = req.body;
-  // Vercel usually parses JSON automatically, but keep a fallback.
-  if (typeof body === "string") {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      res.status(400).json({ ok: false, error: "Invalid JSON" });
-      return;
-    }
+  let body: unknown;
+  try {
+    body = await readJsonBody(req);
+  } catch {
+    sendJson(res, 400, { ok: false, error: "Invalid JSON" });
+    return;
   }
 
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {
-    res.status(400).json({ ok: false, error: "Invalid input", details: parsed.error.flatten() });
+    sendJson(res, 400, { ok: false, error: "Invalid input", details: parsed.error.flatten() });
     return;
   }
 
@@ -35,13 +51,13 @@ export default async function handler(req: any, res: any) {
 
   // Honeypot: silently succeed for bots.
   if (input.hp && input.hp.trim().length > 0) {
-    res.status(200).json({ ok: true, paymentLinkUrl: process.env.STRIPE_PAYMENT_LINK_URL ?? null });
+    sendJson(res, 200, { ok: true, paymentLinkUrl: process.env.STRIPE_PAYMENT_LINK_URL ?? null });
     return;
   }
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    res.status(500).json({ ok: false, error: "Supabase not configured" });
+    sendJson(res, 500, { ok: false, error: "Supabase not configured" });
     return;
   }
 
@@ -70,9 +86,9 @@ export default async function handler(req: any, res: any) {
   });
 
   if (error) {
-    res.status(500).json({ ok: false, error: `Supabase insert failed: ${error.message}` });
+    sendJson(res, 500, { ok: false, error: `Supabase insert failed: ${error.message}` });
     return;
   }
 
-  res.status(200).json({ ok: true, paymentLinkUrl: process.env.STRIPE_PAYMENT_LINK_URL ?? null });
+  sendJson(res, 200, { ok: true, paymentLinkUrl: process.env.STRIPE_PAYMENT_LINK_URL ?? null });
 }
