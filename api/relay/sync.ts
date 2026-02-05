@@ -32,7 +32,7 @@ export default async function handler(req) {
             status: backendRes.status,
             headers: { "Content-Type": "application/json" },
         });
-    } catch (err) {
+    } catch (err: any) {
         return new Response(
             JSON.stringify({ error: "Failed to connect to local relay. Is ngrok running?", details: err.message }),
             { status: 502, headers: { "Content-Type": "application/json" } }

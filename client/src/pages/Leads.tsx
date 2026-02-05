@@ -53,12 +53,7 @@ export default function Leads() {
     },
   });
 
-  /* 
-   * RELAY PATTERN: Call /api/relay/sync
-   * - Locally: Hits Express directly (via Vite proxy)
-   * - Vercel: Hits Vercel Function -> Proxies to ngrok -> Hits Express
-   */
-  const { data: syncData, mutate: syncHunter, isPending: isSyncing } = {
+  const syncHunter = {
     // Mocking useMutation signature loosely for UI
     isPending: isAuditing, // Re-using state logic or need new state
     mutate: async () => {

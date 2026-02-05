@@ -48,7 +48,7 @@ export const scraperRouter = router({
         }
 
         // Fetch details for each place to get website URLs
-        const businesses = [];
+        const businesses: any[] = [];
         for (const place of placesResult.results.slice(0, limit)) {
           try {
             // Fetch place details to get website URL
@@ -140,7 +140,7 @@ export const scraperRouter = router({
         }
 
         // Find the business in search results
-        let position = null;
+        let position: number | null = null;
         for (let i = 0; i < placesResult.results.length; i++) {
           const place = placesResult.results[i];
           const name = place.name || "";
@@ -215,8 +215,8 @@ export const scraperRouter = router({
         }
 
         // Step 2: Filter and process businesses
-        const createdLeads = [];
-        const errors = [];
+        const createdLeads: any[] = [];
+        const errors: any[] = [];
 
         // Scrape a few more than limit to account for filtering
         for (const place of placesResult.results.slice(0, limit + 10)) {
@@ -422,7 +422,7 @@ export const scraperRouter = router({
    */
   syncFromHunter: protectedProcedure.mutation(async ({ ctx }) => {
     try {
-      const { syncHunterLeads } = await import("../lib/hunterSync");
+      const { syncHunterLeads } = await import("./lib/hunterSync");
       return await syncHunterLeads(ctx.user.id);
     } catch (error: any) {
       // Wrap error for tRPC

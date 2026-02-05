@@ -351,7 +351,7 @@ export const outreachRouter = router({
         )
         .limit(10); // Send 10 at a time to avoid rate limits
 
-      const results = [];
+      const results: { emailId: number; success: boolean; error?: string }[] = [];
       for (const email of emails) {
         try {
           // Mark as sending
