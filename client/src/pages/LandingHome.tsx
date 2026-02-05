@@ -85,9 +85,10 @@ export default function LandingHome() {
       setWebsiteUrl("");
       setContactEmail("");
       setHp("");
-    } catch (error) {
+    } catch (error: any) {
       clearInterval(progressInterval);
-      toast.error("Failed to initialize scan.");
+      console.error(error);
+      toast.error(error.message || "Failed to initialize scan.");
     } finally {
       setTimeout(() => {
         setIsSubmitting(false);

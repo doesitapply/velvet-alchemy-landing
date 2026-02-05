@@ -42,7 +42,7 @@ function getOAuth2Client() {
 
 async function sendGmail(to: string, subject: string, body: string, htmlBody: string) {
   const auth = getOAuth2Client();
-  const gmail = google.gmail({ version: "v1", auth });
+  const gmail = google.gmail({ version: "v1", auth: auth as any });
 
   const mainBoundary = "-------" + Math.random().toString(16).slice(2);
   const altBoundary = "-------" + Math.random().toString(16).slice(2);

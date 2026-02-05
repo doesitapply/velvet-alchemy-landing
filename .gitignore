@@ -112,3 +112,6 @@ simulated_storage/generated/
 simulated_storage/leads/
 __pycache__/
 *.pyc
+
+# Vercel Environment Export
+vercel.env

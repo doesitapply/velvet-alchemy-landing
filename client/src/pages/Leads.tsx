@@ -53,15 +53,35 @@ export default function Leads() {
     },
   });
 
-  const syncHunter = trpc.scraper.syncFromHunter.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Synced ${data.count} leads from Hunter`);
-      refetch();
+  /* 
+   * RELAY PATTERN: Call /api/relay/sync
+   * - Locally: Hits Express directly (via Vite proxy)
+   * - Vercel: Hits Vercel Function -> Proxies to ngrok -> Hits Express
+   */
+  const { data: syncData, mutate: syncHunter, isPending: isSyncing } = {
+    // Mocking useMutation signature loosely for UI
+    isPending: isAuditing, // Re-using state logic or need new state
+    mutate: async () => {
+      try {
+        if (confirm("Ensure your local server AND ngrok are running. Continue?")) {
+          const secret = import.meta.env.VITE_RELAY_SECRET;
+          const res = await fetch("/api/relay/sync", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${secret}`
+            }
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Sync failed");
+          toast.success(`Synced ${data.count} leads from Hunter`);
+          refetch();
+        }
+      } catch (e: any) {
+        toast.error(e.message);
+      }
     },
-    onError: (error) => {
-      toast.error(`Sync failed: ${error.message}`);
-    }
-  });
+    data: null
+  };
 
   const handleDeleteClick = (id: number, name: string) => {
     setLeadToDelete({ id, name });

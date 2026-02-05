@@ -87,6 +87,30 @@ async function startServer() {
     }
   });
 
+  // Relay: Sync Hunter (for Vercel Tunnel)
+  app.post("/api/relay/sync", async (req, res) => {
+    try {
+      const auth = req.headers.authorization;
+      const secret = process.env.RELAY_SECRET;
+
+      // Simple auth check
+      if (!secret || auth !== `Bearer ${secret}`) {
+        return res.status(401).json({ error: "Unauthorized Relay" });
+      }
+
+      console.log("[Relay] Starting Hunter Sync via Tunnel...");
+
+      // Dynamic import to keep startup fast
+      const { syncHunterLeads } = await import("../lib/hunterSync");
+      const result = await syncHunterLeads(1); // Pass userId=1 (system)
+
+      return res.json(result);
+    } catch (e: any) {
+      console.error("[Relay] Sync failed", e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

@@ -422,66 +422,13 @@ export const scraperRouter = router({
    */
   syncFromHunter: protectedProcedure.mutation(async ({ ctx }) => {
     try {
-      console.log("[Sync] Starting sync from Supabase...");
-
-      // 1. Fetch leads from Supabase "technographic_leads"
-      const { data: hunterLeads, error } = await supabase
-        .from('technographic_leads')
-        .select('*')
-        .order('last_scanned_at', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error("Supabase error:", error);
-        throw new Error(`Failed to fetch from Supabase: ${error.message}`);
-      }
-
-      if (!hunterLeads || hunterLeads.length === 0) {
-        console.log("[Sync] No leads found in Supabase.");
-        return { success: true, count: 0, message: "No leads found in Supabase" };
-      }
-
-      console.log(`[Sync] Found ${hunterLeads.length} leads in Supabase. Importing...`);
-
-      const results = { created: 0, skipped: 0, errors: 0 };
-
-      // 2. Import into local DB
-      for (const hLead of hunterLeads) {
-        try {
-          const url = hLead.url;
-          // Heuristic name generation
-          let name = hLead.company_domain
-            ? hLead.company_domain.split('.')[0]
-            : new URL(url).hostname.replace('www.', '').split('.')[0];
-
-          // Capitalize first letter
-          name = name.charAt(0).toUpperCase() + name.slice(1);
-
-          // Check if lead already exists by URL to avoid dupes in this session
-          // (Since we use memory store, checking store directly via db helper is best)
-          // But db.createLead doesn't enforce uniqueness. 
-          // We'll just create it. The user can delete duplicates.
-
-          await db.createLead({
-            userId: ctx.user.id, // Assign to the authenticated user (who is now mapped to ID 1 hopefully)
-            companyName: name,
-            websiteUrl: url,
-            status: 'pending',
-          });
-          results.created++;
-        } catch (err) {
-          console.error("Failed to import lead", err);
-          results.errors++;
-        }
-      }
-
-      return { success: true, count: results.created, results };
-
+      const { syncHunterLeads } = await import("../lib/hunterSync");
+      return await syncHunterLeads(ctx.user.id);
     } catch (error: any) {
-      console.error("Sync error:", error);
+      // Wrap error for tRPC
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
-        message: `Sync failed: ${error.message}`
+        message: error.message
       });
     }
   }),
