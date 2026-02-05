@@ -2,6 +2,7 @@ import { trackApiCall, SCREENSHOT_COST_CENTS } from "./apiCostTracker";
 
 export interface ScreenshotResult {
   buffer: Buffer;
+  contentType?: string;
   success: boolean;
   error?: string;
 }
@@ -61,6 +62,7 @@ export async function captureScreenshot(
 
           return {
             buffer: Buffer.from(buffer),
+            contentType: contentType || "image/png",
             success: true,
           };
         }
@@ -104,6 +106,7 @@ export async function captureScreenshot(
 
     return {
       buffer: Buffer.from(buffer),
+      contentType: fallbackResponse.headers.get('content-type') || 'image/gif',
       success: true,
     };
   } catch (error: any) {

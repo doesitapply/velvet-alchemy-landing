@@ -1,5 +1,9 @@
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
+  // Feature flags (default to minimal + stable)
+  enableAssets: process.env.VELVET_ENABLE_ASSETS === "1",
+  enableOutreach: process.env.VELVET_ENABLE_OUTREACH !== "0",
+  enableEmailWatcher: process.env.VELVET_ENABLE_EMAIL_WATCHER === "1",
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",

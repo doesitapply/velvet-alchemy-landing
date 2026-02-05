@@ -30,8 +30,37 @@ export async function analyzeVisualDebt(
   companyName: string
 ): Promise<VisualAuditResult> {
   try {
-    if (!screenshotUrl || !/^https?:\/\//.test(screenshotUrl)) {
-      throw new Error("Invalid screenshot URL");
+    if (!screenshotUrl) {
+      throw new Error("Missing screenshot");
+    }
+
+    // Accept either a public http(s) URL or an inline data URL (used by scripts/tests)
+    const isHttpUrl = /^https?:\/\//.test(screenshotUrl);
+    const isDataUrl = /^data:image\/(png|jpe?g|webp);base64,/.test(screenshotUrl);
+
+    if (!isHttpUrl && !isDataUrl) {
+      throw new Error("Invalid screenshot URL (expected http(s) or data:image/*;base64)");
+    }
+
+    // Fix for local development: OpenAI cannot download files from localhost.
+    // Fetch the file locally and convert to base64.
+    if (screenshotUrl.includes('localhost') || screenshotUrl.includes('127.0.0.1')) {
+      try {
+        console.log(`[Visual Audit] Localhost URL detected. Fetching ${screenshotUrl} to convert to Base64...`);
+        const imageRes = await fetch(screenshotUrl);
+        if (imageRes.ok) {
+          const buffer = await imageRes.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          const mimeType = imageRes.headers.get('content-type') || 'image/png';
+          screenshotUrl = `data:${mimeType};base64,${base64}`;
+          console.log(`[Visual Audit] Successfully converted local image to Base64 (${base64.length} chars)`);
+        } else {
+          console.warn(`[Visual Audit] Failed to fetch local image: ${imageRes.statusText}`);
+        }
+      } catch (err) {
+        console.warn(`[Visual Audit] Error converting local image to Base64:`, err);
+        // Continue and let AI fail if it must
+      }
     }
 
     const response = await invokeAI({
@@ -135,7 +164,7 @@ Be honest and specific. Focus on issues that directly impact local search rankin
     return result;
   } catch (error: any) {
     console.error("[Visual Audit] Failed to analyze screenshot:", error);
-    
+
     // Return fallback result on error
     return {
       visualDebt: [

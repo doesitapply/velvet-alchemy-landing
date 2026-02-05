@@ -1,361 +1,390 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Check, Zap, DollarSign, TrendingUp, Clock, Shield, Sparkles, Target, BarChart3 } from "lucide-react";
 import { Link } from "wouter";
-import { getLoginUrl } from "@/const";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Check, TrendingDown, Search, Zap, BarChart3, Mail, Shield, Target, Cpu, ArrowRight, DollarSign, Clock, Users } from "lucide-react";
 import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
-export default function Home() {
-  const [leadsFound, setLeadsFound] = useState(10);
-  const potentialRevenue = leadsFound * 5000;
+export default function LandingHome() {
+  const [companyName, setCompanyName] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  // Honeypot: hidden field that should stay empty.
+  const [hp, setHp] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
+
+  const createLead = trpc.leads.createPublic.useMutation();
+
+  const handleFreeAudit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyName || !websiteUrl || !contactEmail) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    setIsSubmitting(true);
+    setProgress(0);
+    setProgressMessage("Initializing local scan...");
+
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev < 30) {
+          setProgressMessage("Analyzing technographic signals...");
+          return prev + 2;
+        } else if (prev < 60) {
+          setProgressMessage("Calculating capital inefficiency...");
+          return prev + 1.5;
+        } else if (prev < 90) {
+          setProgressMessage("Drafting revenue yield roadmap...");
+          return prev + 1;
+        } else {
+          return prev + 0.5;
+        }
+      });
+    }, 400);
+
+    try {
+      const res = await createLead.mutateAsync({ companyName, websiteUrl, contactEmail, hp });
+      clearInterval(progressInterval);
+      setProgress(100);
+      setProgressMessage("Diagnostic record created.");
+
+      // If we have a Stripe payment link configured, send them to it.
+      if (res?.paymentLinkUrl) {
+        toast.success("Diagnostic request created. Redirecting to payment...");
+        window.location.href = res.paymentLinkUrl;
+      } else {
+        toast.success("Yield Diagnostic requested. We'll email delivery within 24 hours.");
+      }
+
+      setCompanyName("");
+      setWebsiteUrl("");
+      setContactEmail("");
+      setHp("");
+    } catch (error) {
+      clearInterval(progressInterval);
+      toast.error("Failed to initialize scan.");
+    } finally {
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setProgress(0);
+        setProgressMessage("");
+      }, 2000);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black text-white">
-      
+    <div className="min-h-screen bg-background text-foreground selection:bg-gold/30 selection:text-gold">
       {/* Navigation */}
-      <header className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/80 backdrop-blur-md">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-gradient-to-br from-gold to-yellow-600 rounded-sm"></div>
-            <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
+      <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
+        <div className="container mx-auto flex h-20 items-center justify-between px-6">
+          <div className="flex items-center gap-3 group cursor-pointer">
+            <div className="h-10 w-10 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-none border border-gold/50 transition-transform group-hover:rotate-45"></div>
+            <div className="flex flex-col">
+              <span className="font-serif text-2xl italic tracking-tighter text-gold leading-none">Velvet Alchemy</span>
+              <span className="font-mono text-[10px] tracking-widest text-white/40 leading-none mt-1">REVENUE YIELD LOGIC</span>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <a href="#pricing" className="hidden md:inline text-sm hover:text-gold transition-colors">Pricing</a>
-            <a href="#how-it-works" className="hidden md:inline text-sm hover:text-gold transition-colors">How It Works</a>
-            <Button 
-              asChild
-              variant="outline" 
-              className="border-gold/30 text-gold hover:bg-gold/10"
-            >
-              <a href={getLoginUrl()}>Login</a>
+          <nav className="hidden lg:flex items-center gap-10 text-[11px] font-mono tracking-[0.2em] text-white/50">
+            <a href="#logic" className="hover:text-gold transition-colors">THE LOGIC</a>
+            <a href="#offer" className="hover:text-gold transition-colors">WHAT WE OFFER</a>
+            <a href="#pricing" className="hover:text-gold transition-colors">PRICING</a>
+            <a href="#team" className="hover:text-gold transition-colors">THE STRATEGIST</a>
+          </nav>
+          <div className="hidden lg:flex items-center gap-4">
+            <Button variant="ghost" className="font-mono text-[10px] text-white/50 hover:text-gold tracking-[0.1em]" asChild>
+              <Link href="/command-center">MEMBER LOGIN</Link>
+            </Button>
+            <Button variant="outline" className="font-mono text-[10px] border-white/10 hover:border-gold/50 hover:bg-gold/5 hover:text-gold rounded-none px-6 h-10 tracking-[0.1em]">
+              <a href="#free-audit">INITIATE SCAN</a>
             </Button>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center space-y-8">
-            <Badge className="bg-gold/20 text-gold border-gold/30 text-sm px-4 py-1">
-              <Sparkles className="h-4 w-4 mr-2 inline" />
-              AI-Powered Revenue Engine
+      <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
+        {/* Obsidian/Gold Luxury Background */}
+        <div className="absolute inset-0 z-0">
+          <img src="/images/hero.png" alt="Luxury Data Flow" className="w-full h-full object-cover opacity-60 scale-105" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent"></div>
+          <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-background to-transparent"></div>
+        </div>
+
+        <div className="container mx-auto relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center px-6">
+          <div className="space-y-10">
+            <Badge variant="outline" className="border-gold/30 text-gold font-mono text-[10px] tracking-widest px-4 py-1">
+              RENO_NV JURISDICTIONAL SCAN [ACTIVE]
             </Badge>
-            
-            <h1 className="text-5xl md:text-7xl font-bold leading-tight">
-              Turn Local Businesses<br />
-              Into <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-400 to-gold">$5K Paychecks</span>
+
+            <h1 className="text-6xl md:text-8xl font-serif italic leading-[0.9] text-white">
+              Is Your Website <br />
+              <span className="text-gold">Burning Capital?</span>
             </h1>
-            
-            <p className="text-xl md:text-2xl text-white/70 max-w-3xl mx-auto">
-              Find businesses with terrible websites, prove it with AI audits, and sell them new ones for $3k-$8k per deal. Everything automated.
+
+            <p className="text-lg md:text-xl text-white/60 font-mono tracking-tight max-w-xl border-l-[1px] border-gold/40 pl-6">
+              High-ticket businesses in Nevada lose an average of $35k/year to "silent" technical leaks. We identify the variance. We build the unblocked state.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button 
-                asChild
-                size="lg"
-                className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
-              >
-                <Link href="/command-center">
-                  Start Free Audit
-                  <ArrowRight className="ml-2 h-6 w-6" />
-                </Link>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button className="bg-gold text-black rounded-none h-14 px-10 font-mono font-bold hover:scale-105 transition-transform">
+                <a href="#free-audit">REQUEST YIELD AUDIT</a>
               </Button>
-              
-              <Button 
-                asChild
-                size="lg"
-                variant="outline"
-                className="text-xl px-12 py-8 border-white/20 hover:bg-white/5"
-              >
-                <Link href="/command-center">
-                  See Demo Dashboard
-                </Link>
+              <Button variant="outline" className="border-white/20 rounded-none h-14 px-10 font-mono text-white/70 hover:bg-white/5">
+                <a href="#logic">VIEW THE METHODOLOGY</a>
               </Button>
             </div>
+          </div>
 
-            {/* Social Proof */}
-            <div className="flex flex-wrap justify-center gap-8 pt-8 text-sm text-white/60">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-gold" />
-                <span>Avg. deal closes in <strong className="text-white">3 days</strong></span>
-              </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-gold" />
-                <span><strong className="text-white">87%</strong> of audited businesses respond</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-gold" />
-                <span>Stripe secure payments</span>
-              </div>
+          <div className="hidden lg:block relative">
+            <div className="glass-panel p-2 rounded-none border-white/5 shadow-[0_0_50px_rgba(247,231,206,0.1)]">
+              <img src="/images/dashboard.png" alt="Revenue Diagnostic Mockup" className="w-full h-auto border border-white/10" />
+            </div>
+            {/* Floating stats */}
+            <div className="absolute -top-10 -right-10 glass-panel p-6 text-center animate-bounce">
+              <div className="text-gold font-serif text-3xl italic">18-24%</div>
+              <div className="font-mono text-[10px] text-white/40 tracking-widest">AVG YIELD EXPANSION</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ROI Calculator */}
-      <section className="py-20 px-4 bg-gradient-to-r from-gold/10 via-yellow-600/10 to-gold/10">
-        <div className="container mx-auto max-w-4xl">
-          <Card className="bg-black/50 border-gold/30 backdrop-blur-sm">
-            <CardHeader className="text-center">
-              <CardTitle className="text-3xl text-gold">Revenue Calculator</CardTitle>
-              <CardDescription className="text-lg">See how much you can make</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <label className="text-sm text-white/70 mb-2 block">
-                  How many leads can you find per week?
-                </label>
-                <input
-                  type="range"
-                  min="5"
-                  max="50"
-                  value={leadsFound}
-                  onChange={(e) => setLeadsFound(parseInt(e.target.value))}
-                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
-                />
-                <div className="flex justify-between text-sm text-white/50 mt-2">
-                  <span>5 leads</span>
-                  <span className="text-gold font-bold text-lg">{leadsFound} leads</span>
-                  <span>50 leads</span>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-4 pt-4">
-                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
-                  <div className="text-3xl font-bold text-gold">{leadsFound}</div>
-                  <div className="text-sm text-white/60">Leads Found</div>
-                </div>
-                <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
-                  <div className="text-3xl font-bold text-green-400">{Math.round(leadsFound * 0.3)}</div>
-                  <div className="text-sm text-white/60">Deals Closed (30%)</div>
-                </div>
-                <div className="text-center p-4 bg-gradient-to-br from-gold/20 to-yellow-600/20 rounded-lg border border-gold/30">
-                  <div className="text-3xl font-bold text-gold">${(potentialRevenue * 0.3).toLocaleString()}</div>
-                  <div className="text-sm text-white/80">Monthly Revenue</div>
-                </div>
-              </div>
-
-              <p className="text-center text-white/60 text-sm">
-                Based on industry average 30% close rate and $5k average deal size
+      {/* Logic / Methodology Section */}
+      <section id="logic" className="py-32 relative border-y border-white/5 bg-black/20">
+        <div className="container mx-auto max-w-5xl px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
+            <div className="space-y-4">
+              <div className="h-[1px] w-12 bg-gold/50"></div>
+              <h3 className="text-2xl italic text-gold">Technographic Audit</h3>
+              <p className="text-sm font-mono text-white/50 leading-relaxed">
+                We crawl your infrastructure to find missing Meta pixels, broken GA4 schemas, and trust-signal decay that signals "neglect" to high-prestige clients.
               </p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section id="how-it-works" className="py-20 px-4">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">How It Works</h2>
-            <p className="text-xl text-white/70">Four simple steps to your first $5k</p>
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-8">
-            {[
-              {
-                step: "1",
-                icon: <Target className="h-12 w-12" />,
-                title: "Find Targets",
-                description: "Search Google Maps for local businesses. Our scraper finds 50+ leads in 2 minutes."
-              },
-              {
-                step: "2",
-                icon: <BarChart3 className="h-12 w-12" />,
-                title: "AI Audits",
-                description: "AI analyzes their website and generates a professional audit report with a 0-100 score."
-              },
-              {
-                step: "3",
-                icon: <DollarSign className="h-12 w-12" />,
-                title: "Send Invoice",
-                description: "Click 'Send Invoice', choose package ($3k-$8k), and paste the Stripe payment link."
-              },
-              {
-                step: "4",
-                icon: <Zap className="h-12 w-12" />,
-                title: "Get Paid",
-                description: "Webhook automatically updates status when they pay. Track everything in your dashboard."
-              }
-            ].map((item) => (
-              <Card key={item.step} className="bg-gradient-to-b from-white/5 to-white/0 border-white/10 hover:border-gold/30 transition-all">
-                <CardContent className="pt-6 text-center space-y-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gold/20 text-gold">
-                    {item.icon}
-                  </div>
-                  <div className="text-sm font-mono text-gold">STEP {item.step}</div>
-                  <h3 className="text-xl font-bold">{item.title}</h3>
-                  <p className="text-white/60">{item.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Video Demo */}
-      <section className="py-24 px-4">
-        <div className="container mx-auto max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">See It In Action</h2>
-            <p className="text-xl text-white/70">Watch how to close your first $5K deal in 90 seconds</p>
-          </div>
-          
-          <div className="relative rounded-xl overflow-hidden border-2 border-gold/30 shadow-2xl">
-            <div className="aspect-video bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
-              <div className="text-center space-y-4">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gold/20 text-gold">
-                  <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                  </svg>
-                </div>
-                <p className="text-white/80 font-mono text-sm">
-                  📹 Demo video coming soon
-                </p>
-                <p className="text-white/50 text-xs max-w-md mx-auto px-4">
-                  Record your demo using the DEMO_VIDEO_PRODUCTION_GUIDE.md<br/>
-                  Then replace this placeholder with your Loom embed code
-                </p>
-              </div>
-              {/* Replace the above placeholder with your Loom iframe:
-              <iframe
-                src="YOUR_LOOM_EMBED_URL"
-                frameBorder="0"
-                allowFullScreen
-                className="w-full h-full"
-              ></iframe>
-              */}
+            </div>
+            <div className="space-y-4">
+              <div className="h-[1px] w-12 bg-gold/50"></div>
+              <h3 className="text-2xl italic text-gold">Visual Debt Analysis</h3>
+              <p className="text-sm font-mono text-white/50 leading-relaxed">
+                Using custom AI Vision models, we audit your "aesthetic prestige." If your site looks like an 2012 template, you are losing high-ticket trust in seconds.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <div className="h-[1px] w-12 bg-gold/50"></div>
+              <h3 className="text-2xl italic text-gold">Revenue Guide Protocol</h3>
+              <p className="text-sm font-mono text-white/50 leading-relaxed">
+                We don't sell "design." We sell the **Unblocked State**. We show you exactly how to stop the bleeding and recapture lost attribution.
+              </p>
             </div>
           </div>
-          
-          <div className="mt-8 text-center">
-            <p className="text-white/60 text-sm">
-              🎥 90-second demo • No sound required • Watch at 2x speed
-            </p>
+        </div>
+      </section>
+
+      {/* Bio Section */}
+      <section id="team" className="py-32 bg-background">
+        <div className="container mx-auto px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <div className="relative aspect-[4/5] overflow-hidden grayscale hover:grayscale-0 transition-all duration-700">
+              <img src="/images/cameron_alchemy.png" alt="Cameron C." className="w-full h-full object-cover" />
+              <div className="absolute inset-0 border-[20px] border-background/20"></div>
+              <div className="absolute bottom-10 left-10 p-6 glass-panel border-gold/20">
+                <div className="font-serif italic text-3xl text-gold">Cameron C.</div>
+                <div className="font-mono text-[10px] tracking-[0.3em] text-white/60">SENIOR YIELD STRATEGIST</div>
+              </div>
+            </div>
+            <div className="space-y-8">
+              <Badge variant="outline" className="border-gold/30 text-gold font-mono text-[10px] tracking-widest px-4 py-1">
+                THE ARCHITECT
+              </Badge>
+              <h2 className="text-5xl font-serif italic text-white leading-tight">
+                "Technical debt is just <br />
+                <span className="text-gold">unpaid revenue."</span>
+              </h2>
+              <div className="space-y-6 text-white/60 font-mono text-sm leading-relaxed border-l border-gold/20 pl-8">
+                <p>
+                  Cameron is a Reno-based systems insurgent who built Velvet Alchemy to bridge the gap between "marketing hype" and "mathematical yield."
+                </p>
+                <p>
+                  After years of seeing high-prestige firms in Nevada lose millions to "silent failures"—missing pixels, broken analytics, and aesthetic neglect—he codified the **Revenue Sentry** methodology.
+                </p>
+                <p>
+                  He doesn't build websites. He rebuilds the machinery of capture. He wanders into rooms, identifies the leaks, and leaves before anyone can argue with the math.
+                </p>
+                <div className="pt-4 flex items-center gap-6">
+                  <div className="h-10 w-10 bg-[url('/images/alchemy-symbol.jpg')] bg-cover opacity-50"></div>
+                  <span className="text-[10px] tracking-widest uppercase text-white/30">Local Authority: Northern Nevada</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 px-4 bg-gradient-to-b from-black to-gray-900">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">Pricing Packages</h2>
-            <p className="text-xl text-white/70">Choose the right package for your clients</p>
+      {/* Pricing Section */}
+      <section id="pricing" className="py-32 border-t border-white/5 bg-black/40">
+        <div className="container mx-auto px-6">
+          <div className="text-center space-y-4 mb-20">
+            <h2 className="text-5xl font-serif italic text-gold">Yield Restoration Tiers</h2>
+            <p className="font-mono text-white/40 text-[10px] tracking-[0.4em]">INVEST IN THE MACHINE, NOT THE VENDOR</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                name: "Basic",
-                price: "$3,000",
-                description: "Perfect for small businesses",
-                features: [
-                  "Single-page website",
-                  "Mobile responsive",
-                  "Basic SEO setup",
-                  "Contact form",
-                  "2-week delivery",
-                  "1 month support"
-                ],
-                badge: null
-              },
-              {
-                name: "Standard",
-                price: "$5,000",
-                description: "Most popular choice",
-                features: [
-                  "Multi-page website (up to 5 pages)",
-                  "Mobile responsive",
-                  "Advanced SEO",
-                  "Contact form + integrations",
-                  "1-week delivery",
-                  "3 months support",
-                  "Google Analytics setup"
-                ],
-                badge: "MOST POPULAR"
-              },
-              {
-                name: "Premium",
-                price: "$8,000",
-                description: "Full-service package",
-                features: [
-                  "Multi-page website (unlimited)",
-                  "Mobile responsive",
-                  "Advanced SEO + content",
-                  "Custom integrations",
-                  "3-day delivery",
-                  "6 months support",
-                  "Google Analytics + ads setup",
-                  "Social media integration"
-                ],
-                badge: "BEST VALUE"
-              }
-            ].map((pkg) => (
-              <Card 
-                key={pkg.name} 
-                className={`relative ${pkg.badge ? 'border-gold/50 bg-gradient-to-b from-gold/10 to-black' : 'bg-white/5 border-white/10'}`}
-              >
-                {pkg.badge && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-gold text-black font-bold px-4 py-1">
-                      {pkg.badge}
-                    </Badge>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Sentry Tier */}
+            <Card className="glass-panel border-white/10 rounded-none relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
+                <Shield className="h-20 w-20 text-gold" />
+              </div>
+              <CardHeader className="p-10">
+                <CardTitle className="font-serif text-3xl italic text-white">REVENUE SENTRY</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest text-gold/60 mt-2">FOR EMERGING PRESTIGE</CardDescription>
+                <div className="mt-8 flex items-baseline gap-1">
+                  <span className="text-4xl font-serif italic text-white">$499</span>
+                  <span className="text-sm font-mono text-white/40">/mo</span>
+                </div>
+              </CardHeader>
+              <CardContent className="px-10 pb-10 space-y-6">
+                <ul className="space-y-3 font-mono text-[11px] text-white/60">
+                  <li className="flex items-center gap-2 font-bold text-white"><Check className="h-3 w-3 text-gold" /> 24/7 INFRASTRUCTURE SCAN</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> META PIXEL LOSS PROTECTION</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> MONTHLY YIELD AUDIT</li>
+                  <li className="flex items-center gap-2 font-bold"><Check className="h-3 w-3 text-gold" /> LOCAL RENO SEO STATUS</li>
+                </ul>
+                <Button asChild className="w-full bg-white/5 hover:bg-gold hover:text-black border border-white/10 rounded-none font-mono text-xs">
+                  <a href="#free-audit">COMMENCE SENTRY</a>
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Architect Tier */}
+            <Card className="glass-panel border-gold/30 rounded-none relative overflow-hidden group bg-gold/5 shadow-[0_0_80px_rgba(247,231,206,0.05)] scale-105 z-10">
+              <Badge className="absolute top-4 right-4 bg-gold text-black font-mono text-[9px] rounded-none">MOST REQUESTED</Badge>
+              <CardHeader className="p-10">
+                <CardTitle className="font-serif text-3xl italic text-white">YIELD ARCHITECT</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest text-gold/60 mt-2">FOR ESTABLISHED ENTITIES</CardDescription>
+                <div className="mt-8 flex items-baseline gap-1">
+                  <span className="text-4xl font-serif italic text-white">$1,999</span>
+                  <span className="text-sm font-mono text-white/40">/mo</span>
+                </div>
+              </CardHeader>
+              <CardContent className="px-10 pb-10 space-y-6">
+                <ul className="space-y-3 font-mono text-[11px] text-white/60">
+                  <li className="flex items-center gap-2 font-bold text-white"><Target className="h-3 w-3 text-gold" /> EVERYTHING IN SENTRY</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> FULL VISUAL DEBT REMOVAL</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> AI LANDING PAGE SYNTHESIS</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> GA4 INSTRUMENTATION FIX</li>
+                </ul>
+                <Button asChild className="w-full bg-gold text-black hover:bg-gold/80 rounded-none font-mono text-xs font-bold">
+                  <a href="#free-audit">REBUILD THE MACHINE</a>
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Alchemist Tier */}
+            <Card className="glass-panel border-white/10 rounded-none relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
+                <Cpu className="h-20 w-20 text-gold" />
+              </div>
+              <CardHeader className="p-10">
+                <CardTitle className="font-serif text-3xl italic text-white">REVENUE ALCHEMIST</CardTitle>
+                <CardDescription className="font-mono text-[10px] tracking-widest text-gold/60 mt-2">FOR MARKET DOMINANCE</CardDescription>
+                <div className="mt-8 flex items-baseline gap-1">
+                  <span className="text-4xl font-serif italic text-white">$4,999</span>
+                  <span className="text-sm font-mono text-white/40">/mo</span>
+                </div>
+              </CardHeader>
+              <CardContent className="px-10 pb-10 space-y-6">
+                <ul className="space-y-3 font-mono text-[11px] text-white/60">
+                  <li className="flex items-center gap-2 font-bold text-white"><Cpu className="h-3 w-3 text-gold" /> TOTAL AUTONOMOUS CYCLE</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> AUTOPILOT AI LEAD GEN</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> CUSTOM AI AGENT TRAINING</li>
+                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> PRIORITY STRATEGIST ACCESS</li>
+                </ul>
+                <Button asChild className="w-full bg-white/5 hover:bg-gold hover:text-black border border-white/10 rounded-none font-mono text-xs">
+                  <a href="#free-audit">ESTABLISH DOMINANCE</a>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Free Audit Form */}
+      <section id="free-audit" className="py-40 relative">
+        <div className="container mx-auto max-w-2xl text-center space-y-12 px-6">
+          <div className="space-y-4">
+            <h2 className="text-5xl md:text-6xl font-serif italic text-white leading-tight">
+              Request Your <br />
+              <span className="text-gold">Yield Diagnostic.</span>
+            </h2>
+            <p className="font-mono text-white/40 text-sm tracking-tight"> NO CREDIT CARD. NO PITCH. JUST THE DATA WE LOGGED.</p>
+          </div>
+
+          <Card className="glass-panel border-white/10 rounded-none p-8">
+            <CardContent className="p-0 space-y-6">
+              <form onSubmit={handleFreeAudit} className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2 text-left">
+                    <label className="font-mono text-[10px] tracking-widest text-white/40 ml-1">ENTITY NAME</label>
+                    <Input
+                      placeholder="e.g. Maier Gutierrez"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="bg-white/5 border-white/10 rounded-none h-12 focus:border-gold/50 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2 text-left">
+                    <label className="font-mono text-[10px] tracking-widest text-white/40 ml-1">INFRASTRUCTURE URL</label>
+                    <Input
+                      placeholder="https://example.com"
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      className="bg-white/5 border-white/10 rounded-none h-12 focus:border-gold/50 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-2 text-left">
+                    <label className="font-mono text-[10px] tracking-widest text-white/40 ml-1">DELIVERY EMAIL</label>
+                    <Input
+                      placeholder="you@company.com"
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      className="bg-white/5 border-white/10 rounded-none h-12 focus:border-gold/50 font-mono"
+                    />
+                  </div>
+
+                  {/* Honeypot field (hidden). If a bot fills it, we silently accept and do nothing. */}
+                  <div className="hidden" aria-hidden>
+                    <label className="font-mono text-[10px] tracking-widest text-white/40 ml-1">DO NOT FILL</label>
+                    <Input value={hp} onChange={(e) => setHp(e.target.value)} />
+                  </div>
+                </div>
+
+                {isSubmitting && (
+                  <div className="space-y-2">
+                    <div className="w-full bg-white/5 border border-white/10 h-1 overflow-hidden">
+                      <div
+                        className="h-full bg-gold transition-all duration-300 ease-out"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] font-mono tracking-widest text-gold text-right">
+                      {progressMessage.toUpperCase()}
+                    </p>
                   </div>
                 )}
-                <CardHeader className="text-center pb-8 pt-8">
-                  <CardTitle className="text-2xl mb-2">{pkg.name}</CardTitle>
-                  <div className="text-5xl font-bold text-gold mb-2">{pkg.price}</div>
-                  <CardDescription>{pkg.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-3">
-                    {pkg.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <Check className="h-5 w-5 text-gold shrink-0 mt-0.5" />
-                        <span className="text-white/80">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
 
-          <p className="text-center text-white/60 mt-12">
-            💡 <strong className="text-white">Pro tip:</strong> Start with Standard package for most clients. Upsell to Premium for established businesses with high traffic.
-          </p>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-4xl">
-          <Card className="bg-gradient-to-r from-gold/20 via-yellow-600/20 to-gold/20 border-gold/30">
-            <CardContent className="text-center py-16 space-y-6">
-              <h2 className="text-4xl md:text-5xl font-bold">
-                Ready to Start Making Money?
-              </h2>
-              <p className="text-xl text-white/80 max-w-2xl mx-auto">
-                Get instant access to the dashboard. Run your first audit in 60 seconds.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                <Button 
-                  asChild
-                  size="lg"
-                  className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-gold hover:bg-gold/90 text-black font-mono font-bold h-14 text-sm"
                 >
-                <Link href="/command-center">
-                  Get Dashboard Access
-                  <ArrowRight className="ml-2 h-6 w-6" />
-                </Link>
+                  {isSubmitting ? "PROCESSING SCAN..." : "INITIATE DIAGNOSTIC"}
                 </Button>
-              </div>
-              <p className="text-sm text-white/60">
-                ✨ First audit is FREE • No credit card required • Start earning today
+              </form>
+              <p className="text-[10px] font-mono text-white/30 tracking-widest uppercase">
+                Diagnostic reports are delivered securely within 24 hours.
               </p>
             </CardContent>
           </Card>
@@ -363,20 +392,33 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-12 px-4">
-        <div className="container mx-auto max-w-6xl">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 bg-gradient-to-br from-gold to-yellow-600 rounded-sm"></div>
-              <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
+      <footer className="border-t border-white/5 py-16 bg-black">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-10">
+            <div className="flex flex-col items-center md:items-start gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover opacity-80 border border-gold/30"></div>
+                <span className="font-serif text-xl italic text-gold">Velvet Alchemy</span>
+              </div>
+              <p className="font-mono text-[10px] text-white/20 tracking-widest">BUILT WITH INTENT IN RENO, NV</p>
             </div>
-            <div className="text-white/60 text-sm">
-              © 2026 Velvet Alchemy. Turn websites into revenue.
+
+            <div className="flex flex-wrap justify-center gap-10 font-mono text-[10px] tracking-widest text-white/40">
+              <Link href="/privacy" className="hover:text-gold transition-colors">PRIVACY_PROTOCOL</Link>
+              <Link href="/terms" className="hover:text-gold transition-colors">TERMS_OF_YIELD</Link>
+              <Link href="/security" className="hover:text-gold transition-colors">SECURITY_STATUS</Link>
             </div>
+
+            <div className="flex items-center gap-4">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="font-mono text-[10px] tracking-widest text-white/40">SYSTEM STATUS: OPTIMAL</span>
+            </div>
+          </div>
+          <div className="mt-16 text-center border-t border-white/5 pt-8">
+            <p className="font-mono text-[9px] text-white/10 tracking-[1em]">MATHEMATICAL CERTAINTY IN REVENUE EXPANSION</p>
           </div>
         </div>
       </footer>
-
     </div>
   );
 }

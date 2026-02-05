@@ -2,6 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { generateAssetsForLead, getAssetsByLeadId } from "./visionary";
 import { getLeadById } from "./db";
+import { ENV } from "./_core/env";
 
 export const visionaryRouter = router({
   /**
@@ -13,6 +14,10 @@ export const visionaryRouter = router({
       force: z.boolean().optional().default(false)
     }))
     .mutation(async ({ input }) => {
+      if (!ENV.enableAssets) {
+        throw new Error("Assets are disabled on this deployment (VELVET_ENABLE_ASSETS=1 to enable)");
+      }
+
       // Get lead details
       const lead = await getLeadById(input.leadId);
       if (!lead) {
@@ -104,6 +109,7 @@ export const visionaryRouter = router({
   getAssets: protectedProcedure
     .input(z.object({ leadId: z.number() }))
     .query(async ({ input }) => {
+      if (!ENV.enableAssets) return [];
       const assets = await getAssetsByLeadId(input.leadId);
       return assets;
     }),

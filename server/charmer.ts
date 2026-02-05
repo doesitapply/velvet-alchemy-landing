@@ -19,71 +19,46 @@ export async function generateOutreachCopy(
   technographicData?: any,
   currentScreenshotUrl?: string // Optional current site image
 ): Promise<OutreachCopyResult> {
-  // Parse visual debt data
-  let visualDebt: any = null;
-  if (audit?.visualDebtData) {
-    try {
-      visualDebt = JSON.parse(audit.visualDebtData);
-    } catch (e) {
-      console.warn("[Charmer] Failed to parse visual debt data:", e);
-    }
-  }
+  const diagnosticId = `REF-${Math.floor(Math.random() * 90000) + 10000}`;
 
-  // Extract key issues from visual debt
-  const keyIssues: string[] = [];
-  if (visualDebt?.categories) {
-    Object.entries(visualDebt.categories).forEach(([category, issues]: [string, any]) => {
-      if (Array.isArray(issues) && issues.length > 0) {
-        issues.slice(0, 2).forEach((issue: any) => {
-          if (issue.description) {
-            keyIssues.push(`${category}: ${issue.description}`);
-          }
-        });
-      }
-    });
-  }
+  const prompt = `You are a helpful local "Revenue Guide" at Velvet Alchemy in Reno. Your mission is to help local businesses stop burning money on their websites. 
 
-  const prompt = `You are the lead "Strategic Yield Lead" at Velvet Alchemy. Your mission is to protect high-ticket businesses from "Revenue Leaks"—silent technical failures that burn advertising dollars. Your tone is authoritative, diagnostic, and 100% ROI-focused.
+**TONE GUIDELINES:**
+- **Simple & Clear**: No big words. No "fiduciary," no "variance," no "instrumentation."
+- **Helpful Local**: You're a Reno guy who noticed something broken and wanted to flag it.
+- **Value-First**: Show them exactly where the money is leaking in plain English.
+- **The Offer**: You've already built a "Vision" to fix these leaks. You want to show it to them in a 5-minute reveal.
 
-**PERSONA GUIDELINES:**
-- **Tone**: Senior-level strategic advisor. You don't "design websites"; you "fix capital inefficiency."
-- **The Hook**: "Revenue Leak Detected." You've identified a specific gap in their marketing stack that is costing them money.
-- **Reno Local**: Mention you are localized to Reno.
-- **The Diagnostic**: Focus on technographic "Risk Signals":
-   ${technographicData?.signals?.meta_pixel === false ? "- MISSING META PIXEL: You are losing 100% of your retargeting data on every click." : ""}
-   ${technographicData?.signals?.ga4 === false ? "- ANALYTICS FAILURE: You have no visibility on where your leads are coming from." : ""}
-   ${technographicData?.pain_points?.neglected_site ? "- TRUST FRICTION: Your site copyright is outdated, signaling neglect to high-prestige clients." : ""}
-- **Signature**: Cameron C. | Senior Yield Strategist
+**PLAIN ENGLISH TRANSLATIONS (USE THESE):**
+- Missing Meta Pixel = "Your site isn't 'tagging' visitors. This means you can't show ads to people who already visited your site. It's like paying for a billboard that people see once and forget."
+- Missing Analytics = "You're flying blind. You have no way to see which ads are actually making you money and which ones are a waste."
+- Legacy Trust Signals = "The site looks a bit dusty. When people see an old copyright date or a site that doesn't work well on a phone, they move on to the next guy."
 
-**Target Lead:**
+**THE PROFIT MATH (KEEP IT SIMPLE):**
+Instead of projected reconciliation, use: "Every 1,000 visitors who leave without being 'tagged' is basically throwing $1,000 of your ad budget in the trash."
+
+**Target Business:**
 - Company: ${lead.companyName}
 - Website: ${lead.websiteUrl}
 
 **Technographic Signal Analysis:**
 ${JSON.stringify(technographicData, null, 2)}
 
-**Your Task:**
-Write a brief, high-stakes email. 
-- Subject line must be a "Diagnostic Alert" or "Revenue Gap identified".
-- Frame the email as a "Yield Audit" you've already completed.
-- Don't ask for a "meeting"—ask to "share the unblocked vision."
-- Signature: Cameron C. | Senior Yield Strategist
-
-**Output Format (JSON):**
-{
-  "subject": "Diagnostic Alert",
-  "subject": "[ID] Clinical Subject",
-  "body": "Plain text record of findings.",
-  "htmlBody": "Monospace-heavy, minimal HTML. It should look like an internal audit memo. No colors except #000 and #666. Use <pre> tags or monospace fonts.",
-  "recipientName": "Name or null"
-}
+**Outreach Construction:**
+1. **Subject**: Quick question about ${lead.companyName} (Reno local)
+2. **Body**: 
+   - "Hey, I was looking at your site and noticed a couple of 'money leaks' I wanted to flag."
+   - Explain the leaks in the Plain English style above.
+   - "I've actually already mapped out a way to fix this for you."
+   - "If you have 5 minutes this week, I'd love to show you what I've built. No strings, just wanted to show a fellow Reno business how to stop the bleeding."
+   - Signature: Cameron C. | Velvet Alchemy
 `;
 
   const response = await invokeAI({
     messages: [
       {
         role: "system",
-        content: "You are a Senior Yield Strategist. You write clinical, courtroom-ready disclosures of technical revenue failure. You are localized to Reno, NV.",
+        content: "You are a helpful Reno local who fixes websites. You hate jargon. You speak like a real person having a cup of coffee at Hub or Old Bridge. You're direct, friendly, and very clear about how they are losing money.",
       },
       {
         role: "user",
@@ -125,22 +100,30 @@ Write a brief, high-stakes email.
     }
   }
 
-  // Final Hardening of HTML - Force Monospace / Audit Record Style
+  // Final Hardening of HTML - Force Bureaucratic Monospace
   const hardenedHtml = `
-    <div style="font-family: 'Courier New', Courier, monospace; color: #000; padding: 40px; line-height: 1.4; max-width: 650px;">
-      <div style="border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px;">
-        <span style="font-weight: bold; font-size: 18px;">VELVET ALCHEMY // INTERNAL YIELD DIAGNOSTIC</span><br>
-        <span style="font-size: 12px; color: #666;">LOCALIZED RENO SCAN: ${new Date().toLocaleDateString()}</span>
+    <div style="font-family: 'Courier New', Courier, monospace; color: #000; padding: 40px; line-height: 1.5; max-width: 650px; background-color: #ffffff;">
+      <div style="border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 30px;">
+        <span style="font-weight: bold; font-size: 14px; letter-spacing: 1px;">INTERNAL USE ONLY // REVENUE YIELD DIAGNOSTIC</span><br>
+        <span style="font-size: 11px; color: #666;">LOG_DATE: ${new Date().toLocaleDateString()} | LOC_REF: RENO_NV</span>
       </div>
       
-      <div style="margin-bottom: 30px;">
+      <div style="margin-bottom: 40px; white-space: pre-wrap;">
         ${parsed.htmlBody}
       </div>
 
-      <div style="margin-top: 50px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 11px; color: #666;">
-        REFERENCE ID: ${diagnosticId}<br>
-        ENTITY: ${lead.companyName}<br>
-        STATUS: UNRECONCILED VARIANCE
+      <div style="margin-top: 60px; border-top: 1px solid #000; padding-top: 20px;">
+        <div style="font-size: 12px; font-weight: bold; margin-bottom: 10px;">SIGNATURE SECURELY LOGGED:</div>
+        <div style="font-size: 13px;">
+          Internal Use Only<br>
+          Revenue Yield Diagnostics<br>
+          Velvet Alchemy
+        </div>
+        <div style="margin-top: 20px; font-size: 10px; color: #999; letter-spacing: 0.5px;">
+          ID_TAG: ${diagnosticId}<br>
+          ENTITY: ${lead.companyName.toUpperCase()}<br>
+          STATUS: UNRECONCILED
+        </div>
       </div>
     </div>
   `;

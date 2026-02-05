@@ -73,7 +73,7 @@ export async function storagePut(
 
   return {
     key,
-    url: `https://luxury-assets.velvet-alchemy.com/simulated/${key}`
+    url: `http://localhost:${process.env.PORT || 3000}/simulated/${key}`
   };
 }
 

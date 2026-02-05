@@ -1,430 +1,382 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, decimal } from "drizzle-orm/mysql-core";
+
+import { integer, sqliteTable, text, real } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
  */
-export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
-  id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  openId: text("openId").notNull().unique(),
   name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  email: text("email"),
+  loginMethod: text("loginMethod"),
+  role: text("role").default("user").notNull(), // 'user' | 'admin'
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  lastSignedIn: integer("lastSignedIn", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// Waitlist for access requests
-export const waitlist = mysqlTable("waitlist", {
-  id: int("id").autoincrement().primaryKey(),
-  email: varchar("email", { length: 320 }).notNull().unique(),
-  targetNiche: varchar("targetNiche", { length: 255 }),
-  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const waitlist = sqliteTable("waitlist", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  targetNiche: text("targetNiche"),
+  status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected'
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Waitlist = typeof waitlist.$inferSelect;
 export type InsertWaitlist = typeof waitlist.$inferInsert;
 
-// Leads table for The Curator
-export const leads = mysqlTable("leads", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(), // Owner of this lead
-  companyName: varchar("companyName", { length: 255 }).notNull(),
-  websiteUrl: varchar("websiteUrl", { length: 512 }).notNull(),
-  screenshotUrl: varchar("screenshotUrl", { length: 512 }),
-  screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for deletion
-  status: mysqlEnum("status", ["pending", "audited", "contacted", "replied", "closed", "paid"]).default("pending").notNull(),
-  prestigeScore: int("prestigeScore"), // 0-100, copied from audit for quick access
-  priorityScore: int("priorityScore"), // 0-100, pre-screening score for lead value (domain age, SSL, mobile, etc.)
-  hasAssets: boolean("hasAssets").default(false).notNull(), // True if Visionary generated assets
-  assetsStatus: mysqlEnum("assetsStatus", ["not_requested", "generating", "ready", "failed"]).default("not_requested").notNull(),
-  assetsGeneratedAt: timestamp("assetsGeneratedAt"), // When assets were last generated
-  hasOutreach: boolean("hasOutreach").default(false).notNull(), // True if Charmer sent outreach
-  detailedReport: text("detailedReport"), // JSON string for technical leak detection data
-  lastDeepScanAt: timestamp("lastDeepScanAt"), // Timestamp of last enrichment scan
-  // Traffic data from SimilarWeb
-  monthlyVisits: int("monthlyVisits"), // Estimated monthly visitors
-  globalRank: int("globalRank"), // Global traffic ranking
-  bounceRate: decimal("bounceRate", { precision: 5, scale: 2 }), // Bounce rate percentage
-  trafficDataFetchedAt: timestamp("trafficDataFetchedAt"), // When traffic data was last fetched
-  contactEmail: varchar("contactEmail", { length: 320 }), // Discovered contact email
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const leads = sqliteTable("leads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  companyName: text("companyName").notNull(),
+  websiteUrl: text("websiteUrl").notNull(),
+  screenshotUrl: text("screenshotUrl"),
+  screenshotKey: text("screenshotKey"),
+  status: text("status").default("pending").notNull(), // 'pending', 'audited', 'contacted', 'replied', 'closed', 'paid'
+  prestigeScore: integer("prestigeScore"),
+  priorityScore: integer("priorityScore"),
+  hasAssets: integer("hasAssets", { mode: 'boolean' }).default(false).notNull(),
+  assetsStatus: text("assetsStatus").default("not_requested").notNull(), // 'not_requested', 'generating', 'ready', 'failed'
+  assetsGeneratedAt: integer("assetsGeneratedAt", { mode: 'timestamp' }),
+  hasOutreach: integer("hasOutreach", { mode: 'boolean' }).default(false).notNull(),
+  detailedReport: text("detailedReport"), // JSON
+  lastDeepScanAt: integer("lastDeepScanAt", { mode: 'timestamp' }),
+  monthlyVisits: integer("monthlyVisits"),
+  globalRank: integer("globalRank"),
+  bounceRate: real("bounceRate"),
+  trafficDataFetchedAt: integer("trafficDataFetchedAt", { mode: 'timestamp' }),
+  contactEmail: text("contactEmail"),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
 
-// Audits table for The Curator
-export const audits = mysqlTable("audits", {
-  id: int("id").autoincrement().primaryKey(),
-  leadId: int("leadId").notNull(),
-  summary: text("summary"), // Placeholder for now, will be LLM-generated later
-  prestigeScore: int("prestigeScore"), // 0-100, null for MVP
-  visualDebtData: text("visualDebtData"), // JSON string for structured audit data
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const audits = sqliteTable("audits", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  summary: text("summary"),
+  prestigeScore: integer("prestigeScore"),
+  visualDebtData: text("visualDebtData"), // JSON
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Audit = typeof audits.$inferSelect;
 export type InsertAudit = typeof audits.$inferInsert;
 
-/**
- * Rate limiting table to track API usage per user
- */
-export const rateLimits = mysqlTable("rate_limits", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  action: varchar("action", { length: 64 }).notNull(), // e.g., 'lead_create', 'audit_run'
-  count: int("count").notNull().default(0),
-  windowStart: timestamp("windowStart").notNull(),
-  windowEnd: timestamp("windowEnd").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const rateLimits = sqliteTable("rate_limits", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  action: text("action").notNull(),
+  count: integer("count").notNull().default(0),
+  windowStart: integer("windowStart", { mode: 'timestamp' }).notNull(),
+  windowEnd: integer("windowEnd", { mode: 'timestamp' }).notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type RateLimit = typeof rateLimits.$inferSelect;
 export type InsertRateLimit = typeof rateLimits.$inferInsert;
 
-/**
- * System configuration for kill-switch and global settings
- */
-export const systemConfig = mysqlTable("system_config", {
-  id: int("id").autoincrement().primaryKey(),
-  key: varchar("key", { length: 64 }).notNull().unique(),
+export const systemConfig = sqliteTable("system_config", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  key: text("key").notNull().unique(),
   value: text("value").notNull(),
   description: text("description"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type SystemConfig = typeof systemConfig.$inferSelect;
 export type InsertSystemConfig = typeof systemConfig.$inferInsert;
 
-/**
- * Audit log for compliance and debugging
- */
-export const auditLog = mysqlTable("audit_log", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId"),
-  action: varchar("action", { length: 64 }).notNull(),
-  resource: varchar("resource", { length: 64 }),
-  resourceId: int("resourceId"),
+export const auditLog = sqliteTable("audit_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId"),
+  action: text("action").notNull(),
+  resource: text("resource"),
+  resourceId: integer("resourceId"),
   details: text("details"),
-  ipAddress: varchar("ipAddress", { length: 45 }),
+  ipAddress: text("ipAddress"),
   userAgent: text("userAgent"),
-  status: mysqlEnum("status", ["success", "failure", "blocked"]).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  status: text("status").notNull(), // 'success', 'failure', 'blocked'
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = typeof auditLog.$inferInsert;
 
-/**
- * Assets table for The Visionary
- */
-export const assets = mysqlTable("assets", {
-  id: int("id").autoincrement().primaryKey(),
-  leadId: int("leadId").notNull(),
-  type: mysqlEnum("type", ["hero_header", "social_post", "web_banner"]).notNull(),
-  url: varchar("url", { length: 512 }).notNull(),
-  s3Key: varchar("s3Key", { length: 512 }).notNull(),
-  metadata: text("metadata"), // JSON string for additional info (prompt, dimensions, etc.)
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const assets = sqliteTable("assets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  type: text("type").notNull(), // 'hero_header', 'social_post', 'web_banner'
+  url: text("url").notNull(),
+  s3Key: text("s3Key").notNull(),
+  metadata: text("metadata"), // JSON
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Asset = typeof assets.$inferSelect;
 export type InsertAsset = typeof assets.$inferInsert;
 
-/**
- * Campaigns table for tracking outreach campaigns
- */
-export const campaigns = mysqlTable("campaigns", {
-  id: int("id").autoincrement().primaryKey(),
-  leadId: int("leadId").notNull(),
-  userId: int("userId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  status: mysqlEnum("status", ["draft", "pending_approval", "approved", "sent", "failed"]).default("draft").notNull(),
-  sentAt: timestamp("sentAt"),
-  openedAt: timestamp("openedAt"),
-  clickedAt: timestamp("clickedAt"),
-  repliedAt: timestamp("repliedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const campaigns = sqliteTable("campaigns", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  userId: integer("userId").notNull(),
+  name: text("name").notNull(),
+  status: text("status").default("draft").notNull(),
+  sentAt: integer("sentAt", { mode: 'timestamp' }),
+  openedAt: integer("openedAt", { mode: 'timestamp' }),
+  clickedAt: integer("clickedAt", { mode: 'timestamp' }),
+  repliedAt: integer("repliedAt", { mode: 'timestamp' }),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type Campaign = typeof campaigns.$inferSelect;
 export type InsertCampaign = typeof campaigns.$inferInsert;
 
-/**
- * Outreach drafts table for storing generated email copy
- */
-export const outreachDrafts = mysqlTable("outreach_drafts", {
-  id: int("id").autoincrement().primaryKey(),
-  campaignId: int("campaignId").notNull(),
-  subject: varchar("subject", { length: 255 }).notNull(),
+export const outreachDrafts = sqliteTable("outreach_drafts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  campaignId: integer("campaignId").notNull(),
+  subject: text("subject").notNull(),
   body: text("body").notNull(),
-  recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
-  recipientName: varchar("recipientName", { length: 255 }),
-  status: mysqlEnum("status", ["draft", "pending_approval", "approved", "rejected", "sent"]).default("draft").notNull(),
+  recipientEmail: text("recipientEmail").notNull(),
+  recipientName: text("recipientName"),
+  status: text("status").default("draft").notNull(),
   rejectionReason: text("rejectionReason"),
-  approvedBy: int("approvedBy"),
-  approvedAt: timestamp("approvedAt"),
-  sentAt: timestamp("sentAt"),
-  gmailMessageId: varchar("gmailMessageId", { length: 255 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  approvedBy: integer("approvedBy"),
+  approvedAt: integer("approvedAt", { mode: 'timestamp' }),
+  sentAt: integer("sentAt", { mode: 'timestamp' }),
+  gmailMessageId: text("gmailMessageId"),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type OutreachDraft = typeof outreachDrafts.$inferSelect;
 export type InsertOutreachDraft = typeof outreachDrafts.$inferInsert;
 
-/**
- * Voice profiles table for storing user's writing style
- */
-export const voiceProfiles = mysqlTable("voice_profiles", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique(), // One profile per user
-  formality: mysqlEnum("formality", ["casual", "professional", "technical", "mixed"]).notNull(),
-  directness: mysqlEnum("directness", ["blunt", "direct", "diplomatic", "verbose"]).notNull(),
-  enthusiasm: mysqlEnum("enthusiasm", ["high", "moderate", "low", "neutral"]).notNull(),
-  avgSentenceLength: int("avgSentenceLength").notNull(),
-  avgParagraphLength: int("avgParagraphLength").notNull(),
-  usesContractions: boolean("usesContractions").notNull(),
-  usesEmoji: boolean("usesEmoji").notNull(),
-  usesProfanity: boolean("usesProfanity").notNull(),
-  commonPhrases: text("commonPhrases").notNull(), // JSON array
-  industryJargon: text("industryJargon").notNull(), // JSON array
-  signOffStyle: varchar("signOffStyle", { length: 100 }).notNull(),
-  greetingStyle: varchar("greetingStyle", { length: 100 }).notNull(),
-  usesLists: boolean("usesLists").notNull(),
-  usesBoldText: boolean("usesBoldText").notNull(),
-  usesQuestions: boolean("usesQuestions").notNull(),
-  exampleEmails: text("exampleEmails").notNull(), // JSON array of example emails
-  calibrationCount: int("calibrationCount").default(0).notNull(), // Number of emails reviewed
-  isCalibrated: boolean("isCalibrated").default(false).notNull(), // True after 5+ approvals
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const voiceProfiles = sqliteTable("voice_profiles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull().unique(),
+  formality: text("formality").notNull(),
+  directness: text("directness").notNull(),
+  enthusiasm: text("enthusiasm").notNull(),
+  avgSentenceLength: integer("avgSentenceLength").notNull(),
+  avgParagraphLength: integer("avgParagraphLength").notNull(),
+  usesContractions: integer("usesContractions", { mode: 'boolean' }).notNull(),
+  usesEmoji: integer("usesEmoji", { mode: 'boolean' }).notNull(),
+  usesProfanity: integer("usesProfanity", { mode: 'boolean' }).notNull(),
+  commonPhrases: text("commonPhrases").notNull(), // JSON
+  industryJargon: text("industryJargon").notNull(), // JSON
+  signOffStyle: text("signOffStyle").notNull(),
+  greetingStyle: text("greetingStyle").notNull(),
+  usesLists: integer("usesLists", { mode: 'boolean' }).notNull(),
+  usesBoldText: integer("usesBoldText", { mode: 'boolean' }).notNull(),
+  usesQuestions: integer("usesQuestions", { mode: 'boolean' }).notNull(),
+  exampleEmails: text("exampleEmails").notNull(), // JSON
+  calibrationCount: integer("calibrationCount").default(0).notNull(),
+  isCalibrated: integer("isCalibrated", { mode: 'boolean' }).default(false).notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type VoiceProfile = typeof voiceProfiles.$inferSelect;
 export type InsertVoiceProfile = typeof voiceProfiles.$inferInsert;
 
-/**
- * Email queue for automated outreach
- */
-export const emailQueue = mysqlTable("email_queue", {
-  id: int("id").autoincrement().primaryKey(),
-  leadId: int("leadId").notNull().references(() => leads.id, { onDelete: "cascade" }),
-  campaignId: int("campaignId").references(() => campaigns.id, { onDelete: "cascade" }),
-  draftId: int("draftId").references(() => outreachDrafts.id, { onDelete: "cascade" }),
-  recipientEmail: varchar("recipientEmail", { length: 320 }).notNull(),
-  recipientName: varchar("recipientName", { length: 255 }),
-  subject: varchar("subject", { length: 255 }).notNull(),
+export const emailQueue = sqliteTable("email_queue", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  campaignId: integer("campaignId"),
+  draftId: integer("draftId"),
+  recipientEmail: text("recipientEmail").notNull(),
+  recipientName: text("recipientName"),
+  subject: text("subject").notNull(),
   body: text("body").notNull(),
-  status: mysqlEnum("status", ["pending", "pending_approval", "approved", "sending", "sent", "failed", "bounced"]).default("pending").notNull(),
-  scheduledFor: timestamp("scheduledFor"), // When to send (for follow-ups)
-  sentAt: timestamp("sentAt"),
-  gmailMessageId: varchar("gmailMessageId", { length: 255 }),
-  gmailThreadId: varchar("gmailThreadId", { length: 255 }),
-  openedAt: timestamp("openedAt"),
-  clickedAt: timestamp("clickedAt"),
-  repliedAt: timestamp("repliedAt"),
+  status: text("status").default("pending").notNull(),
+  scheduledFor: integer("scheduledFor", { mode: 'timestamp' }),
+  sentAt: integer("sentAt", { mode: 'timestamp' }),
+  gmailMessageId: text("gmailMessageId"),
+  gmailThreadId: text("gmailThreadId"),
+  openedAt: integer("openedAt", { mode: 'timestamp' }),
+  clickedAt: integer("clickedAt", { mode: 'timestamp' }),
+  repliedAt: integer("repliedAt", { mode: 'timestamp' }),
   replyContent: text("replyContent"),
   errorMessage: text("errorMessage"),
-  retryCount: int("retryCount").default(0).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  retryCount: integer("retryCount").default(0).notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type EmailQueue = typeof emailQueue.$inferSelect;
 export type InsertEmailQueue = typeof emailQueue.$inferInsert;
 
-/**
- * Follow-up sequences for automated nurture
- */
-export const followUpSequences = mysqlTable("follow_up_sequences", {
-  id: int("id").autoincrement().primaryKey(),
-  leadId: int("leadId").notNull().references(() => leads.id, { onDelete: "cascade" }),
-  initialEmailId: int("initialEmailId").references(() => emailQueue.id),
-  sequenceType: mysqlEnum("sequenceType", ["cold_outreach", "demo_follow_up", "proposal_follow_up", "nurture"]).notNull(),
-  currentStep: int("currentStep").default(0).notNull(), // 0 = initial email, 1+ = follow-ups
-  maxSteps: int("maxSteps").default(3).notNull(),
-  status: mysqlEnum("status", ["active", "paused", "completed", "stopped"]).default("active").notNull(),
-  stopReason: varchar("stopReason", { length: 100 }), // 'replied', 'unsubscribed', 'bounced', 'manual_stop'
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const followUpSequences = sqliteTable("follow_up_sequences", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  initialEmailId: integer("initialEmailId"),
+  sequenceType: text("sequenceType").notNull(),
+  currentStep: integer("currentStep").default(0).notNull(),
+  maxSteps: integer("maxSteps").default(3).notNull(),
+  status: text("status").default("active").notNull(),
+  stopReason: text("stopReason"),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type FollowUpSequence = typeof followUpSequences.$inferSelect;
 export type InsertFollowUpSequence = typeof followUpSequences.$inferInsert;
 
-/**
- * Pipeline jobs table for The Orchestrator
- */
-export const pipelineJobs = mysqlTable("pipeline_jobs", {
-  id: int("id").autoincrement().primaryKey(),
-  leadId: int("leadId").notNull().references(() => leads.id, { onDelete: "cascade" }),
-  status: mysqlEnum("status", ["pending", "running", "completed", "failed"]).default("pending").notNull(),
-  currentStage: varchar("currentStage", { length: 50 }),
-  progressPercentage: int("progressPercentage").default(0).notNull(), // 0-100
-  stagesCompleted: text("stagesCompleted"), // JSON array of completed stages
+export const pipelineJobs = sqliteTable("pipeline_jobs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  status: text("status").default("pending").notNull(),
+  currentStage: text("currentStage"),
+  progressPercentage: integer("progressPercentage").default(0).notNull(),
+  stagesCompleted: text("stagesCompleted"), // JSON
   errorMessage: text("errorMessage"),
-  retryCount: int("retryCount").default(0).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  completedAt: timestamp("completedAt"),
+  retryCount: integer("retryCount").default(0).notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  completedAt: integer("completedAt", { mode: 'timestamp' }),
 });
 
 export type PipelineJob = typeof pipelineJobs.$inferSelect;
 export type InsertPipelineJob = typeof pipelineJobs.$inferInsert;
-/**
- * Payments table for Stripe checkout sessions
- */
-export const payments = mysqlTable("payments", {
-  id: int("id").autoincrement().primaryKey(),
-  lead_id: int("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
-  stripe_checkout_session_id: varchar("stripe_checkout_session_id", { length: 255 }).notNull().unique(),
-  stripe_payment_intent_id: varchar("stripe_payment_intent_id", { length: 255 }),
-  amount: int("amount").notNull(), // Amount in cents
-  currency: varchar("currency", { length: 3 }).notNull().default("usd"),
-  status: mysqlEnum("status", ["pending", "completed", "failed", "expired"]).default("pending").notNull(),
-  package_type: mysqlEnum("package_type", ["basic", "standard", "premium"]).notNull(),
-  payment_link: varchar("payment_link", { length: 512 }),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-  completed_at: timestamp("completed_at"),
+
+export const payments = sqliteTable("payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  lead_id: integer("lead_id").notNull(),
+  stripe_checkout_session_id: text("stripe_checkout_session_id").notNull().unique(),
+  stripe_payment_intent_id: text("stripe_payment_intent_id"),
+  amount: integer("amount").notNull(),
+  currency: text("currency").notNull().default("usd"),
+  status: text("status").default("pending").notNull(),
+  package_type: text("package_type").notNull(),
+  payment_link: text("payment_link"),
+  created_at: integer("created_at", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updated_at: integer("updated_at", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  completed_at: integer("completed_at", { mode: 'timestamp' }),
 });
 
 export type Payment = typeof payments.$inferSelect;
 export type InsertPayment = typeof payments.$inferInsert;
 
-/**
- * API usage tracking for cost monitoring
- */
-export const apiCalls = mysqlTable("api_calls", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  leadId: int("leadId"), // Optional: link to specific lead if applicable
-  service: varchar("service", { length: 64 }).notNull(), // 'llm', 'screenshot', 'storage', etc.
-  operation: varchar("operation", { length: 128 }).notNull(), // 'audit_generation', 'screenshot_capture', etc.
-  tokensUsed: int("tokensUsed"), // For LLM calls
-  estimatedCost: int("estimatedCost").notNull(), // Cost in cents (e.g., 50 = $0.50)
-  requestData: text("requestData"), // JSON metadata about the request
-  responseStatus: varchar("responseStatus", { length: 32 }).notNull(), // 'success', 'error', 'timeout'
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const apiCalls = sqliteTable("api_calls", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull(),
+  leadId: integer("leadId"),
+  service: text("service").notNull(),
+  operation: text("operation").notNull(),
+  tokensUsed: integer("tokensUsed"),
+  estimatedCost: integer("estimatedCost").notNull(),
+  requestData: text("requestData"),
+  responseStatus: text("responseStatus").notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type ApiCall = typeof apiCalls.$inferSelect;
 export type InsertApiCall = typeof apiCalls.$inferInsert;
 
-/**
- * User onboarding progress tracking
- */
-export const userOnboarding = mysqlTable("user_onboarding", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique(),
-  hasCompletedScraper: boolean("hasCompletedScraper").default(false).notNull(),
-  hasReviewedAudit: boolean("hasReviewedAudit").default(false).notNull(),
-  hasSentInvoice: boolean("hasSentInvoice").default(false).notNull(),
-  hasReceivedPayment: boolean("hasReceivedPayment").default(false).notNull(),
-  onboardingCompletedAt: timestamp("onboardingCompletedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const userOnboarding = sqliteTable("user_onboarding", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull().unique(),
+  hasCompletedScraper: integer("hasCompletedScraper", { mode: 'boolean' }).default(false).notNull(),
+  hasReviewedAudit: integer("hasReviewedAudit", { mode: 'boolean' }).default(false).notNull(),
+  hasSentInvoice: integer("hasSentInvoice", { mode: 'boolean' }).default(false).notNull(),
+  hasReceivedPayment: integer("hasReceivedPayment", { mode: 'boolean' }).default(false).notNull(),
+  onboardingCompletedAt: integer("onboardingCompletedAt", { mode: 'timestamp' }),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type UserOnboarding = typeof userOnboarding.$inferSelect;
 export type InsertUserOnboarding = typeof userOnboarding.$inferInsert;
 
-/**
- * AI Provider Management - Multi-provider fallback system
- */
-export const aiProviders = mysqlTable("ai_providers", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 50 }).notNull().unique(), // 'manus', 'openai', 'anthropic', 'google'
-  displayName: varchar("displayName", { length: 100 }).notNull(),
-  apiKey: text("apiKey"), // Encrypted, NULL for Manus (uses built-in)
-  isEnabled: boolean("isEnabled").default(true).notNull(),
-  priority: int("priority").default(0).notNull(), // Lower = higher priority
-  maxRequestsPerMinute: int("maxRequestsPerMinute"),
-  maxTokensPerDay: int("maxTokensPerDay"),
-  costPer1kTokens: int("costPer1kTokens"), // Cost in cents (e.g., 500 = $0.005 per 1k tokens)
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const aiProviders = sqliteTable("ai_providers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  displayName: text("displayName").notNull(),
+  apiKey: text("apiKey"),
+  isEnabled: integer("isEnabled", { mode: 'boolean' }).default(true).notNull(),
+  priority: integer("priority").default(0).notNull(),
+  maxRequestsPerMinute: integer("maxRequestsPerMinute"),
+  maxTokensPerDay: integer("maxTokensPerDay"),
+  costPer1kTokens: integer("costPer1kTokens"),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type AIProvider = typeof aiProviders.$inferSelect;
 export type InsertAIProvider = typeof aiProviders.$inferInsert;
 
-/**
- * API usage logs for cost monitoring and analytics
- */
-export const apiUsageLogs = mysqlTable("api_usage_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  providerId: int("providerId").notNull(),
-  userId: int("userId"), // Optional: track per-user usage
-  leadId: int("leadId"), // Optional: link to specific lead
-  operation: varchar("operation", { length: 100 }).notNull(), // 'visual_audit', 'email_generation', 'asset_generation'
-  model: varchar("model", { length: 100 }), // 'gpt-4o', 'claude-3-5-sonnet', etc.
-  promptTokens: int("promptTokens").notNull(),
-  completionTokens: int("completionTokens").notNull(),
-  totalTokens: int("totalTokens").notNull(),
-  cost: int("cost"), // Cost in cents (e.g., 50 = $0.50)
-  latencyMs: int("latencyMs"), // Response time in milliseconds
-  success: boolean("success").notNull(),
+export const apiUsageLogs = sqliteTable("api_usage_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  providerId: integer("providerId").notNull(),
+  userId: integer("userId"),
+  leadId: integer("leadId"),
+  operation: text("operation").notNull(),
+  model: text("model"),
+  promptTokens: integer("promptTokens").notNull(),
+  completionTokens: integer("completionTokens").notNull(),
+  totalTokens: integer("totalTokens").notNull(),
+  cost: integer("cost"),
+  latencyMs: integer("latencyMs"),
+  success: integer("success", { mode: 'boolean' }).notNull(),
   errorMessage: text("errorMessage"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type APIUsageLog = typeof apiUsageLogs.$inferSelect;
 export type InsertAPIUsageLog = typeof apiUsageLogs.$inferInsert;
 
-/**
- * Provider health tracking for automatic failover
- */
-export const providerHealth = mysqlTable("provider_health", {
-  id: int("id").autoincrement().primaryKey(),
-  providerId: int("providerId").notNull().unique(),
-  status: mysqlEnum("status", ["healthy", "degraded", "down"]).default("healthy").notNull(),
-  lastSuccessAt: timestamp("lastSuccessAt"),
-  lastFailureAt: timestamp("lastFailureAt"),
-  consecutiveFailures: int("consecutiveFailures").default(0).notNull(),
-  avgLatencyMs: int("avgLatencyMs"),
-  successRate: int("successRate"), // Percentage * 100 (e.g., 9500 = 95.00%)
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const providerHealth = sqliteTable("provider_health", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  providerId: integer("providerId").notNull().unique(),
+  status: text("status").default("healthy").notNull(),
+  lastSuccessAt: integer("lastSuccessAt", { mode: 'timestamp' }),
+  lastFailureAt: integer("lastFailureAt", { mode: 'timestamp' }),
+  consecutiveFailures: integer("consecutiveFailures").default(0).notNull(),
+  avgLatencyMs: integer("avgLatencyMs"),
+  successRate: integer("successRate"),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type ProviderHealth = typeof providerHealth.$inferSelect;
 export type InsertProviderHealth = typeof providerHealth.$inferInsert;
 
-/**
- * Technographics table for The Hunter
- */
-export const technographicLeads = mysqlTable("technographic_leads", {
-  id: int("id").autoincrement().primaryKey(),
-  url: varchar("url", { length: 512 }).notNull().unique(),
-  detected_cms: varchar("detected_cms", { length: 100 }),
-  has_pixel: boolean("has_pixel").default(false),
-  has_ga4: boolean("has_ga4").default(false),
-  ssl_error: boolean("ssl_error").default(false),
-  neglected: boolean("neglected").default(false),
-  last_scanned_at: timestamp("last_scanned_at"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const technographicLeads = sqliteTable("technographic_leads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  url: text("url").notNull().unique(),
+  detected_cms: text("detected_cms"),
+  has_pixel: integer("has_pixel", { mode: 'boolean' }).default(false),
+  has_ga4: integer("has_ga4", { mode: 'boolean' }).default(false),
+  ssl_error: integer("ssl_error", { mode: 'boolean' }).default(false),
+  neglected: integer("neglected", { mode: 'boolean' }).default(false),
+  last_scanned_at: integer("last_scanned_at", { mode: 'timestamp' }),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updatedAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
 
 export type TechnographicLead = typeof technographicLeads.$inferSelect;
 export type InsertTechnographicLead = typeof technographicLeads.$inferInsert;
+
+export const outreachHistory = sqliteTable("outreach_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  userId: integer("userId").notNull(),
+  type: text("type").notNull(),
+  content: text("content"),
+  sentAt: integer("sentAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+  metadata: text("metadata"),
+  createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
+});

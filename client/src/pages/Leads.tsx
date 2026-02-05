@@ -452,6 +452,16 @@ export default function Leads() {
                       </button>
                     </div>
 
+                    {lead.screenshotUrl && (
+                      <div className="w-24 h-16 shrink-0 border border-white/10 rounded-sm overflow-hidden bg-black/50">
+                        <img
+                          src={lead.screenshotUrl}
+                          alt={lead.companyName}
+                          className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity"
+                        />
+                      </div>
+                    )}
+
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-xl font-semibold text-foreground">

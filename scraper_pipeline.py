@@ -11,7 +11,8 @@ from hunter import TechnographicHunter
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env.local
+load_dotenv(".env.local")
 
 # Check for supabase library
 try:

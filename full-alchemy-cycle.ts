@@ -213,9 +213,8 @@ async function runFullAlchemyCycle() {
         const outreach = await generateOutreachCopy(lead, savedAudit, leadAssets, techData, demoScreenshot);
 
         // TEST OVERRIDE as requested by USER
-        const testRecipient = "isthisaracket@gmail.com";
-        console.log(`\n🧪 TEST MODE: Overriding recipient ${outreach.recipientEmail} -> ${testRecipient}`);
-        outreach.recipientEmail = testRecipient;
+        const testRecipients = ["isthisaracket@gmail.com", "marilynchurch775@gmail.com"];
+        console.log(`\n🧪 TEST MODE: Overriding recipient ${outreach.recipientEmail} -> ${testRecipients.join(', ')}`);
 
         // Save email draft to folder
         fs.writeFileSync(path.join(businessDir, "outreach_draft.html"), outreach.htmlBody);
@@ -223,35 +222,35 @@ async function runFullAlchemyCycle() {
 
         console.log(`\n--- [DRAFT] ---`);
         console.log(`Subject: ${outreach.subject}`);
-        console.log(`Recipient: ${outreach.recipientEmail}`);
+        console.log(`Recipients: ${testRecipients.join(', ')}`);
         console.log(`\n${outreach.body}`);
         console.log(`---------------\n`);
 
         // 8. OUTREACH DELIVERY (Actually Send!)
         console.log("📤 PHASE 8: DELIVERING COLD EMAIL VIA GMAIL API...");
 
-        let sendResult;
-        try {
-            sendResult = await sendEmailViaGmail({
-                to: outreach.recipientEmail,
-                subject: outreach.subject,
-                body: outreach.body,
-                htmlBody: outreach.htmlBody,
-                attachments: emailAttachments
-            });
-        } catch (err: any) {
-            sendResult = { success: false, error: err.message };
-        }
+        for (const recipient of testRecipients) {
+            console.log(`   Sending to ${recipient}...`);
+            let sendResult;
+            try {
+                sendResult = await sendEmailViaGmail({
+                    to: recipient,
+                    subject: outreach.subject,
+                    body: outreach.body,
+                    htmlBody: outreach.htmlBody,
+                    attachments: emailAttachments
+                });
+            } catch (err: any) {
+                sendResult = { success: false, error: err.message };
+            }
 
-        if (sendResult.success) {
-            console.log(`✅ MISSION ACCOMPLISHED! Email sent successfully.`);
-            console.log(`   Message ID: ${sendResult.messageId}`);
-        } else if (sendResult.error?.includes('credentials missing')) {
-            console.log(`⚠️  SIMULATED SEND: Gmail API credentials missing in .env.`);
-            console.log(`   READY FOR INBOX: [${outreach.recipientEmail}]`);
-            console.log(`   (Configure GOOGLE_REFRESH_TOKEN to enable real sending.)`);
-        } else {
-            console.error(`❌ SEND FAILED: ${sendResult.error}`);
+            if (sendResult.success) {
+                console.log(`   ✅ Sent to ${recipient}. ID: ${sendResult.messageId}`);
+            } else if (sendResult.error?.includes('credentials missing')) {
+                console.log(`   ⚠️  SIMULATED: Credentials missing for ${recipient}.`);
+            } else {
+                console.error(`   ❌ FAILED to send to ${recipient}: ${sendResult.error}`);
+            }
         }
 
         await updateLead(lead.id, {

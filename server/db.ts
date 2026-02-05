@@ -1,633 +1,288 @@
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, waitlist, InsertWaitlist, leads, InsertLead, audits, InsertAudit, Lead, Audit, assets, InsertAsset, type InsertAuditLog } from "../drizzle/schema";
+
+import { eq, desc, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createRequire } from "module";
+import {
+  users, leads, audits, assets, waitlist, payments, rateLimits,
+  systemConfig, auditLog, campaigns, outreachDrafts, emailQueue,
+  followUpSequences, pipelineJobs, apiCalls, userOnboarding,
+  aiProviders, apiUsageLogs, providerHealth, outreachHistory,
+  InsertUser, InsertLead, InsertAudit, InsertAsset, InsertWaitlist,
+  InsertPayment, InsertRateLimit, InsertSystemConfig, InsertAuditLog,
+  Lead, Audit, Asset, RateLimit, SystemConfig, AuditLog,
+  Campaign, OutreachDraft, EmailQueue, FollowUpSequence, PipelineJob,
+  Payment, ApiCall, UserOnboarding, AIProvider, APIUsageLog, ProviderHealth
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 // ----------------------------------------------------------------------------
-// IN-MEMORY STORE (Replaces Database for Local Dev)
+// SQLITE DATABASE CONNECTION (DEV ONLY)
 // ----------------------------------------------------------------------------
-// This ensures the app fully "works" - creating leads, saving audits, generating assets -
-// without needing an external MySQL connection. Data persists during the session.
+// Vercel/serverless environments are not compatible with native better-sqlite3
+// (and local disk is not durable). For production money-paths, we use Supabase.
+const isProd = process.env.NODE_ENV === "production";
 
-export interface PaymentRecord {
-  id: number;
-  lead_id: number;
-  stripe_checkout_session_id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  package_type: string;
-  payment_link?: string;
-  stripe_payment_intent_id?: string | null;
-  paid_at?: Date | null;
-  created_at: Date;
-  updated_at: Date;
-}
+let sqlite: any = null;
+export const db: any = (() => {
+  if (isProd) return null;
 
-interface RateLimitRecord {
-  id: number;
-  userId: number;
-  action: string;
-  count: number;
-  windowStart: Date;
-  windowEnd: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
+  const require = createRequire(import.meta.url);
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Database = require("better-sqlite3");
 
-interface SystemConfigRecord {
-  id: number;
-  key: string;
-  value: string;
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+  sqlite = new Database("velvet_alchemy.db");
+  return drizzle(sqlite);
+})();
 
-interface AuditLogRecord {
-  id: number;
-  userId?: number | null;
-  action: string;
-  resource?: string | null;
-  resourceId?: number | null;
-  details?: string | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  status: "success" | "failure" | "blocked";
-  createdAt: Date;
-}
-
-interface MemoryStore {
-  users: any[];
-  leads: any[];
-  audits: any[];
-  assets: any[];
-  waitlist: any[];
-  payments: PaymentRecord[];
-  rateLimits: RateLimitRecord[];
-  systemConfig: SystemConfigRecord[];
-  auditLogs: AuditLogRecord[];
-}
-
-const store: MemoryStore = {
-  users: [
-    { id: 1, openId: ENV.ownerOpenId || "admin", name: "Architect Cameron", role: "admin", createdAt: new Date() }
-  ],
-  leads: [
-    {
-      id: 1,
-      userId: 1,
-      companyName: "Silver and Blue Outfitters",
-      websiteUrl: "https://silverandblueoutfitters.com",
-      status: "audited",
-      prestigeScore: 90,
-      screenshotUrl: "https://silverandblueoutfitters.com/cdn/shop/files/SBO_Logo_2024_Main_400x.png?v=1706649568",
-      screenshotKey: "mock-key-1",
-      hasAssets: true,
-      hasOutreach: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      summary: "High potential lead. Shopify store with missing analytics. $5k opportunity."
-    },
-    {
-      id: 2,
-      userId: 1,
-      companyName: "Reno Running Company",
-      websiteUrl: "https://renorunningcompany.com",
-      status: "outreach_sent",
-      prestigeScore: 65,
-      screenshotUrl: "https://dummyimage.com/600x400/000/fff&text=Reno+Running",
-      screenshotKey: "mock-key-2",
-      hasAssets: true,
-      hasOutreach: true,
-      createdAt: new Date(Date.now() - 86400000),
-      updatedAt: new Date(Date.now() - 3600000),
-      summary: "Existing analytics found. Lower priority."
-    },
-    {
-      id: 3,
-      userId: 1,
-      companyName: "Flowing Tide Pub",
-      websiteUrl: "https://flowingtidepub.com",
-      status: "pending",
-      prestigeScore: null,
-      screenshotUrl: "https://dummyimage.com/600x400/000/fff&text=Flowing+Tide",
-      screenshotKey: "mock-key-3",
-      hasAssets: false,
-      hasOutreach: false,
-      createdAt: new Date(Date.now() - 172800000),
-      updatedAt: new Date(Date.now() - 172800000),
-      summary: "Pending audit."
-    }
-  ],
-  audits: [],
-  assets: [],
-  waitlist: [],
-  payments: [],
-  rateLimits: [],
-  systemConfig: [
-    {
-      id: 1,
-      key: "global_kill_switch",
-      value: "false",
-      description: "Global system kill-switch",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: 2,
-      key: "rate_limit_enabled",
-      value: "true",
-      description: "Enable rate limiting",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: 3,
-      key: "domain_check_enabled",
-      value: "true",
-      description: "Enable domain reputation checks",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ],
-  auditLogs: [],
+// Initialize DB with tables if they don't exist (Basic Migration)
+const runMigrations = () => {
+  if (!sqlite) {
+    console.log("[DB] Skipping SQLite migrations (production/serverless mode)");
+    return;
+  }
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, openId TEXT NOT NULL UNIQUE, name TEXT, email TEXT, loginMethod TEXT, role TEXT NOT NULL DEFAULT 'user', createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()), lastSignedIn INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, companyName TEXT NOT NULL, websiteUrl TEXT NOT NULL, screenshotUrl TEXT, screenshotKey TEXT, status TEXT NOT NULL DEFAULT 'pending', prestigeScore INTEGER, priorityScore INTEGER, hasAssets INTEGER NOT NULL DEFAULT 0, assetsStatus TEXT NOT NULL DEFAULT 'not_requested', assetsGeneratedAt INTEGER, hasOutreach INTEGER NOT NULL DEFAULT 0, detailedReport TEXT, lastDeepScanAt INTEGER, monthlyVisits INTEGER, globalRank INTEGER, bounceRate REAL, trafficDataFetchedAt INTEGER, contactEmail TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS audits (id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL, summary TEXT, prestigeScore INTEGER, visualDebtData TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS assets (id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL, type TEXT NOT NULL, url TEXT NOT NULL, s3Key TEXT NOT NULL, metadata TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS pipeline_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'pending', currentStage TEXT, progressPercentage INTEGER NOT NULL DEFAULT 0, stagesCompleted TEXT, errorMessage TEXT, retryCount INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()), completedAt INTEGER);
+    CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, lead_id INTEGER NOT NULL, stripe_checkout_session_id TEXT NOT NULL UNIQUE, stripe_payment_intent_id TEXT, amount INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'usd', status TEXT NOT NULL DEFAULT 'pending', package_type TEXT NOT NULL, payment_link TEXT, created_at INTEGER NOT NULL DEFAULT (unixepoch()), updated_at INTEGER NOT NULL DEFAULT (unixepoch()), completed_at INTEGER);
+    CREATE TABLE IF NOT EXISTS outreach_history (id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL, userId INTEGER NOT NULL, type TEXT NOT NULL, content TEXT, sentAt INTEGER NOT NULL DEFAULT (unixepoch()), metadata TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS waitlist (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, targetNiche TEXT, status TEXT NOT NULL DEFAULT 'pending', createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS rate_limits (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, action TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, windowStart INTEGER NOT NULL, windowEnd INTEGER NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS system_config (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL UNIQUE, value TEXT NOT NULL, description TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER, action TEXT NOT NULL, resource TEXT, resourceId INTEGER, details TEXT, ipAddress TEXT, userAgent TEXT, status TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS campaigns (id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL, userId INTEGER NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', sentAt INTEGER, openedAt INTEGER, clickedAt INTEGER, repliedAt INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS outreach_drafts (id INTEGER PRIMARY KEY AUTOINCREMENT, campaignId INTEGER NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL, recipientEmail TEXT NOT NULL, recipientName TEXT, status TEXT NOT NULL DEFAULT 'draft', rejectionReason TEXT, approvedBy INTEGER, approvedAt INTEGER, sentAt INTEGER, gmailMessageId TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS voice_profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL UNIQUE, formality TEXT NOT NULL, directness TEXT NOT NULL, enthusiasm TEXT NOT NULL, avgSentenceLength INTEGER NOT NULL, avgParagraphLength INTEGER NOT NULL, usesContractions INTEGER NOT NULL, usesEmoji INTEGER NOT NULL, usesProfanity INTEGER NOT NULL, commonPhrases TEXT NOT NULL, industryJargon TEXT NOT NULL, signOffStyle TEXT NOT NULL, greetingStyle TEXT NOT NULL, usesLists INTEGER NOT NULL, usesBoldText INTEGER NOT NULL, usesQuestions INTEGER NOT NULL, exampleEmails TEXT NOT NULL, calibrationCount INTEGER NOT NULL DEFAULT 0, isCalibrated INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS email_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL, campaignId INTEGER, draftId INTEGER, recipientEmail TEXT NOT NULL, recipientName TEXT, subject TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', scheduledFor INTEGER, sentAt INTEGER, gmailMessageId TEXT, gmailThreadId TEXT, openedAt INTEGER, clickedAt INTEGER, repliedAt INTEGER, replyContent TEXT, errorMessage TEXT, retryCount INTEGER NOT NULL DEFAULT 0, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS follow_up_sequences (id INTEGER PRIMARY KEY AUTOINCREMENT, leadId INTEGER NOT NULL, initialEmailId INTEGER, sequenceType TEXT NOT NULL, currentStep INTEGER NOT NULL DEFAULT 0, maxSteps INTEGER NOT NULL DEFAULT 3, status TEXT NOT NULL DEFAULT 'active', stopReason TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS api_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL, leadId INTEGER, service TEXT NOT NULL, operation TEXT NOT NULL, tokensUsed INTEGER, estimatedCost INTEGER NOT NULL, requestData TEXT, responseStatus TEXT NOT NULL, createdAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS user_onboarding (id INTEGER PRIMARY KEY AUTOINCREMENT, userId INTEGER NOT NULL UNIQUE, hasCompletedScraper INTEGER NOT NULL DEFAULT 0, hasReviewedAudit INTEGER NOT NULL DEFAULT 0, hasSentInvoice INTEGER NOT NULL DEFAULT 0, hasReceivedPayment INTEGER NOT NULL DEFAULT 0, onboardingCompletedAt INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS ai_providers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, displayName TEXT NOT NULL, apiKey TEXT, isEnabled INTEGER NOT NULL DEFAULT 1, priority INTEGER NOT NULL DEFAULT 0, maxRequestsPerMinute INTEGER, maxTokensPerDay INTEGER, costPer1kTokens INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS api_usage_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, providerId INTEGER NOT NULL, userId INTEGER, leadId INTEGER, operation TEXT NOT NULL, model TEXT, promptTokens INTEGER NOT NULL, completionTokens INTEGER NOT NULL, totalTokens INTEGER NOT NULL, cost INTEGER, latencyMs INTEGER, success INTEGER NOT NULL, errorMessage TEXT, createdAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS provider_health (id INTEGER PRIMARY KEY AUTOINCREMENT, providerId INTEGER NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'healthy', lastSuccessAt INTEGER, lastFailureAt INTEGER, consecutiveFailures INTEGER NOT NULL DEFAULT 0, avgLatencyMs INTEGER, successRate INTEGER, updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    CREATE TABLE IF NOT EXISTS technographic_leads (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL UNIQUE, detected_cms TEXT, has_pixel INTEGER DEFAULT 0, has_ga4 INTEGER DEFAULT 0, ssl_error INTEGER DEFAULT 0, neglected INTEGER DEFAULT 0, last_scanned_at INTEGER, createdAt INTEGER NOT NULL DEFAULT (unixepoch()), updatedAt INTEGER NOT NULL DEFAULT (unixepoch()));
+    `);
+  console.log("[DB] SQLite tables initialized/verified.");
 };
 
-function nextId<T extends { id: number }>(collection: T[]): number {
-  if (collection.length === 0) return 1;
-  return Math.max(...collection.map(item => item.id)) + 1;
+runMigrations();
+
+// Ensure a stable SYSTEM user exists (id=1) so local dev lead intake can work without auth.
+if (sqlite) {
+  try {
+    const row = sqlite.prepare("SELECT id FROM users ORDER BY id ASC LIMIT 1").get() as { id: number } | undefined;
+    if (!row) {
+      sqlite
+        .prepare(
+          "INSERT INTO users (openId, name, email, loginMethod, role) VALUES (?, ?, ?, ?, ?)"
+        )
+        .run("system", "Velvet Alchemy", "madeinreno775@gmail.com", "system", "admin");
+      console.log("[DB] Seeded system user (openId=system)");
+    }
+  } catch (e) {
+    console.warn("[DB] Failed to seed system user", e);
+  }
 }
 
-// Returns a "fake" db object if needed for compatibility, 
-// but mostly we will bypass it in our helper functions.
-let _db: ReturnType<typeof drizzle> | null = null;
-
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
-  // Always return the mock DB interface to ensure routers proceed
-  return dbMock as any;
+  return db;
 }
-
-// Helper to check if we should use mock data
-// We return false now because we WANT the routers to think there is a DB so they call our functions
-export const isMockMode = () => false;
-
 
 // ----------------------------------------------------------------------------
-// DATABASE FUNCTIONS (Redirected to Memory Store)
+// DATABASE HELPER FUNCTIONS (Now using Real DB)
 // ----------------------------------------------------------------------------
 
 export async function upsertUser(user: InsertUser): Promise<void> {
-  const existingIndex = store.users.findIndex(u => u.openId === user.openId);
-  const now = new Date();
+  const existing = await db.select().from(users).where(eq(users.openId, user.openId)).get();
 
-  const userData = {
-    ...user,
-    lastSignedIn: now,
-    updatedAt: now,
-    role: user.role || 'user'
-  };
-
-  // Check if we can "claim" the admin account (ID 1)
-  // Logic: If ID 1 is still the default placeholder ("admin" or ownerOpenId) AND we are a real user
-  const adminUser = store.users.find(u => u.id === 1);
-  const defaultOpenId = ENV.ownerOpenId || "admin";
-
-  // If the admin user is still the default placeholder
-  if (adminUser && adminUser.openId === defaultOpenId && user.openId !== defaultOpenId) {
-    console.log(`[MemoryStore] 👑 Claiming Admin Account (ID 1) for user: ${user.email || user.name}`);
-
-    store.users[0] = {
-      ...store.users[0],
-      ...userData,
-      openId: user.openId, // Update openId to the real one
-      role: "admin",       // Ensure they stay admin
-      lastSignedIn: now,
-      updatedAt: now
-    };
-    return;
-  }
-
-  if (existingIndex >= 0) {
-    store.users[existingIndex] = { ...store.users[existingIndex], ...userData };
+  if (existing) {
+    await db.update(users).set({
+      ...user,
+      lastSignedIn: new Date(),
+      updatedAt: new Date()
+    }).where(eq(users.openId, user.openId));
   } else {
-    store.users.push({
-      ...userData,
-      id: store.users.length + 1,
-      createdAt: now
-    });
+    // First user is admin
+    const countResult = await db.select({ count: sql<number>`count(*)` }).from(users).get();
+    const count = countResult?.count ?? 0;
+    const role = count === 0 ? 'admin' : (user.role || 'user');
+    await db.insert(users).values({ ...user, role });
   }
 }
 
 export async function getUserByOpenId(openId: string) {
-  return store.users.find(u => u.openId === openId);
+  return db.select().from(users).where(eq(users.openId, openId)).get();
 }
 
-// Waitlist
-export async function addToWaitlist(email: string, targetNiche?: string): Promise<{ success: boolean; message: string }> {
-  if (store.waitlist.find(w => w.email === email)) {
-    return { success: true, message: "Email already registered" };
+export async function addToWaitlist(email: string, targetNiche?: string) {
+  try {
+    const existing = await db.select().from(waitlist).where(eq(waitlist.email, email)).get();
+    if (existing) return { success: true, message: "Email already registered" };
+
+    await db.insert(waitlist).values({ email, targetNiche });
+    return { success: true, message: "Successfully added to waitlist" };
+  } catch (e) {
+    return { success: false, message: "Failed to add to waitlist" };
   }
-  store.waitlist.push({
-    id: store.waitlist.length + 1,
-    email,
-    targetNiche,
-    status: 'pending',
-    createdAt: new Date()
-  });
-  return { success: true, message: "Successfully added to waitlist" };
 }
 
 export async function getWaitlistEntries() {
-  return store.waitlist;
+  return db.select().from(waitlist).all();
 }
 
-// Leads
-export async function createLead(lead: InsertLead): Promise<Lead | null> {
-  const newLead = {
-    ...lead,
-    id: store.leads.length + 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    prestigeScore: lead.prestigeScore || null,
-    status: lead.status || 'pending',
-    hasAssets: false,
-    hasOutreach: false
-  };
-  store.leads.push(newLead);
-  console.log(`[MemoryStore] Created lead: ${newLead.companyName} (ID: ${newLead.id})`);
-  return newLead as any;
+export async function createLead(lead: InsertLead) {
+  const result = await db.insert(leads).values(lead).returning().get();
+  console.log(`[DB] Created lead: ${result.companyName} (ID: ${result.id})`);
+  return result;
 }
 
-export async function getLeadsByUserId(userId: number): Promise<Lead[]> {
-  return store.leads.sort((a, b) => (b.prestigeScore || 0) - (a.prestigeScore || 0)) as any;
+export async function getLeadsByUserId(userId: number) {
+  return db.select().from(leads)
+    .where(eq(leads.userId, userId))
+    .orderBy(desc(leads.prestigeScore))
+    .all();
 }
 
-export async function getAllLeads(): Promise<Lead[]> {
-  return store.leads.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) as any;
+export async function getAllLeads() {
+  return db.select().from(leads).orderBy(desc(leads.createdAt)).all();
 }
 
-export async function getLeadById(id: number): Promise<Lead | null> {
-  return (store.leads.find(l => l.id === id) || null) as any;
+export async function getLeadById(id: number) {
+  return db.select().from(leads).where(eq(leads.id, id)).get() || null;
 }
 
-export async function updateLead(id: number, updates: Partial<InsertLead>): Promise<Lead | null> {
-  const index = store.leads.findIndex(l => l.id === id);
-  if (index === -1) return null;
-
-  store.leads[index] = {
-    ...store.leads[index],
-    ...updates,
-    updatedAt: new Date()
-  };
-  return store.leads[index] as any;
+export async function updateLead(id: number, updates: Partial<InsertLead>) {
+  const result = await db.update(leads)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(leads.id, id))
+    .returning()
+    .get();
+  return result || null;
 }
 
-export async function deleteLead(id: number): Promise<boolean> {
-  const index = store.leads.findIndex(l => l.id === id);
-  if (index === -1) return false;
-
-  store.leads.splice(index, 1);
-  return true;
+export async function deleteLead(id: number) {
+  const result = await db.delete(leads).where(eq(leads.id, id)).run();
+  return result.changes > 0;
 }
 
-// Audits
-export async function createAudit(audit: InsertAudit): Promise<Audit | null> {
-  const newAudit = {
-    ...audit,
-    id: store.audits.length + 1,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-  store.audits.push(newAudit);
-  return newAudit as any;
+export async function createAudit(audit: InsertAudit) {
+  return db.insert(audits).values(audit).returning().get();
 }
 
-export async function getAuditByLeadId(leadId: number): Promise<Audit | null> {
-  return (store.audits.find(a => a.leadId === leadId) || null) as any;
+export async function getAuditByLeadId(leadId: number) {
+  return db.select().from(audits).where(eq(audits.leadId, leadId)).get() || null;
 }
 
-// Assets (Needed for Visionary)
-export async function updateLeadAssetsStatus(
-  id: number,
-  status: 'not_requested' | 'generating' | 'ready' | 'failed',
-  generatedAt?: Date
-): Promise<void> {
-  const index = store.leads.findIndex(l => l.id === id);
-  if (index === -1) return;
+export async function updateLeadAssetsStatus(id: number, status: string, generatedAt?: Date) {
+  const updateData: any = { assetsStatus: status };
+  if (generatedAt) updateData.assetsGeneratedAt = generatedAt;
+  if (status === 'ready') updateData.hasAssets = true;
 
-  const updates: any = { assetsStatus: status };
-  if (generatedAt) updates.assetsGeneratedAt = generatedAt;
-  if (status === 'ready') updates.hasAssets = true;
-
-  store.leads[index] = { ...store.leads[index], ...updates };
+  await db.update(leads).set(updateData).where(eq(leads.id, id));
 }
 
-// Payments -------------------------------------------------------------------
-export async function createPaymentRecord(data: Omit<PaymentRecord, "id" | "created_at" | "updated_at">): Promise<PaymentRecord> {
-  const now = new Date();
-  const payment: PaymentRecord = {
-    id: nextId(store.payments),
-    created_at: now,
-    updated_at: now,
-    ...data,
-  };
-  store.payments.push(payment);
-  return payment;
+export async function createPaymentRecord(data: Omit<InsertPayment, "id" | "created_at" | "updated_at">) {
+  return db.insert(payments).values(data).returning().get();
 }
 
-export async function getPaymentsByLeadId(leadId: number): Promise<PaymentRecord[]> {
-  return store.payments
-    .filter(p => p.lead_id === leadId)
-    .sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+export async function getPaymentsByLeadId(leadId: number) {
+  return db.select().from(payments).where(eq(payments.lead_id, leadId)).orderBy(desc(payments.created_at)).all();
 }
 
-export async function getPaymentsByUserId(userId: number): Promise<Array<PaymentRecord & { companyName: string; websiteUrl: string }>> {
-  const leadMap = new Map(store.leads.filter(l => l.userId === userId).map(l => [l.id, l]));
-  return store.payments
-    .filter(p => leadMap.has(p.lead_id))
-    .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
-    .map(payment => {
-      const lead = leadMap.get(payment.lead_id);
-      return {
-        ...payment,
-        companyName: lead?.companyName || "Unknown",
-        websiteUrl: lead?.websiteUrl || "",
-      };
-    });
-}
-
-export async function getPaymentBySessionId(sessionId: string): Promise<PaymentRecord | undefined> {
-  return store.payments.find(p => p.stripe_checkout_session_id === sessionId);
-}
-
-export async function updatePaymentBySessionId(sessionId: string, updates: Partial<PaymentRecord>): Promise<void> {
-  const index = store.payments.findIndex(p => p.stripe_checkout_session_id === sessionId);
-  if (index === -1) return;
-  store.payments[index] = {
-    ...store.payments[index],
-    ...updates,
-    updated_at: new Date(),
-  };
-}
-
-export async function getAllPayments(): Promise<PaymentRecord[]> {
-  return [...store.payments];
-}
-
-// Need to expose db insert for assets since Visionary uses it directly
-// We'll mock the db.insert().values() chain for `assets` table specifically
-// Improved Mock DB that supports chaining and acts like a Promise
-const createMockQueryBuilder = (initialCollection: any[]) => {
-  let context = { collection: initialCollection };
-  const builder: any = {
-    from: (table: any) => {
-      // Drizzle tables often use symbols or internal symbols for names
-      let tableName = (table?.name || table?._?.name || table?.config?.name || "");
-      if (!tableName && table?.[Symbol.for('drizzle:Name')]) {
-        tableName = table[Symbol.for('drizzle:Name')];
-      }
-
-      const tableKey = tableName.toString().toLowerCase();
-      console.log(`[dbMock] select.from("${tableKey}")`);
-
-      if (tableKey.includes('asset')) context.collection = store.assets;
-      else if (tableKey.includes('audit')) context.collection = store.audits;
-      else if (tableKey.includes('lead')) context.collection = store.leads;
-      else if (tableKey.includes('user')) context.collection = store.users;
-      else if (tableKey.includes('waitlist')) context.collection = store.waitlist;
-
-      return builder;
-    },
-    where: (condition: any) => {
-      let targetId: number | null = null;
-
-      if (condition && typeof condition === 'object') {
-        const extractId = (obj: any): any => {
-          if (obj === null || obj === undefined) return null;
-          if (typeof obj === 'number') return obj;
-          if (typeof obj === 'string' && !isNaN(Number(obj))) return Number(obj);
-
-          // Drizzle often nests values in .value, .right, or .right.value
-          if (obj.value !== undefined) return extractId(obj.value);
-          if (obj.right !== undefined) return extractId(obj.right);
-          if (obj.left !== undefined && typeof obj.left === 'number') return obj.left;
-
-          // Check for common Drizzle property names
-          for (const key of ['val', 'right', 'value', 'left']) {
-            if (obj[key] !== undefined) {
-              const res = extractId(obj[key]);
-              if (res !== null) return res;
-            }
-          }
-          return null;
-        };
-        targetId = extractId(condition);
-      }
-
-      const condStr = (condition || "").toString();
-      if (targetId === null) {
-        // Very aggressive regex for digits in strings like "leads.id = 1"
-        const match = condStr.match(/(\s|=)(\d+)(\s|$)/);
-        if (match) targetId = parseInt(match[2]);
-        else if (condStr.match(/^\d+$/)) targetId = parseInt(condStr);
-      }
-
-      console.log(`[dbMock] where: id=${targetId} (expr: ${condStr})`);
-
-      if (targetId !== null) {
-        context.collection = context.collection.filter((item: any) => {
-          const itemLeadId = item.leadId || item.lead_id || (context.collection === store.leads ? item.id : null);
-          return itemLeadId !== undefined && itemLeadId !== null && Number(itemLeadId) === Number(targetId);
-        });
-      } else {
-        // If we have a where clause but NO id was found, we might be doing a more complex query (like status = 'active')
-        // For the mock, we'll allow it to return everything if it's not a numeric filter, 
-        // OR we just log it. Let's return everything for now to avoid breaking other flows,
-        // but log clearly.
-        console.warn("[dbMock] Warning: Where clause provided but no ID resolved. Returning full collection.");
-      }
-      return builder;
-    },
-    limit: () => builder,
-    orderBy: () => builder,
-    offset: () => builder,
-    leftJoin: () => builder,
-    then: (resolve: Function) => {
-      // Return a copy to prevent external mutation issues
-      resolve([...context.collection]);
-    }
-  };
-  return builder;
-};
-
-export const dbMock = {
-  insert: (table: any) => ({
-    values: async (vals: any | any[]) => {
-      const items = Array.isArray(vals) ? vals : [vals];
-      const tableName = table?.name || table?._?.name;
-
-      items.forEach((item: any) => {
-        if (!item.id) item.id = Math.floor(Math.random() * 100000);
-        const record = { ...item, createdAt: new Date() };
-
-        if (tableName === 'leads' || item.companyName) {
-          store.leads.push({ ...record, hasAssets: false, hasOutreach: false });
-        } else if (tableName === 'assets' || (item.leadId && (item.type || item.url || item.s3Key))) {
-          store.assets.push(record);
-        } else if (tableName === 'audits' || (item.leadId && (item.summary || item.prestigeScore !== undefined))) {
-          store.audits.push(record);
-        } else if (tableName === 'users' || item.openId) {
-          store.users.push(record);
-        } else if (tableName === 'waitlist' || item.email) {
-          store.waitlist.push(record);
-        }
-      });
-      return [{ insertId: items.length }];
-    }
-  }),
-  select: () => createMockQueryBuilder(store.leads),
-  update: (table: any) => ({
-    set: (values: any) => ({
-      where: (condition: any) => ({
-        then: (resolve: Function) => resolve([{ affectedRows: 1 }])
-      })
-    })
-  }),
-  delete: (table: any) => ({
-    where: () => ({
-      then: (resolve: Function) => resolve([{ affectedRows: 1 }])
-    })
+export async function getPaymentsByUserId(userId: number) {
+  const result = await db.select({
+    payment: payments,
+    companyName: leads.companyName,
+    websiteUrl: leads.websiteUrl
   })
-};
+    .from(payments)
+    .innerJoin(leads, eq(payments.lead_id, leads.id))
+    .where(eq(leads.userId, userId))
+    .orderBy(desc(payments.created_at))
+    .all();
 
-// Hack: Overwrite the getDb to return a mock object that scraperRouter can use
-// scraperRouter checks for !db.getDb(), so we need to fix THAT call site too?
-// No, scraperRouter imports * as db, so it calls db.getDb(). 
-// If we return null, it stops. 
-// So let's make getDb return OUR helper object that mimics drizzle partially?
-// Actually, scraperRouter uses db.createLead() which is our exported function.
-// It ONLY uses db.getDb() for the check: `const dbConn = await db.getDb(); if (!dbConn) continue;`
-// So we MUST return something truthy from getDb() for the scraper to proceed!
-
-export async function getDbForScraper() {
-  return dbMock as any;
+  return result.map(r => ({
+    ...r.payment,
+    companyName: r.companyName,
+    websiteUrl: r.websiteUrl
+  }));
 }
 
-// Redefine getDb to return the mock so consumers don't bail out
-export async function getDb2() {
-  return dbMock as any;
-}
-// We have to overwrite the original export
-// to make sure scraperRouter continues.
-
-// ---------------------------------------------------------------------------
-// System Config Helpers
-// ---------------------------------------------------------------------------
-
-export async function getSystemConfigEntries(): Promise<SystemConfigRecord[]> {
-  return [...store.systemConfig];
+export async function getPaymentBySessionId(sessionId: string) {
+  return db.select().from(payments).where(eq(payments.stripe_checkout_session_id, sessionId)).get();
 }
 
-export async function getSystemConfigValue(key: string): Promise<SystemConfigRecord | undefined> {
-  return store.systemConfig.find((entry) => entry.key === key);
+export async function updatePaymentBySessionId(sessionId: string, updates: Partial<InsertPayment>) {
+  await db.update(payments).set({ ...updates, updated_at: new Date() }).where(eq(payments.stripe_checkout_session_id, sessionId));
 }
 
-export async function setSystemConfigValue(key: string, value: string, description?: string): Promise<SystemConfigRecord> {
-  const existing = store.systemConfig.find((entry) => entry.key === key);
-  const now = new Date();
+export async function getAllPayments() {
+  return db.select().from(payments).all();
+}
 
+export async function getSystemConfigEntries() {
+  return db.select().from(systemConfig).all();
+}
+
+export async function getSystemConfigValue(key: string) {
+  return db.select().from(systemConfig).where(eq(systemConfig.key, key)).get();
+}
+
+export async function setSystemConfigValue(key: string, value: string, description?: string) {
+  const existing = await db.select().from(systemConfig).where(eq(systemConfig.key, key)).get();
   if (existing) {
-    existing.value = value;
-    if (description) existing.description = description;
-    existing.updatedAt = now;
-    return existing;
+    return db.update(systemConfig)
+      .set({ value, description, updatedAt: new Date() })
+      .where(eq(systemConfig.key, key))
+      .returning()
+      .get();
   }
-
-  const entry: SystemConfigRecord = {
-    id: nextId(store.systemConfig),
-    key,
-    value,
-    description,
-    createdAt: now,
-    updatedAt: now,
-  };
-  store.systemConfig.push(entry);
-  return entry;
+  return db.insert(systemConfig).values({ key, value, description }).returning().get();
 }
 
-export async function deleteSystemConfigKey(key: string): Promise<void> {
-  const index = store.systemConfig.findIndex((entry) => entry.key === key);
-  if (index !== -1) {
-    store.systemConfig.splice(index, 1);
-  }
+export async function deleteSystemConfigKey(key: string) {
+  await db.delete(systemConfig).where(eq(systemConfig.key, key));
 }
 
-// ---------------------------------------------------------------------------
-// Rate Limit Helpers
-// ---------------------------------------------------------------------------
-
-export async function findActiveRateLimit(userId: number, action: string, now: Date): Promise<RateLimitRecord | undefined> {
-  return store.rateLimits.find(
-    (record) => record.userId === userId && record.action === action && record.windowEnd >= now
-  );
+export async function findActiveRateLimit(userId: number, action: string, now: Date) {
+  return db.select().from(rateLimits)
+    .where(sql`${rateLimits.userId} = ${userId} AND ${rateLimits.action} = ${action} AND ${rateLimits.windowEnd} >= ${now}`)
+    .get();
 }
 
-export async function createRateLimitRecord(entry: Omit<RateLimitRecord, "id" | "createdAt" | "updatedAt">): Promise<RateLimitRecord> {
-  const now = new Date();
-  const record: RateLimitRecord = {
-    id: nextId(store.rateLimits),
-    createdAt: now,
-    updatedAt: now,
-    ...entry,
-  };
-  store.rateLimits.push(record);
-  return record;
+export async function createRateLimitRecord(entry: Omit<InsertRateLimit, "id" | "createdAt" | "updatedAt">) {
+  return db.insert(rateLimits).values(entry).returning().get();
 }
 
-export async function incrementRateLimitRecord(recordId: number): Promise<void> {
-  const record = store.rateLimits.find((r) => r.id === recordId);
-  if (!record) return;
-  record.count += 1;
-  record.updatedAt = new Date();
+export async function incrementRateLimitRecord(recordId: number) {
+  await db.update(rateLimits)
+    .set({ count: sql`count + 1`, updatedAt: new Date() })
+    .where(eq(rateLimits.id, recordId));
 }
 
-export async function getRateLimitRecords(): Promise<RateLimitRecord[]> {
-  return [...store.rateLimits];
+export async function getRateLimitRecords() {
+  return db.select().from(rateLimits).all();
 }
 
-// ---------------------------------------------------------------------------
-// Audit Log Helpers
-// ---------------------------------------------------------------------------
-
-export async function insertAuditLogEntry(entry: InsertAuditLog): Promise<void> {
-  const record: AuditLogRecord = {
-    id: nextId(store.auditLogs),
-    userId: entry.userId || null,
-    action: entry.action,
-    resource: entry.resource || null,
-    resourceId: entry.resourceId || null,
-    details: entry.details || null,
-    ipAddress: entry.ipAddress || null,
-    userAgent: entry.userAgent || null,
-    status: entry.status,
-    createdAt: entry.createdAt || new Date(),
-  };
-  store.auditLogs.push(record);
+export async function insertAuditLogEntry(entry: InsertAuditLog) {
+  await db.insert(auditLog).values(entry);
 }
 
-export async function getAuditLogEntries(limit = 20): Promise<AuditLogRecord[]> {
-  return [...store.auditLogs]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, limit);
+export async function getAuditLogEntries(limit = 20) {
+  return db.select().from(auditLog).orderBy(desc(auditLog.createdAt)).limit(limit).all();
 }
 
 export async function clearMockStore() {
-  console.log("[dbMock] Clearing Memory Store for fresh cycle...");
-  store.leads = [];
-  store.audits = [];
-  store.assets = [];
-  store.payments = [];
-  store.auditLogs = [];
+  console.log("[DB] Clearing real database...");
+  await db.delete(leads);
+  await db.delete(audits);
+  await db.delete(assets);
+  await db.delete(payments);
+  await db.delete(auditLog);
+}
+
+export async function getDbForScraper() {
+  return db;
 }

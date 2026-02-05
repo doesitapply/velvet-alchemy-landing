@@ -32,7 +32,7 @@ export const governorRouter = router({
     const currentValue = existing.value === "true";
     const newValue = !currentValue;
 
-    await setSystemConfigValue("global_kill_switch", newValue ? "true" : "false", existing.description);
+    await setSystemConfigValue("global_kill_switch", newValue ? "true" : "false", existing.description ?? undefined);
 
     return { enabled: newValue };
   }),

@@ -7,7 +7,7 @@ function getStripe() {
     throw new Error("STRIPE_SECRET_KEY not configured");
   }
   return new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: "2025-12-15.clover",
+    apiVersion: "2026-01-28.clover",
   });
 }
 
@@ -48,12 +48,6 @@ export function registerStripeWebhook(app: Express) {
         return res.status(400).send(`Webhook Error: ${err.message}`);
       }
 
-      // Handle test events from Stripe CLI
-      if (event.id.startsWith('evt_test_')) {
-        console.log("[Webhook] Test event detected, returning verification response");
-        return res.json({ verified: true });
-      }
-
       // Handle the event
       switch (event.type) {
         case "checkout.session.completed":
@@ -86,7 +80,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     // Update payment status to 'completed'
     await updatePaymentBySessionId(session.id, {
       status: "completed",
-      paid_at: new Date(),
+      completed_at: new Date(),
       stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null,
     });
 

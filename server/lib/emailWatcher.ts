@@ -78,8 +78,16 @@ export async function watchForReplies() {
                     console.log(`[EmailWatcher] Logged reply from ${reply.from}`);
                 }
             }
-        } catch (error) {
-            console.error(`[EmailWatcher] Failed to check for replies for lead ${lead.id}:`, error);
+        } catch (error: any) {
+            console.error(`[EmailWatcher] Failed to check for replies for lead ${lead.id}:`, error.message);
+
+            // Auto-shutdown on Auth failures to prevent log spam
+            const errStr = JSON.stringify(error).toLowerCase();
+            if (errStr.includes("invalid_grant") || errStr.includes("unauthorized") || errStr.includes("401") || errStr.includes("403")) {
+                console.error("[EmailWatcher] 🛑 Critical Auth Error detected. Stopping watcher service.");
+                stopEmailWatcher();
+                return; // Exit loop
+            }
         }
     }
 }

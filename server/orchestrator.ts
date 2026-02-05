@@ -7,6 +7,7 @@ import { analyzeVisualDebt } from "./visualAudit";
 import { generateAssetsForLead } from "./visionary";
 import { generateOutreachCopy } from "./charmer";
 import { logAudit } from "./governor";
+import { ENV } from "./_core/env";
 
 /**
  * The Orchestrator
@@ -34,9 +35,9 @@ export async function createPipelineJob(leadId: number): Promise<number> {
     currentStage: null,
     stagesCompleted: JSON.stringify([]),
     retryCount: 0,
-  });
+  }).returning({ id: pipelineJobs.id }).get();
 
-  return result[0].insertId;
+  return result.id;
 }
 
 /**
@@ -90,8 +91,13 @@ async function runScreenshotAndAuditStage(leadId: number, userId: number): Promi
       if (!screenshotResult.success) {
         return { success: false, stage: "screenshot", error: screenshotResult.error || "Screenshot capture failed" };
       }
-      const fileKey = `leads/${leadId}/screenshot-${Date.now()}.png`;
-      const { url } = await storagePut(fileKey, screenshotResult.buffer, "image/png");
+      const ext = screenshotResult.contentType?.includes('jpeg') ? 'jpg'
+        : screenshotResult.contentType?.includes('webp') ? 'webp'
+          : screenshotResult.contentType?.includes('gif') ? 'gif'
+            : 'png';
+
+      const fileKey = `leads/${leadId}/screenshot-${Date.now()}.${ext}`;
+      const { url } = await storagePut(fileKey, screenshotResult.buffer, screenshotResult.contentType || "image/png");
 
       await db.update(leads).set({
         screenshotUrl: url,
@@ -280,41 +286,49 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
       return;
     }
 
-    await updatePipelineJob(jobId, {
-      currentStage: "assets",
-      progressPercentage: 50,
-      stagesCompleted: ["screenshot"],
-    });
-
     // Stage 2: Assets (50-80%)
-    const stage2Result = await runAssetsStage(leadId, userId);
-    if (!stage2Result.success) {
-      // We log but don't fail the WHOLE pipeline if assets fail? 
-      // No, velocity alchemy promises assets. Let's fail or warn.
-      // For now, fail to be loud.
+    if (ENV.enableAssets) {
       await updatePipelineJob(jobId, {
-        status: "failed",
-        errorMessage: stage2Result.error || "Asset generation stage failed",
         currentStage: "assets",
+        progressPercentage: 50,
+        stagesCompleted: ["screenshot"],
       });
-      return;
+
+      const stage2Result = await runAssetsStage(leadId, userId);
+      if (!stage2Result.success) {
+        await updatePipelineJob(jobId, {
+          status: "failed",
+          errorMessage: stage2Result.error || "Asset generation stage failed",
+          currentStage: "assets",
+        });
+        return;
+      }
+
+      await updatePipelineJob(jobId, {
+        currentStage: "outreach",
+        progressPercentage: 80,
+        stagesCompleted: ["screenshot", "assets"],
+      });
+    } else {
+      // If assets are disabled, jump straight to outreach.
+      await updatePipelineJob(jobId, {
+        currentStage: "outreach",
+        progressPercentage: 80,
+        stagesCompleted: ["screenshot"],
+      });
     }
 
-    await updatePipelineJob(jobId, {
-      currentStage: "outreach",
-      progressPercentage: 80,
-      stagesCompleted: ["screenshot", "assets"],
-    });
-
     // Stage 3: Outreach Draft (80-100%)
-    const stage3Result = await runOutreachDraftStage(leadId, userId);
-    if (!stage3Result.success) {
-      await updatePipelineJob(jobId, {
-        status: "failed",
-        errorMessage: stage3Result.error || "Outreach draft stage failed",
-        currentStage: "outreach",
-      });
-      return;
+    if (ENV.enableOutreach) {
+      const stage3Result = await runOutreachDraftStage(leadId, userId);
+      if (!stage3Result.success) {
+        await updatePipelineJob(jobId, {
+          status: "failed",
+          errorMessage: stage3Result.error || "Outreach draft stage failed",
+          currentStage: "outreach",
+        });
+        return;
+      }
     }
 
     // Pipeline complete
@@ -322,7 +336,7 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
       status: "completed",
       currentStage: null,
       progressPercentage: 100,
-      stagesCompleted: ["screenshot", "assets", "outreach"],
+      stagesCompleted: ENV.enableAssets ? ["screenshot", "assets", "outreach"] : ["screenshot", "outreach"],
       completedAt: new Date(),
     });
 

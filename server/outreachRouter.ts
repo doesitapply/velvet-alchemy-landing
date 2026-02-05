@@ -86,7 +86,8 @@ export const outreachRouter = router({
           exampleEmails: JSON.stringify(voiceProfile.exampleEmails),
         });
 
-        return { success: true, profileId: result[0].insertId, updated: false };
+        const profileId = (result as any)[0]?.insertId ?? (result as any).lastInsertRowid ?? 0;
+        return { success: true, profileId, updated: false };
       }
     }),
 
@@ -136,10 +137,15 @@ export const outreachRouter = router({
       const profileRow = profileResult[0];
       const voiceProfile = {
         ...profileRow,
+        // DB stores JSON strings
         commonPhrases: JSON.parse(profileRow.commonPhrases),
         industryJargon: JSON.parse(profileRow.industryJargon),
         exampleEmails: JSON.parse(profileRow.exampleEmails),
-      };
+        // DB columns are TEXT; narrow them back to the VoiceProfile unions
+        formality: profileRow.formality as any,
+        directness: profileRow.directness as any,
+        enthusiasm: profileRow.enthusiasm as any,
+      } as any;
 
       // Get lead and audit
       const leadResult = await db.select().from(leads).where(eq(leads.id, input.leadId)).limit(1);
@@ -155,8 +161,17 @@ export const outreachRouter = router({
       const audit = auditResult[0];
 
       // Parse visual debt data
-      const visualDebt = audit.visualDebtData ? JSON.parse(audit.visualDebtData) : {};
-      const topIssues = visualDebt.issues?.slice(0, 3).map((i: any) => i.title) || [];
+      const parsedDebt = audit.visualDebtData ? JSON.parse(audit.visualDebtData) : null;
+      const debtItems = Array.isArray(parsedDebt)
+        ? parsedDebt
+        : Array.isArray((parsedDebt as any)?.visualDebt)
+          ? (parsedDebt as any).visualDebt
+          : [];
+
+      const topIssues = debtItems
+        .slice(0, 3)
+        .map((i: any) => i.issue || i.title)
+        .filter(Boolean);
 
       // Generate email
       const email = await generateEmailInVoice(voiceProfile, {
@@ -178,9 +193,11 @@ export const outreachRouter = router({
         status: "pending_approval",
       });
 
+      const emailId = (queueResult as any)[0]?.insertId ?? (queueResult as any).lastInsertRowid ?? 0;
+
       return {
         success: true,
-        emailId: queueResult[0].insertId,
+        emailId,
         subject: email.subject,
         body: email.body,
       };
@@ -255,7 +272,10 @@ export const outreachRouter = router({
             commonPhrases: JSON.parse(profileRow.commonPhrases),
             industryJargon: JSON.parse(profileRow.industryJargon),
             exampleEmails: JSON.parse(profileRow.exampleEmails),
-          };
+            formality: profileRow.formality as any,
+            directness: profileRow.directness as any,
+            enthusiasm: profileRow.enthusiasm as any,
+          } as any;
 
           // Refine profile based on edits
           const refinedProfile = await refineVoiceProfile(currentProfile, {
@@ -421,9 +441,11 @@ export const outreachRouter = router({
         gmailThreadId: incomingReply.gmailThreadId,
       });
 
+      const emailId = (queueResult as any)[0]?.insertId ?? (queueResult as any).lastInsertRowid ?? 0;
+
       return {
         success: true,
-        emailId: queueResult[0].insertId,
+        emailId,
         subject: draft.subject,
         body: draft.body,
       };

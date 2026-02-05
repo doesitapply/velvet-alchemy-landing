@@ -74,7 +74,7 @@ export function AuditProgressBar({ leadId, onComplete, onError }: AuditProgressB
     // Smooth progress updates could be handled here if we wanted to interpolate
     setProgress(latestJob.progressPercentage || 0);
     setCurrentStage(latestJob.currentStage);
-    setStatus(latestJob.status);
+    setStatus(latestJob.status as any);
     setErrorMessage(latestJob.errorMessage);
 
     // Call callbacks exactly once

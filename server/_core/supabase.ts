@@ -9,4 +9,9 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 // Create a single supabase client for interacting with your database
-export const supabase = createClient(supabaseUrl || "", supabaseKey || "");
+// Valid URL required to prevent crash. Handle placeholders like "<OPTIONAL>"
+const isValidUrl = (url?: string) => url && url.startsWith("http") && !url.includes("OPTIONAL");
+const finalUrl = isValidUrl(supabaseUrl) ? supabaseUrl! : "https://example.com";
+const finalKey = supabaseKey && !supabaseKey.includes("OPTIONAL") ? supabaseKey : "placeholder-key";
+
+export const supabase = createClient(finalUrl, finalKey);

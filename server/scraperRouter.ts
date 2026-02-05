@@ -188,6 +188,8 @@ export const scraperRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { city, state, category, targetKeyword, limit } = input;
+      // Dynamic import to avoid circular defaults if any
+      const { invokeAI } = await import("./aiProvider");
 
       try {
         // Step 1: Search for businesses
@@ -216,17 +218,21 @@ export const scraperRouter = router({
         const createdLeads = [];
         const errors = [];
 
-        for (const place of placesResult.results.slice(0, limit)) {
+        // Scrape a few more than limit to account for filtering
+        for (const place of placesResult.results.slice(0, limit + 10)) {
+          // Stop if we hit the requested limit
+          if (createdLeads.length >= limit) break;
+
           let url: string | undefined;
           let businessName: string;
 
           try {
-            // Fetch place details to get website URL
+            // Fetch place details to get website URL AND Reviews/Rating for context
             const details = await makeRequest<PlaceDetailsResult>(
               "/maps/api/place/details/json",
               {
                 place_id: place.place_id,
-                fields: "name,website,formatted_address"
+                fields: "name,website,formatted_address,rating,user_ratings_total,reviews,types"
               }
             );
 
@@ -240,10 +246,83 @@ export const scraperRouter = router({
               url.includes("yelp.com") ||
               url.includes("yellowpages.com") ||
               url.includes("facebook.com") ||
-              url.includes("google.com/maps")
+              url.includes("google.com/maps") ||
+              url.includes("instagram.com") ||
+              url.includes("linkedin.com")
             ) {
               continue;
             }
+
+            // === SMART FILTERING (The "Brain") ===
+
+            // 1. Basic Heuristics
+            const rating = details.result.rating || 0;
+            const reviewCount = details.result.user_ratings_total || 0;
+
+            // Skip if it looks like a "ghost" listing (no reviews, likely not active/high-ticket)
+            if (reviewCount < 3) {
+              continue;
+            }
+
+            // 2. LLM Qualification ("Would they actually buy this?")
+            // We ask the AI to screen the prospect based on name, category, and perceived size/type.
+            try {
+              const qualification = await invokeAI({
+                messages: [
+                  {
+                    role: "system",
+                    content: `You are a high-ticket sales prospector. Your job is to qualify businesses for a $5,000+ website overhaul.
+                            
+                            Criteria for Qualification (YES):
+                            - Independent local business (Law firm, Med Spa, Contractor, boutique, high-end restaurant).
+                            - Valid business name (not "ATM" or "Kiosk").
+                            - Likely to have revenue (based on industry).
+
+                            Criteria for Disqualification (NO):
+                            - Large National Chains (Starbucks, McDonald's, Home Depot, Walmart).
+                            - Public institutions (Schools, Libraries, Post Office).
+                            - Very low value/hobby businesses (Lemonade stand, obscure hobby shop).
+                            
+                            Return a JSON object.`
+                  },
+                  {
+                    role: "user",
+                    content: `Qualify this business:
+                            Name: ${businessName}
+                            Category: ${category}
+                            Address: ${details.result.formatted_address}
+                            Reviews: ${reviewCount}
+                            
+                            Is this a valid high-ticket prospect?`
+                  }
+                ],
+                responseFormat: "json_schema",
+                schema: {
+                  name: "lead_qualification",
+                  strict: true,
+                  schema: {
+                    type: "object",
+                    properties: {
+                      isQualified: { type: "boolean" },
+                      reason: { type: "string" }
+                    },
+                    required: ["isQualified", "reason"],
+                    additionalProperties: false
+                  }
+                }
+              });
+
+              const result = JSON.parse(qualification.content || "{}");
+              if (!result.isQualified) {
+                console.log(`[Smart Filter] Skipped ${businessName}: ${result.reason}`);
+                continue;
+              }
+            } catch (aiError) {
+              console.warn(`[Smart Filter] AI failed for ${businessName}, proceeding cautiously.`, aiError);
+            }
+
+            // === END SMART FILTERING ===
+
           } catch (error) {
             console.error(`Failed to fetch details for ${place.name}:`, error);
             continue;

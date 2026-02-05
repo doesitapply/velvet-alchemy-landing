@@ -45,7 +45,7 @@ export default function CustomerPortal() {
     }, 500);
 
     try {
-      await createLead.mutateAsync({ companyName, websiteUrl });
+      await createLead.mutateAsync({ companyName, websiteUrl, contactEmail: "unknown@example.com" });
       clearInterval(progressInterval);
       setProgress(100);
       setProgressMessage("Complete!");

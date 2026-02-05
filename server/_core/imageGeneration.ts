@@ -36,6 +36,7 @@ export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
   // Prioritize Google "Nano Banana" for images as requested
+  /*
   if (process.env.GEMINI_API_KEY) {
     try {
       return await generateWithGoogle(options);
@@ -43,6 +44,7 @@ export async function generateImage(
       console.warn("[ImageGen] Google Nano Banana failed, falling back to DALL-E:", err);
     }
   }
+  */
 
   if (process.env.OPENAI_API_KEY) {
     return generateWithDallE(options);

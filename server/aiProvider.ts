@@ -183,7 +183,8 @@ async function getEnabledProviders(): Promise<AIProvider[]> {
     });
   }
 
-  // 2. Google Gemini (Backup)
+  // 2. Google Gemini (Backup) - DISABLED due to expired keys
+  /*
   if (ENV.geminiApiKey) {
     providers.push({
       id: 2,
@@ -195,6 +196,7 @@ async function getEnabledProviders(): Promise<AIProvider[]> {
       costPer1kTokens: 50
     });
   }
+  */
 
   // 3. Manus (Default if built-in)
   // Disable Manus for AI calls if we prefer direct keys

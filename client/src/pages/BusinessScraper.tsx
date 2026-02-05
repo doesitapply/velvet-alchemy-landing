@@ -38,7 +38,7 @@ export default function BusinessScraper() {
       });
       return;
     }
-    
+
     toast.loading("Scraping businesses...", {
       description: "This may take 30-60 seconds",
     });
@@ -58,9 +58,12 @@ export default function BusinessScraper() {
 
       <div className="container py-8 max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-4xl font-serif italic text-gold mb-2">Business Scraper</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-4xl font-serif italic text-gold">Business Scraper</h1>
+            <Badge variant="outline" className="text-gold border-gold/50">AI-POWERED</Badge>
+          </div>
           <p className="text-muted-foreground">
-            Find local businesses with poor rankings and generate leads automatically
+            Intelligently find high-ticket local businesses. Filters out chains and low-quality leads automatically.
           </p>
         </div>
 

@@ -47,6 +47,7 @@ export function AuditRequestDialog({ open, onOpenChange }: AuditRequestDialogPro
     createAudit.mutate({
       companyName,
       websiteUrl,
+      contactEmail: "unknown@example.com",
     });
   };
 
