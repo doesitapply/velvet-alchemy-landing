@@ -104,7 +104,7 @@ export default function LandingHome() {
       <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
         <div className="container mx-auto flex h-20 items-center justify-between px-6">
           <div className="flex items-center gap-3 group cursor-pointer">
-            <div className="h-10 w-10 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-none border border-gold/50 transition-transform group-hover:rotate-45"></div>
+            <div className="h-10 w-10 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover bg-center rounded-none border border-gold/50 transition-transform group-hover:rotate-45"></div>
             <div className="flex flex-col">
               <span className="font-serif text-2xl italic tracking-tighter text-gold leading-none">Velvet Alchemy</span>
               <span className="font-mono text-[10px] tracking-widest text-white/40 leading-none mt-1">REVENUE YIELD LOGIC</span>
@@ -234,7 +234,7 @@ export default function LandingHome() {
                   He doesn't build websites. He rebuilds the machinery of capture. He wanders into rooms, identifies the leaks, and leaves before anyone can argue with the math.
                 </p>
                 <div className="pt-4 flex items-center gap-6">
-                  <div className="h-10 w-10 bg-[url('/images/alchemy-symbol.jpg')] bg-cover opacity-50"></div>
+                  <div className="h-10 w-10 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover opacity-50"></div>
                   <span className="text-[10px] tracking-widest uppercase text-white/30">Local Authority: Northern Nevada</span>
                 </div>
               </div>
@@ -418,7 +418,7 @@ export default function LandingHome() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-10">
             <div className="flex flex-col items-center md:items-start gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover opacity-80 border border-gold/30"></div>
+                <div className="h-8 w-8 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover opacity-80 border border-gold/30"></div>
                 <span className="font-serif text-xl italic text-gold">Velvet Alchemy</span>
               </div>
               <p className="font-mono text-[10px] text-white/20 tracking-widest">BUILT WITH INTENT IN RENO, NV</p>

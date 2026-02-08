@@ -25,6 +25,8 @@ import { costRouter } from "./costRouter";
 import { outreachRouter } from "./outreachRouter";
 import { providerRouter } from "./providerRouter";
 import { testRouter } from "./routers/testRouter";
+import { cronRouter } from "./cronRouter";
+import { conversationsRouter } from "./conversationsRouter";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -45,6 +47,8 @@ export const appRouter = router({
   outreach: outreachRouter,
   provider: providerRouter,
   test: testRouter,
+  cron: cronRouter,
+  conversations: conversationsRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

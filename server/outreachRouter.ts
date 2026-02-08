@@ -183,15 +183,52 @@ export const outreachRouter = router({
         topIssues,
       });
 
-      // Add to email queue with pending_approval status
+      // Check if voice is calibrated (>= 5 approved emails)
+      const isCalibrated = profileRow.calibrationCount >= 5;
+
+      // Add to email queue (auto-send if calibrated, otherwise pending_approval)
       const queueResult = await db.insert(emailQueue).values({
         leadId: input.leadId,
         recipientEmail: "placeholder@example.com", // TODO: Extract from lead or user input
         recipientName: lead.companyName,
         subject: email.subject,
         body: email.body,
-        status: "pending_approval",
+        status: isCalibrated ? "approved" : "pending_approval",
       });
+
+      // If calibrated, send immediately
+      if (isCalibrated) {
+        try {
+          const result = await sendGmailMessage({
+            to: "placeholder@example.com", // TODO: Extract from lead
+            subject: email.subject,
+            body: email.body,
+          });
+
+          await db.update(emailQueue).set({
+            status: "sent",
+            sentAt: new Date(),
+            gmailMessageId: result.messageId,
+            gmailThreadId: result.threadId,
+          }).where(eq(emailQueue.id, queueResult[0].insertId));
+
+          // Increment emails_sent_count
+          await db.update(voiceProfiles).set({
+            emailsSentCount: profileRow.emailsSentCount + 1,
+          }).where(eq(voiceProfiles.userId, ctx.user.id));
+        } catch (error: any) {
+          // If send fails, mark as failed
+          await db.update(emailQueue).set({
+            status: "failed",
+            errorMessage: error.message,
+          }).where(eq(emailQueue.id, queueResult[0].insertId));
+
+          throw new TRPCError({ 
+            code: "INTERNAL_SERVER_ERROR", 
+            message: `Failed to send email: ${error.message}` 
+          });
+        }
+      }
 
       const emailId = (queueResult as any)[0]?.insertId ?? (queueResult as any).lastInsertRowid ?? 0;
 

@@ -380,3 +380,127 @@ export const outreachHistory = sqliteTable("outreach_history", {
   metadata: text("metadata"),
   createdAt: integer("createdAt", { mode: 'timestamp' }).default(sql`(unixepoch())`).notNull(),
 });
+
+
+
+// ============================================
+// Autonomous Sales System Tables
+// ============================================
+
+// --- Email Threads ---
+export const emailThreads = sqliteTable("email_threads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leadId: integer("leadId").notNull(),
+  gmailThreadId: text("gmailThreadId").unique(),
+  status: text("status", { enum: ["active", "closed_won", "closed_lost", "paused"] })
+    .default("active")
+    .notNull(),
+  lastMessageAt: integer("lastMessageAt", { mode: 'timestamp' }),
+  lastSender: text("lastSender", { enum: ["us", "them"] }),
+  createdAt: integer("createdAt", { mode: 'timestamp' })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+});
+
+export type EmailThread = typeof emailThreads.$inferSelect;
+export type InsertEmailThread = typeof emailThreads.$inferInsert;
+
+// --- Individual Messages ---
+export const emailMessages = sqliteTable("email_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  threadId: integer("threadId")
+    .notNull()
+    .references(() => emailThreads.id, { onDelete: 'cascade' }),
+  gmailMessageId: text("gmailMessageId").unique(),
+  sender: text("sender", { enum: ["us", "them"] }).notNull(),
+  subject: text("subject").notNull(),
+  bodyText: text("bodyText").notNull(),
+  bodyHtml: text("bodyHtml"),
+  sentAt: integer("sentAt", { mode: 'timestamp' }).notNull(),
+  createdAt: integer("createdAt", { mode: 'timestamp' })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+});
+
+export type EmailMessage = typeof emailMessages.$inferSelect;
+export type InsertEmailMessage = typeof emailMessages.$inferInsert;
+
+// --- Intent Classification ---
+export const intentClassifications = sqliteTable("intent_classifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  messageId: integer("messageId")
+    .notNull()
+    .unique()
+    .references(() => emailMessages.id, { onDelete: 'cascade' }),
+  intent: text("intent", { enum: ["interested", "objection", "not_now", "spam", "unsubscribe"] }).notNull(),
+  confidence: integer("confidence").notNull(),
+  reasoning: text("reasoning"),
+  createdAt: integer("createdAt", { mode: 'timestamp' })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+});
+
+export type IntentClassification = typeof intentClassifications.$inferSelect;
+export type InsertIntentClassification = typeof intentClassifications.$inferInsert;
+
+// --- AI Auto Responses ---
+export const autoResponses = sqliteTable("auto_responses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  threadId: integer("threadId")
+    .notNull()
+    .references(() => emailThreads.id, { onDelete: 'cascade' }),
+  inReplyToMessageId: integer("inReplyToMessageId")
+    .notNull()
+    .references(() => emailMessages.id),
+  subject: text("subject").notNull(),
+  bodyText: text("bodyText").notNull(),
+  bodyHtml: text("bodyHtml"),
+  status: text("status", { enum: ["pending_approval", "approved", "sent", "rejected"] })
+    .default("pending_approval")
+    .notNull(),
+  autoSendAt: integer("autoSendAt", { mode: 'timestamp' }),
+  sentAt: integer("sentAt", { mode: 'timestamp' }),
+  createdAt: integer("createdAt", { mode: 'timestamp' })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+});
+
+export type AutoResponse = typeof autoResponses.$inferSelect;
+export type InsertAutoResponse = typeof autoResponses.$inferInsert;
+
+// --- Scheduled Follow-ups ---
+export const scheduledFollowUps = sqliteTable("scheduled_follow_ups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  threadId: integer("threadId")
+    .notNull()
+    .references(() => emailThreads.id, { onDelete: 'cascade' }),
+  sequenceId: integer("sequenceId").notNull(),
+  scheduledFor: integer("scheduledFor", { mode: 'timestamp' }).notNull(),
+  status: text("status", { enum: ["pending", "sent", "cancelled"] })
+    .default("pending")
+    .notNull(),
+  sentAt: integer("sentAt", { mode: 'timestamp' }),
+  createdAt: integer("createdAt", { mode: 'timestamp' })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+});
+
+export type ScheduledFollowUp = typeof scheduledFollowUps.$inferSelect;
+export type InsertScheduledFollowUp = typeof scheduledFollowUps.$inferInsert;
+
+// --- Relations ---
+export const emailThreadRelations = relations(emailThreads, ({ many }) => ({
+  messages: many(emailMessages),
+  followUps: many(scheduledFollowUps),
+}));
+
+export const emailMessageRelations = relations(emailMessages, ({ one }) => ({
+  thread: one(emailThreads, {
+    fields: [emailMessages.threadId],
+    references: [emailThreads.id],
+  }),
+  classification: one(intentClassifications, {
+    fields: [emailMessages.id],
+    references: [intentClassifications.messageId],
+  }),
+}));
