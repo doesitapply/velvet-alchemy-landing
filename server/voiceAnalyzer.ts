@@ -1,4 +1,4 @@
-import { invokeAI } from "./aiProvider";
+import { invokeLLM } from "./_core/llm";
 
 /**
  * Voice Analyzer
@@ -120,14 +120,14 @@ Return your analysis as JSON matching this structure:
   "usesQuestions": boolean
 }`;
 
-  const response = await invokeAI({
+  const response = await invokeLLM({
     messages: [
       { role: "system", content: "You are a writing style analyst. Return only valid JSON." },
       { role: "user", content: analysisPrompt },
     ],
-    responseFormat: "json_schema",
-    schema: {
-
+    response_format: {
+      type: "json_schema",
+      json_schema: {
         name: "voice_profile",
         strict: true,
         schema: {
@@ -160,13 +160,15 @@ Return your analysis as JSON matching this structure:
           additionalProperties: false,
         },
       },
+    },
   });
 
-  if (!response.content) {
+  const content = response.choices[0].message.content;
+  if (!content || typeof content !== 'string') {
     throw new Error("No response from LLM");
   }
 
-  const profile = JSON.parse(response.content) as Omit<VoiceProfile, "exampleEmails">;
+  const profile = JSON.parse(content) as Omit<VoiceProfile, "exampleEmails">;
 
   // Select 3-5 most representative emails as examples
   const exampleCount = Math.min(5, emails.length);
@@ -252,14 +254,14 @@ TONE RULES:
 
 Return JSON with "subject" and "body" fields.`;
 
-  const response = await invokeAI({
+  const response = await invokeLLM({
     messages: [
       { role: "system", content: "You are a cold email copywriter. Match the user's voice exactly. Return only valid JSON." },
       { role: "user", content: emailPrompt },
     ],
-    responseFormat: "json_schema",
-    schema: {
-
+    response_format: {
+      type: "json_schema",
+      json_schema: {
         name: "email_draft",
         strict: true,
         schema: {
@@ -272,13 +274,15 @@ Return JSON with "subject" and "body" fields.`;
           additionalProperties: false,
         },
       },
+    },
   });
 
-  if (!response.content) {
+  const content = response.choices[0].message.content;
+  if (!content || typeof content !== 'string') {
     throw new Error("No response from LLM");
   }
 
-  return JSON.parse(response.content);
+  return JSON.parse(content);
 }
 
 /**
@@ -310,14 +314,14 @@ Analyze the differences between the generated email and the user's edits. Update
 
 Return the UPDATED voice profile as JSON with the same structure as the current profile.`;
 
-  const response = await invokeAI({
+  const response = await invokeLLM({
     messages: [
       { role: "system", content: "You are a voice profile optimizer. Return only valid JSON." },
       { role: "user", content: refinementPrompt },
     ],
-    responseFormat: "json_schema",
-    schema: {
-
+    response_format: {
+      type: "json_schema",
+      json_schema: {
         name: "voice_profile",
         strict: true,
         schema: {
@@ -350,13 +354,15 @@ Return the UPDATED voice profile as JSON with the same structure as the current 
           additionalProperties: false,
         },
       },
+    },
   });
 
-  if (!response.content) {
+  const content = response.choices[0].message.content;
+  if (!content || typeof content !== 'string') {
     throw new Error("No response from LLM");
   }
 
-  const updatedProfile = JSON.parse(response.content) as Omit<VoiceProfile, "exampleEmails">;
+  const updatedProfile = JSON.parse(content) as Omit<VoiceProfile, "exampleEmails">;
 
   return {
     ...updatedProfile,

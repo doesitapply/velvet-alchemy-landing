@@ -11,7 +11,7 @@ export default function About() {
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <a href="/" className="flex items-center gap-2">
-              <div className="h-8 w-8 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+              <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
               <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
             </a>
           </div>
@@ -428,7 +428,7 @@ export default function About() {
         <div className="container">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+              <div className="h-6 w-6 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
               <span className="font-serif italic text-gold">Velvet Alchemy</span>
             </div>
             <p>© 2026 Velvet Alchemy. All rights reserved.</p>

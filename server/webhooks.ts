@@ -1,13 +1,15 @@
 import express, { Express, Request, Response } from "express";
 import Stripe from "stripe";
-import { getPaymentBySessionId, updatePaymentBySessionId, updateLead } from "./db";
+import { getDb } from "./db";
+import { leads } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("STRIPE_SECRET_KEY not configured");
   }
   return new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: "2026-01-28.clover",
+    apiVersion: "2025-12-15.clover",
   });
 }
 
@@ -18,7 +20,7 @@ function getStripe() {
  */
 export function registerStripeWebhook(app: Express) {
   app.post(
-    "/api/stripe/webhook",
+    "/api/webhooks/stripe",
     // Use raw body for Stripe signature verification
     express.raw({ type: "application/json" }),
     async (req: Request, res: Response) => {
@@ -76,18 +78,36 @@ export function registerStripeWebhook(app: Express) {
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   console.log("Checkout session completed:", session.id);
 
+  const db = await getDb();
+  if (!db) {
+    console.error("Database connection failed");
+    return;
+  }
+
   try {
     // Update payment status to 'completed'
-    await updatePaymentBySessionId(session.id, {
-      status: "completed",
-      completed_at: new Date(),
-      stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null,
-    });
+    await db.execute(
+      `UPDATE payments 
+       SET status = 'completed', 
+           paid_at = NOW(),
+           stripe_payment_intent_id = '${session.payment_intent}'
+       WHERE stripe_checkout_session_id = '${session.id}'`
+    );
 
-    const payment = await getPaymentBySessionId(session.id);
-    if (payment) {
-      await updateLead(payment.lead_id, { status: "paid" });
-      console.log(`Lead ${payment.lead_id} marked as paid`);
+    // Get lead ID from payment record
+    const [paymentResult] = await db.execute(
+      `SELECT lead_id FROM payments WHERE stripe_checkout_session_id = '${session.id}'`
+    ) as any;
+
+    if (paymentResult && paymentResult.length > 0) {
+      const leadId = paymentResult[0].lead_id;
+
+      // Update lead status to 'paid'
+      await db.execute(
+        `UPDATE leads SET status = 'paid' WHERE id = ${leadId}`
+      );
+
+      console.log(`Lead ${leadId} marked as paid`);
     }
   } catch (error) {
     console.error("Error handling checkout session completed:", error);
@@ -100,9 +120,19 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
   console.log("Checkout session expired:", session.id);
 
+  const db = await getDb();
+  if (!db) {
+    console.error("Database connection failed");
+    return;
+  }
+
   try {
     // Update payment status to 'expired'
-    await updatePaymentBySessionId(session.id, { status: "expired" });
+    await db.execute(
+      `UPDATE payments 
+       SET status = 'expired'
+       WHERE stripe_checkout_session_id = '${session.id}'`
+    );
   } catch (error) {
     console.error("Error handling checkout session expired:", error);
   }

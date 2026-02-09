@@ -2,7 +2,6 @@ import { trackApiCall, SCREENSHOT_COST_CENTS } from "./apiCostTracker";
 
 export interface ScreenshotResult {
   buffer: Buffer;
-  contentType?: string;
   success: boolean;
   error?: string;
 }
@@ -62,15 +61,12 @@ export async function captureScreenshot(
 
           return {
             buffer: Buffer.from(buffer),
-            contentType: contentType || "image/png",
             success: true,
           };
         }
       }
       
       console.log('[Screenshot] Microlink failed with status:', response.status);
-      const responseBody = await response.text();
-      console.log('[Screenshot] Microlink response body:', responseBody);
     } catch (microlinkError: any) {
       console.log('[Screenshot] Microlink error:', microlinkError.message);
     }
@@ -87,8 +83,7 @@ export async function captureScreenshot(
     });
 
     if (!fallbackResponse.ok) {
-      const errorBody = await fallbackResponse.text();
-      throw new Error(`All screenshot services failed. Last status: ${fallbackResponse.status}. Body: ${errorBody}`);
+      throw new Error(`All screenshot services failed. Last status: ${fallbackResponse.status}`);
     }
 
     const buffer = await fallbackResponse.arrayBuffer();
@@ -106,7 +101,6 @@ export async function captureScreenshot(
 
     return {
       buffer: Buffer.from(buffer),
-      contentType: fallbackResponse.headers.get('content-type') || 'image/gif',
       success: true,
     };
   } catch (error: any) {

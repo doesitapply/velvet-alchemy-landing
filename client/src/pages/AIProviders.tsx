@@ -122,7 +122,7 @@ export default function AIProviders() {
       {/* Provider List */}
       <div className="space-y-4">
         <h2 className="text-xl font-serif italic text-gold">Providers</h2>
-        {providers?.filter(p => p.name !== 'manus').map((provider: any) => (
+        {providers?.map((provider) => (
           <Card key={provider.id} className="bg-card/50 border-white/10">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -185,49 +185,51 @@ export default function AIProviders() {
               )}
 
               {/* API Key Management */}
-              <div className="space-y-2">
-                {editingProvider === provider.id ? (
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      placeholder="Enter API key..."
-                      value={apiKeyInput}
-                      onChange={(e) => setApiKeyInput(e.target.value)}
-                      className="font-mono text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        updateProvider.mutate({
-                          id: provider.id,
-                          apiKey: apiKeyInput,
-                        });
-                      }}
-                      disabled={!apiKeyInput || updateProvider.isPending}
-                    >
-                      {updateProvider.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                    </Button>
+              {provider.name !== "manus" && (
+                <div className="space-y-2">
+                  {editingProvider === provider.id ? (
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="Enter API key..."
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        className="font-mono text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          updateProvider.mutate({
+                            id: provider.id,
+                            apiKey: apiKeyInput,
+                          });
+                        }}
+                        disabled={!apiKeyInput || updateProvider.isPending}
+                      >
+                        {updateProvider.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingProvider(null);
+                          setApiKeyInput("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
-                        setEditingProvider(null);
-                        setApiKeyInput("");
-                      }}
+                      onClick={() => setEditingProvider(provider.id)}
                     >
-                      Cancel
+                      {provider.hasApiKey ? "Update API Key" : "Add API Key"}
                     </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setEditingProvider(provider.id)}
-                  >
-                    {provider.hasApiKey ? "Update API Key" : "Add API Key"}
-                  </Button>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -250,6 +252,9 @@ export default function AIProviders() {
           </p>
           <p>
             • <strong>Cost Tracking:</strong> All API usage is logged with token counts and costs for budget monitoring.
+          </p>
+          <p>
+            • <strong>Manus AI:</strong> Built-in provider that requires no API key. Always available as a fallback.
           </p>
         </CardContent>
       </Card>

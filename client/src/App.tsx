@@ -24,10 +24,6 @@ import CostDashboard from "./pages/CostDashboard";
 import OutreachApproval from "./pages/OutreachApproval";
 import VoiceSetup from "./pages/VoiceSetup";
 import AIProviders from "./pages/AIProviders";
-import SalesPacket from "@/pages/SalesPacket";
-import Privacy from "@/pages/Privacy";
-import Terms from "@/pages/Terms";
-import Security from "@/pages/Security";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -37,8 +33,8 @@ function Router() {
       <Route path="/customer-portal" component={CustomerPortal} />
       <Route path="/old-home" component={Home} />
       <Route path="/about" component={About} />
-      <Route path="/governor" component={GovernorDashboard} />
-      <Route path={"/charmer"} component={Charmer} />
+       <Route path="/governor" component={GovernorDashboard} />
+           <Route path={"/charmer"} component={Charmer} />
       <Route path={"/orchestrator"} component={Orchestrator} />
       <Route path="/command-center" component={CommandCenter} />
       <Route path="/dashboard">
@@ -46,11 +42,7 @@ function Router() {
       </Route>
       <Route path="/leads" component={Leads} />
       <Route path="/leads/:id" component={LeadDetail} />
-      <Route path="/leads/:id/packet" component={SalesPacket} />
       <Route path="/help" component={Help} />
-      <Route path="/privacy" component={Privacy} />
-      <Route path="/terms" component={Terms} />
-      <Route path="/security" component={Security} />
       <Route path="/scraper" component={BusinessScraper} />
       <Route path="/export" component={Export} />
       <Route path="/revenue" component={RevenueDashboard} />

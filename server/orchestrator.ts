@@ -7,7 +7,6 @@ import { analyzeVisualDebt } from "./visualAudit";
 import { generateAssetsForLead } from "./visionary";
 import { generateOutreachCopy } from "./charmer";
 import { logAudit } from "./governor";
-import { ENV } from "./_core/env";
 
 /**
  * The Orchestrator
@@ -35,9 +34,9 @@ export async function createPipelineJob(leadId: number): Promise<number> {
     currentStage: null,
     stagesCompleted: JSON.stringify([]),
     retryCount: 0,
-  }).returning({ id: pipelineJobs.id }).get();
+  });
 
-  return result.id;
+  return result[0].insertId;
 }
 
 /**
@@ -91,13 +90,8 @@ async function runScreenshotAndAuditStage(leadId: number, userId: number): Promi
       if (!screenshotResult.success) {
         return { success: false, stage: "screenshot", error: screenshotResult.error || "Screenshot capture failed" };
       }
-      const ext = screenshotResult.contentType?.includes('jpeg') ? 'jpg'
-        : screenshotResult.contentType?.includes('webp') ? 'webp'
-          : screenshotResult.contentType?.includes('gif') ? 'gif'
-            : 'png';
-
-      const fileKey = `leads/${leadId}/screenshot-${Date.now()}.${ext}`;
-      const { url } = await storagePut(fileKey, screenshotResult.buffer, screenshotResult.contentType || "image/png");
+      const fileKey = `leads/${leadId}/screenshot-${Date.now()}.png`;
+      const { url } = await storagePut(fileKey, screenshotResult.buffer, "image/png");
 
       await db.update(leads).set({
         screenshotUrl: url,
@@ -157,67 +151,8 @@ async function runScreenshotAndAuditStage(leadId: number, userId: number): Promi
 }
 
 /**
- * Stage 2: Generative Assets (The Visionary)
- */
-async function runAssetsStage(leadId: number, userId: number): Promise<PipelineResult> {
-  try {
-    const db = await getDb();
-    if (!db) throw new Error("Database not available");
-
-    // Fetch lead and audit
-    const leadResult = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
-    if (leadResult.length === 0) return { success: false, stage: "audit", error: "Lead not found" };
-    const lead = leadResult[0];
-
-    // Check if audit exists (needed for DNA extraction)
-    const auditResult = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
-    const audit = auditResult.length > 0 ? auditResult[0] : null;
-    const visualDebt = audit?.visualDebtData ? JSON.parse(audit.visualDebtData) : null;
-
-    // Check if assets already exist
-    const existingAssets = await db.select().from(assets).where(eq(assets.leadId, leadId));
-    if (existingAssets.length > 0) {
-      console.log(`[Orchestrator] Assets already exist for lead ${leadId}, skipping generation.`);
-      return { success: true, stage: "audit" }; // Use "audit" as stage name to map to "assets" step
-    }
-
-    console.log(`[Orchestrator] Generating assets for lead ${leadId}...`);
-    const result = await generateAssetsForLead(
-      leadId,
-      lead.companyName,
-      lead.websiteUrl,
-      visualDebt
-    );
-
-    if (!result.success) {
-      return { success: false, stage: "audit", error: result.error || "Asset generation failed" };
-    }
-
-    await db.update(leads).set({ hasAssets: true }).where(eq(leads.id, leadId));
-
-    await logAudit({
-      userId,
-      action: "pipeline_stage_complete",
-      resource: "pipeline",
-      resourceId: leadId,
-      details: JSON.stringify({ stage: "assets_generation", count: result.assetCount }),
-      status: "success",
-    });
-
-    return { success: true, stage: "audit" }; // "audit" stage maps to assets in pipeline context
-
-  } catch (error) {
-    console.error("[Orchestrator] Asset generation stage failed:", error);
-    return {
-      success: false,
-      stage: "audit",
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-}
-
-/**
- * Stage 3: Outreach Draft Generation
+ * Stage 2: Outreach Draft Generation
+ * Note: Asset generation has been moved to on-demand (manual trigger via LeadDetail page)
  */
 async function runOutreachDraftStage(leadId: number, userId: number): Promise<PipelineResult> {
   try {
@@ -243,9 +178,8 @@ async function runOutreachDraftStage(leadId: number, userId: number): Promise<Pi
     // Generate outreach copy
     const outreach = await generateOutreachCopy(lead, audit, assetsResult);
 
-    // Update lead to show outreach is ready
-    await db.update(leads).set({ hasOutreach: true }).where(eq(leads.id, leadId));
-
+    // Create campaign and draft (this will be handled by the charmer router in the UI)
+    // For now, we just log that outreach was generated
     await logAudit({
       userId,
       action: "pipeline_stage_complete",
@@ -275,7 +209,7 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
   try {
     await updatePipelineJob(jobId, { status: "running", currentStage: "screenshot", progressPercentage: 0 });
 
-    // Stage 1: Screenshot + Audit (0-50%)
+    // Stage 1: Screenshot + Audit (0-66%)
     const stage1Result = await runScreenshotAndAuditStage(leadId, userId);
     if (!stage1Result.success) {
       await updatePipelineJob(jobId, {
@@ -285,58 +219,29 @@ export async function executePipeline(leadId: number, userId: number): Promise<v
       });
       return;
     }
+    await updatePipelineJob(jobId, {
+      currentStage: "outreach",
+      progressPercentage: 66,
+      stagesCompleted: ["screenshot"],
+    });
 
-    // Stage 2: Assets (50-80%)
-    if (ENV.enableAssets) {
+    // Stage 2: Outreach Draft (66-100%)
+    const stage2Result = await runOutreachDraftStage(leadId, userId);
+    if (!stage2Result.success) {
       await updatePipelineJob(jobId, {
-        currentStage: "assets",
-        progressPercentage: 50,
-        stagesCompleted: ["screenshot"],
-      });
-
-      const stage2Result = await runAssetsStage(leadId, userId);
-      if (!stage2Result.success) {
-        await updatePipelineJob(jobId, {
-          status: "failed",
-          errorMessage: stage2Result.error || "Asset generation stage failed",
-          currentStage: "assets",
-        });
-        return;
-      }
-
-      await updatePipelineJob(jobId, {
+        status: "failed",
+        errorMessage: stage2Result.error || "Outreach draft stage failed",
         currentStage: "outreach",
-        progressPercentage: 80,
-        stagesCompleted: ["screenshot", "assets"],
       });
-    } else {
-      // If assets are disabled, jump straight to outreach.
-      await updatePipelineJob(jobId, {
-        currentStage: "outreach",
-        progressPercentage: 80,
-        stagesCompleted: ["screenshot"],
-      });
+      return;
     }
 
-    // Stage 3: Outreach Draft (80-100%)
-    if (ENV.enableOutreach) {
-      const stage3Result = await runOutreachDraftStage(leadId, userId);
-      if (!stage3Result.success) {
-        await updatePipelineJob(jobId, {
-          status: "failed",
-          errorMessage: stage3Result.error || "Outreach draft stage failed",
-          currentStage: "outreach",
-        });
-        return;
-      }
-    }
-
-    // Pipeline complete
+    // Pipeline complete (assets generation is now on-demand via LeadDetail page)
     await updatePipelineJob(jobId, {
       status: "completed",
       currentStage: null,
       progressPercentage: 100,
-      stagesCompleted: ENV.enableAssets ? ["screenshot", "assets", "outreach"] : ["screenshot", "outreach"],
+      stagesCompleted: ["screenshot", "outreach"],
       completedAt: new Date(),
     });
 

@@ -127,13 +127,6 @@
       "when": 1769660652892,
       "tag": "0017_calm_unicorn",
       "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "5",
-      "when": 1769750216872,
-      "tag": "0018_omniscient_vivisector",
-      "breakpoints": true
     }
   ]
 }

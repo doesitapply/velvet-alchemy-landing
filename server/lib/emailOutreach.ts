@@ -1,4 +1,7 @@
+import { exec } from "child_process";
+import { promisify } from "util";
 
+const execAsync = promisify(exec);
 
 /**
  * Email Template Generator
@@ -17,9 +20,9 @@ export function generateOutreachEmail(lead: {
 } {
   const report = lead.detailedReport;
   const revenueLoss = report.revenue_impact;
-
+  
   const subject = `${lead.companyName} - Your website may be costing you $${(revenueLoss.annual_loss / 1000).toFixed(0)}k/year`;
-
+  
   const body = `Hi ${lead.companyName} team,
 
 I ran a quick analysis on ${lead.websiteUrl} and found some concerning issues that could be costing you significant revenue.
@@ -58,32 +61,55 @@ P.S. I've attached a detailed audit report showing exactly where your website is
   };
 }
 
-import { sendGmailMessage, type GmailAttachment } from "../gmailClient";
-
 /**
- * Send Email via Direct Gmail API
+ * Send Email via Gmail MCP
+ * Uses manus-mcp-cli to send emails through Gmail
  */
 export async function sendEmailViaGmail(params: {
   to: string;
   subject: string;
   body: string;
-  htmlBody?: string;
-  attachments?: GmailAttachment[];
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    console.log(`[EmailOutreach] Sending email to ${params.to}`);
-
-    const result = await sendGmailMessage({
-      to: params.to,
-      subject: params.subject,
-      body: params.body,
-      htmlBody: params.htmlBody,
-      attachments: params.attachments,
+    const input = JSON.stringify({
+      messages: [
+        {
+          to: [params.to], // Gmail MCP requires array format
+          subject: params.subject,
+          content: params.body, // Use 'content' not 'body'
+        },
+      ],
     });
 
+    const command = `manus-mcp-cli tool call gmail_send_messages --server gmail --input '${input.replace(/'/g, "'\\''")}'`;
+    
+    console.log(`[EmailOutreach] Sending email to ${params.to}`);
+    
+    const { stdout, stderr } = await execAsync(command, {
+      timeout: 60000, // 60 second timeout
+    });
+
+    if (stderr && !stderr.includes('Tip:')) {
+      console.error('[EmailOutreach] Gmail MCP stderr:', stderr);
+    }
+
+    // Parse MCP response
+    const response = JSON.parse(stdout);
+    
+    if (response.content && response.content[0]?.text) {
+      const result = JSON.parse(response.content[0].text);
+      
+      if (result.results && result.results[0]?.success) {
+        return {
+          success: true,
+          messageId: result.results[0].message_id,
+        };
+      }
+    }
+
     return {
-      success: true,
-      messageId: result.messageId,
+      success: false,
+      error: 'Failed to send email via Gmail MCP',
     };
   } catch (error) {
     console.error('[EmailOutreach] Error sending email:', error);
@@ -121,7 +147,7 @@ export async function checkDailySendLimit(userId: number): Promise<{
   // For now, return placeholder
   const DAILY_LIMIT = 20;
   const sentToday = 0; // TODO: Query from email_logs table
-
+  
   return {
     canSend: sentToday < DAILY_LIMIT,
     sent: sentToday,

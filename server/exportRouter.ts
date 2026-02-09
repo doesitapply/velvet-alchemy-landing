@@ -18,19 +18,19 @@ export const exportRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database connection failed");
       const conditions = [eq(leads.userId, ctx.user.id)];
-
+      
       if (input.leadIds && input.leadIds.length > 0) {
         conditions.push(inArray(leads.id, input.leadIds));
       }
-
+      
       if (input.status) {
         conditions.push(eq(leads.status, input.status));
       }
-
+      
       if (input.minPrestigeScore !== undefined) {
         conditions.push(gte(leads.prestigeScore, input.minPrestigeScore));
       }
-
+      
       if (input.maxPrestigeScore !== undefined) {
         conditions.push(lte(leads.prestigeScore, input.maxPrestigeScore));
       }
@@ -107,77 +107,5 @@ export const exportRouter = router({
       });
 
       return exportData;
-    }),
-
-  getSalesPacket: protectedProcedure
-    .input(z.object({ leadId: z.number() }))
-    .query(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Database connection failed");
-
-      // 1. Fetch Lead
-      const [lead] = await db
-        .select()
-        .from(leads)
-        .where(and(eq(leads.id, input.leadId), eq(leads.userId, ctx.user.id)))
-        .limit(1);
-
-      if (!lead) throw new Error("Lead not found");
-
-      // 2. Fetch Audit
-      const [audit] = await db
-        .select()
-        .from(audits)
-        .where(eq(audits.leadId, lead.id))
-        .limit(1);
-
-      // 3. Parse Leaks
-      // NOTE: audits.visualDebtData is stored as JSON string. In this codebase it is usually
-      // either an array of VisualDebt items (most common) OR an object that contains
-      // { visualDebt: [...] }.
-      let topLeaks: { issue: string; severity: string }[] = [];
-      if (audit && audit.visualDebtData) {
-        try {
-          const parsed = JSON.parse(audit.visualDebtData as string);
-          const debtItems = Array.isArray(parsed)
-            ? parsed
-            : Array.isArray(parsed?.visualDebt)
-              ? parsed.visualDebt
-              : [];
-
-          topLeaks = debtItems
-            .filter((i: any) => i?.severity === "critical" || i?.severity === "high")
-            .slice(0, 5)
-            .map((i: any) => ({ issue: i.issue, severity: i.severity }));
-        } catch {
-          // ignore
-        }
-      }
-
-      // 4. Construct Offer
-      // Hardcoded "One-Time" offer for now as per 'Fastest Cash' logic
-      const offer = {
-        title: "Velvet Alchemy Remediation",
-        price: "$5,000",
-        type: "One-Time Investment",
-        features: [
-          "Complete Visual Overhaul (Luxury Design)",
-          "Customer Journey Optimization",
-          "Mobile-First Rebuild",
-          "SEO Technical Fixes",
-        ],
-        // SalesPacket page can generate a real Stripe Checkout URL on-demand.
-        stripeLink: "",
-      };
-
-      return {
-        companyName: lead.companyName,
-        websiteUrl: lead.websiteUrl,
-        screenshotUrl: lead.screenshotUrl,
-        prestigeScore: lead.prestigeScore || 0,
-        topLeaks,
-        offer,
-        generatedAt: new Date().toISOString()
-      };
     }),
 });

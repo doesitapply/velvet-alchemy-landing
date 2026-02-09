@@ -66,7 +66,7 @@ export default function Dashboard() {
           <div>
             <Link href="/">
               <a className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <div className="h-8 w-8 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+                <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
                 <span className="font-serif text-xl italic">Velvet Alchemy</span>
               </a>
             </Link>

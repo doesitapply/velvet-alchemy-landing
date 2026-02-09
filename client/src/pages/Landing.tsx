@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Check, TrendingDown, Search, Zap, BarChart3, Mail, Shield, Target, Cpu, ArrowRight, DollarSign, Clock, Users } from "lucide-react";
+import { Check, TrendingDown, Search, Zap, BarChart3, Mail } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -16,52 +16,46 @@ export default function Landing() {
 
   const createLead = trpc.leads.createPublic.useMutation();
 
-  // Legacy page: purchasing flow not implemented here.
-  // LandingHome.tsx is the canonical funnel.
-  const handlePurchase = (_tier: "basic" | "standard" | "premium") => {
-    toast.message("Pricing selected", {
-      description: "Use the Yield Diagnostic form below to get started.",
-    });
-  };
-
   const handleFreeAudit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!companyName || !websiteUrl) {
       toast.error("Please fill in all fields");
       return;
     }
+
     setIsSubmitting(true);
     setProgress(0);
-    setProgressMessage("Initializing local scan...");
+    setProgressMessage("Capturing screenshot...");
 
+    // Simulate progress updates
     const progressInterval = setInterval(() => {
       setProgress(prev => {
         if (prev < 30) {
-          setProgressMessage("Analyzing technographic signals...");
+          setProgressMessage("Capturing screenshot...");
           return prev + 2;
-        } else if (prev < 60) {
-          setProgressMessage("Calculating capital inefficiency...");
-          return prev + 1.5;
         } else if (prev < 90) {
-          setProgressMessage("Drafting revenue yield roadmap...");
+          setProgressMessage("Analyzing design with AI...");
           return prev + 1;
         } else {
+          setProgressMessage("Calculating prestige score...");
           return prev + 0.5;
         }
       });
-    }, 400);
+    }, 500);
 
     try {
-      await createLead.mutateAsync({ companyName, websiteUrl, contactEmail: "unknown@example.com" });
+      await createLead.mutateAsync({ companyName, websiteUrl });
       clearInterval(progressInterval);
       setProgress(100);
-      setProgressMessage("Diagnostic record created.");
-      toast.success("Yield Audit requested. Your clinical report will be delivered within 24 hours.");
+      setProgressMessage("Complete!");
+      toast.success("Audit complete! We'll contact you within 24 hours with your detailed report.");
       setCompanyName("");
       setWebsiteUrl("");
     } catch (error) {
       clearInterval(progressInterval);
-      toast.error("Failed to initialize scan.");
+      toast.error("Failed to submit audit request. Please try again.");
+      console.error("Audit error:", error);
     } finally {
       setTimeout(() => {
         setIsSubmitting(false);
@@ -72,318 +66,321 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-gold/30 selection:text-gold">
-      {/* Navigation */}
-      <header className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
-        <div className="container flex h-20 items-center justify-between">
-          <div className="flex items-center gap-3 group cursor-pointer">
-            <div className="h-10 w-10 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover bg-center rounded-none border border-gold/50 transition-transform group-hover:rotate-45"></div>
-            <div className="flex flex-col">
-              <span className="font-serif text-2xl italic tracking-tighter text-gold leading-none">Velvet Alchemy</span>
-              <span className="font-mono text-[10px] tracking-widest text-white/40 leading-none mt-1">REVENUE YIELD LOGIC</span>
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-black/95">
+      {/* Header */}
+      <header className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/50 backdrop-blur-md">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+            <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
           </div>
-          <nav className="hidden lg:flex items-center gap-10 text-[11px] font-mono tracking-[0.2em] text-white/50">
-            <a href="#logic" className="hover:text-gold transition-colors">THE LOGIC</a>
-            <a href="#offer" className="hover:text-gold transition-colors">WHAT WE OFFER</a>
-            <a href="#pricing" className="hover:text-gold transition-colors">PRICING</a>
-            <a href="#team" className="hover:text-gold transition-colors">THE STRATEGIST</a>
+          <nav className="hidden md:flex items-center gap-8 text-sm font-mono text-muted-foreground">
+            <a href="#how-it-works" className="hover:text-foreground transition-colors">HOW IT WORKS</a>
+            <a href="#features" className="hover:text-foreground transition-colors">FEATURES</a>
+            <a href="/about" className="hover:text-foreground transition-colors">ABOUT</a>
           </nav>
-          <Button variant="outline" className="font-mono text-[10px] border-white/10 hover:border-gold/50 hover:bg-gold/5 hover:text-gold rounded-none px-6 h-10 tracking-[0.1em]">
-            <a href="#free-audit">INITIATE SCAN</a>
+          <Button variant="outline" className="font-mono text-xs border-white/20 hover:bg-white/5 hover:text-gold rounded-none h-9">
+            <a href="#free-audit">GET FREE AUDIT</a>
           </Button>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
-        {/* Obsidian/Gold Luxury Background */}
-        <div className="absolute inset-0 z-0">
-          <img src="/images/hero.png" alt="Luxury Data Flow" className="w-full h-full object-cover opacity-60 scale-105 animate-pulse-slow" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent"></div>
-          <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-background to-transparent"></div>
-        </div>
-
-        <div className="container relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div className="space-y-10">
-            <Badge variant="outline" className="border-gold/30 text-gold font-mono text-[10px] tracking-widest px-4 py-1 animate-in fade-in slide-in-from-left duration-700">
-              RENO_NV JURISDICTIONAL SCAN [ACTIVE]
+      <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-radial from-gold/5 via-transparent to-transparent opacity-30"></div>
+        
+        <div className="container relative z-10 py-20">
+          <div className="max-w-4xl mx-auto text-center space-y-8">
+            {/* Badge */}
+            <Badge variant="outline" className="border-gold/30 text-gold px-4 py-1">
+              AI-Powered Website Analysis
             </Badge>
 
-            <h1 className="text-6xl md:text-8xl font-serif italic leading-[0.9] text-white animate-in fade-in slide-in-from-bottom duration-1000">
-              Is Your Website <br />
-              <span className="text-gold">Burning Capital?</span>
+            {/* Headline */}
+            <h1 className="text-5xl md:text-7xl font-serif italic leading-tight">
+              Is Your Website{" "}
+              <span className="text-gold">Costing You</span>{" "}
+              Customers?
             </h1>
 
-            <p className="text-lg md:text-xl text-white/60 font-mono tracking-tight max-w-xl border-l-[1px] border-gold/40 pl-6 animate-in fade-in slide-in-from-left duration-1000 delay-300">
-              High-ticket businesses in Nevada lose an average of $35k/year to "silent" technical leaks. We identify the variance. We build the unblocked state.
+            {/* Subheadline */}
+            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
+              Small businesses lose <span className="text-red-400 font-semibold">$10,000+ per year</span> to bad websites and poor Google rankings. Find out what's killing yours.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-bottom duration-1000 delay-500">
-              <Button className="bg-gold text-black rounded-none h-14 px-10 font-mono font-bold hover:scale-105 transition-transform">
-                <a href="#free-audit">REQUEST YIELD AUDIT</a>
-              </Button>
-              <Button variant="outline" className="border-white/20 rounded-none h-14 px-10 font-mono text-white/70 hover:bg-white/5">
-                <a href="#logic">VIEW THE METHODOLOGY</a>
-              </Button>
-            </div>
-          </div>
-
-          <div className="hidden lg:block relative animate-in zoom-in duration-1000 delay-200">
-            <div className="glass-panel p-2 rounded-none border-white/5 shadow-[0_0_50px_rgba(247,231,206,0.1)]">
-              <img src="/images/dashboard.png" alt="Revenue Diagnostic Mockup" className="w-full h-auto border border-white/10" />
-            </div>
-            {/* Floating stats */}
-            <div className="absolute -top-10 -right-10 glass-panel p-6 text-center animate-bounce-subtle">
-              <div className="text-gold font-serif text-3xl italic">18-24%</div>
-              <div className="font-mono text-[10px] text-white/40 tracking-widest">AVG YIELD EXPANSION</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Logic / Methodology Section */}
-      <section id="logic" className="py-32 relative border-y border-white/5 bg-black/20">
-        <div className="container max-w-5xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
-            <div className="space-y-4">
-              <div className="h-1px w-12 bg-gold/50"></div>
-              <h3 className="text-2xl italic text-gold">Technographic Audit</h3>
-              <p className="text-sm font-mono text-white/50 leading-relaxed">
-                We crawl your infrastructure to find missing Meta pixels, broken GA4 schemas, and trust-signal decay that signals "neglect" to high-prestige clients.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <div className="h-1px w-12 bg-gold/50"></div>
-              <h3 className="text-2xl italic text-gold">Visual Debt Analysis</h3>
-              <p className="text-sm font-mono text-white/50 leading-relaxed">
-                Using custom GPT-4o Vision models, we audit your "aesthetic prestige." If your site looks like an 2012 template, you are losing high-ticket trust in seconds.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <div className="h-1px w-12 bg-gold/50"></div>
-              <h3 className="text-2xl italic text-gold">Revenue Guide Protocol</h3>
-              <p className="text-sm font-mono text-white/50 leading-relaxed">
-                We don't sell "design." We sell the **Unblocked State**. We show you exactly how to stop the bleeding and recapture lost attribution.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Bio Section */}
-      <section id="team" className="py-32 bg-background">
-        <div className="container">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div className="relative aspect-[4/5] overflow-hidden grayscale hover:grayscale-0 transition-all duration-700">
-              <img src="/images/cameron_alchemy.png" alt="Cameron C." className="w-full h-full object-cover" />
-              <div className="absolute inset-0 border-[20px] border-background/20"></div>
-              <div className="absolute bottom-10 left-10 p-6 glass-panel border-gold/20">
-                <div className="font-serif italic text-3xl text-gold">Cameron C.</div>
-                <div className="font-mono text-[10px] tracking-[0.3em] text-white/60">SENIOR YIELD STRATEGIST</div>
-              </div>
-            </div>
-            <div className="space-y-8">
-              <Badge variant="outline" className="border-gold/30 text-gold font-mono text-[10px] tracking-widest px-4 py-1">
-                THE ARCHITECT
-              </Badge>
-              <h2 className="text-5xl font-serif italic text-white leading-tight">
-                "Technical debt is just <br />
-                <span className="text-gold">unpaid revenue."</span>
-              </h2>
-              <div className="space-y-6 text-white/60 font-mono text-sm leading-relaxed border-l border-gold/20 pl-8">
-                <p>
-                  Cameron is a Reno-based systems insurgent who built Velvet Alchemy to bridge the gap between "marketing hype" and "mathematical yield."
-                </p>
-                <p>
-                  After years of seeing high-prestige firms in Nevada lose millions to "silent failures"—missing pixels, broken analytics, and aesthetic neglect—he codified the **Revenue Sentry** methodology.
-                </p>
-                <p>
-                  He doesn't build websites. He rebuilds the machinery of capture. He wanders into rooms, identifies the leaks, and leaves before anyone can argue with the math.
-                </p>
-                <div className="pt-4 flex items-center gap-6">
-                  <div className="h-10 w-10 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover opacity-50"></div>
-                  <span className="text-[10px] tracking-widest uppercase text-white/30">Local Authority: Northern Nevada</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-32 border-t border-white/5 bg-black/40">
-        <div className="container">
-          <div className="text-center space-y-4 mb-20">
-            <h2 className="text-5xl font-serif italic text-gold">Yield Restoration Tiers</h2>
-            <p className="font-mono text-white/40 text-[10px] tracking-[0.4em]">INVEST IN THE MACHINE, NOT THE VENDOR</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Sentry Tier (Retainer) */}
-            <Card className="glass-panel border-white/10 rounded-none relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
-                <Shield className="h-20 w-20 text-gold" />
-              </div>
-              <CardHeader className="p-10">
-                <CardTitle className="font-serif text-3xl italic text-white">REVENUE SENTRY</CardTitle>
-                <CardDescription className="font-mono text-[10px] tracking-widest text-gold/60 mt-2">INSURANCE POLICY</CardDescription>
-                <div className="mt-8 flex items-baseline gap-1">
-                  <span className="text-4xl font-serif italic text-white">$299</span>
-                  <span className="text-sm font-mono text-white/40">/mo</span>
-                </div>
-              </CardHeader>
-              <CardContent className="px-10 pb-10 space-y-6">
-                <ul className="space-y-3 font-mono text-[11px] text-white/60">
-                  <li className="flex items-center gap-2 font-bold text-white"><Check className="h-3 w-3 text-gold" /> 24/7 INFRASTRUCTURE SCAN</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> SILENT FAILURE MONITORING</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> WEEKLY YIELD REPORTS</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> RENO LOCAL SEO CHECK</li>
-                </ul>
-                <Button onClick={() => handlePurchase('basic')} className="w-full bg-white/5 hover:bg-gold hover:text-black border border-white/10 rounded-none font-mono text-xs">COMMENCE SENTRY</Button>
-              </CardContent>
-            </Card>
-
-            {/* Architect Tier (One-Time) */}
-            <Card className="glass-panel border-gold/30 rounded-none relative overflow-hidden group bg-gold/5 shadow-[0_0_80px_rgba(247,231,206,0.05)] scale-105 z-10">
-              <Badge className="absolute top-4 right-4 bg-gold text-black font-mono text-[9px] rounded-none">CAPITAL IMPROVEMENT</Badge>
-              <CardHeader className="p-10">
-                <CardTitle className="font-serif text-3xl italic text-white">YIELD ARCHITECT</CardTitle>
-                <CardDescription className="font-mono text-[10px] tracking-widest text-gold/60 mt-2">THE SURGERY</CardDescription>
-                <div className="mt-8 flex items-baseline gap-1">
-                  <span className="text-4xl font-serif italic text-white">$3,500</span>
-                  <span className="text-sm font-mono text-gold font-bold ml-2">ONE-TIME</span>
-                </div>
-              </CardHeader>
-              <CardContent className="px-10 pb-10 space-y-6">
-                <ul className="space-y-3 font-mono text-[11px] text-white/60">
-                  <li className="flex items-center gap-2 font-bold text-white"><Target className="h-3 w-3 text-gold" /> FULL VISUAL DEBT REMOVAL</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> HIGH-CONVERSION LANDING PAGE</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> COPYWRITING & ASSET GENESIS</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> GA4 & TRACKING SETUP</li>
-                  <li className="flex items-center gap-2 text-white/80 italic"><Check className="h-3 w-3 text-gold" /> NO MONTHLY RENT</li>
-                </ul>
-                <Button onClick={() => handlePurchase('standard')} className="w-full bg-gold text-black hover:bg-gold/80 rounded-none font-mono text-xs font-bold">REBUILD THE MACHINE</Button>
-              </CardContent>
-            </Card>
-
-            {/* Alchemist Tier (Partner) */}
-            <Card className="glass-panel border-white/10 rounded-none relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
-                <Cpu className="h-20 w-20 text-gold" />
-              </div>
-              <CardHeader className="p-10">
-                <CardTitle className="font-serif text-3xl italic text-white">REVENUE ALCHEMIST</CardTitle>
-                <CardDescription className="font-mono text-[10px] tracking-widest text-gold/60 mt-2">FRACTIONAL PARTNER</CardDescription>
-                <div className="mt-8 flex items-baseline gap-1">
-                  <span className="text-4xl font-serif italic text-white">$5,500</span>
-                  <span className="text-sm font-mono text-white/40">/mo</span>
-                </div>
-              </CardHeader>
-              <CardContent className="px-10 pb-10 space-y-6">
-                <ul className="space-y-3 font-mono text-[11px] text-white/60">
-                  <li className="flex items-center gap-2 font-bold text-white"><Cpu className="h-3 w-3 text-gold" /> EVERYTHING IN SENTRY</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> UNLIMITED ITERATIONS</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> ACTIVE AD MGT & CREATIVE</li>
-                  <li className="flex items-center gap-2"><Check className="h-3 w-3 text-gold" /> WEEKLY STRATEGY SYNC</li>
-                </ul>
-                <Button onClick={() => handlePurchase('premium')} className="w-full bg-white/5 hover:bg-gold hover:text-black border border-white/10 rounded-none font-mono text-xs">ESTABLISH DOMINANCE</Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Free Audit Form */}
-      <section id="free-audit" className="py-40 relative">
-        <div className="container max-w-2xl text-center space-y-12">
-          <div className="space-y-4">
-            <h2 className="text-5xl md:text-6xl font-serif italic text-white leading-tight">
-              Request Your <br />
-              <span className="text-gold">Yield Diagnostic.</span>
-            </h2>
-            <p className="font-mono text-white/40 text-sm tracking-tight"> NO CREDIT CARD. NO PITCH. JUST THE DATA WE LOGGED.</p>
-          </div>
-
-          <Card className="glass-panel border-white/10 rounded-none p-8">
-            <CardContent className="p-0 space-y-6">
-              <form onSubmit={handleFreeAudit} className="space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-2 text-left">
-                    <label className="font-mono text-[10px] tracking-widest text-white/40 ml-1">ENTITY NAME</label>
+            {/* CTA Form */}
+            <Card className="max-w-2xl mx-auto bg-black/50 border-white/10">
+              <CardContent className="p-6">
+                <form onSubmit={handleFreeAudit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
-                      placeholder="e.g. Maier Gutierrez"
+                      placeholder="Your Business Name"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      className="bg-white/5 border-white/10 rounded-none h-12 focus:border-gold/50 font-mono"
+                      className="bg-white/5 border-white/10"
                     />
-                  </div>
-                  <div className="space-y-2 text-left">
-                    <label className="font-mono text-[10px] tracking-widest text-white/40 ml-1">INFRASTRUCTURE URL</label>
                     <Input
-                      placeholder="https://example.com"
+                      placeholder="Your Website URL"
                       value={websiteUrl}
                       onChange={(e) => setWebsiteUrl(e.target.value)}
-                      className="bg-white/5 border-white/10 rounded-none h-12 focus:border-gold/50 font-mono"
+                      className="bg-white/5 border-white/10"
                     />
                   </div>
-                </div>
-
-                {isSubmitting && (
-                  <div className="space-y-2">
-                    <div className="w-full bg-white/5 border border-white/10 h-1 overflow-hidden">
-                      <div
-                        className="h-full bg-gold transition-all duration-300 ease-out"
-                        style={{ width: `${progress}%` }}
-                      />
+                  {isSubmitting && (
+                    <div className="space-y-2">
+                      <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="h-full bg-gold transition-all duration-500 ease-out"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <p className="text-sm text-center text-muted-foreground">
+                        {progressMessage} ({Math.round(progress)}%)
+                      </p>
                     </div>
-                    <p className="text-[10px] font-mono tracking-widest text-gold text-right">
-                      {progressMessage.toUpperCase()}
-                    </p>
-                  </div>
-                )}
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-gold hover:bg-gold/90 text-black font-semibold h-12 text-lg"
+                  >
+                    {isSubmitting ? progressMessage || "Analyzing..." : "Get Your Free Audit"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    No credit card required • Results in 24 hours • 100% confidential
+                  </p>
+                </form>
+              </CardContent>
+            </Card>
 
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-gold hover:bg-gold/90 text-black font-mono font-bold h-14 text-sm"
-                >
-                  {isSubmitting ? "PROCESSING SCAN..." : "INITIATE DIAGNOSTIC"}
-                </Button>
-              </form>
-              <p className="text-[10px] font-mono text-white/30 tracking-widest uppercase">
-                Diagnostic reports are delivered securely within 24 hours.
+            {/* Social Proof */}
+            <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-green-400" />
+                <span>200+ Businesses Audited</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-green-400" />
+                <span>Avg. 40% Ranking Improvement</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Problem Section */}
+      <section className="py-20 border-t border-white/10">
+        <div className="container">
+          <div className="max-w-4xl mx-auto space-y-12">
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-serif italic text-gold">The Hidden Cost of a Bad Website</h2>
+              <p className="text-xl text-muted-foreground">
+                Your competitors are stealing your customers—and you don't even know it.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Problem 1 */}
+              <Card className="bg-red-500/10 border-red-500/20">
+                <CardContent className="p-6 space-y-4">
+                  <TrendingDown className="h-10 w-10 text-red-400" />
+                  <h3 className="text-xl font-semibold">Lost Rankings</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Slow load times, missing mobile optimization, and poor UX push you to page 2-10 of Google. <span className="text-red-400 font-semibold">75% of users never scroll past page 1.</span>
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Problem 2 */}
+              <Card className="bg-red-500/10 border-red-500/20">
+                <CardContent className="p-6 space-y-4">
+                  <Search className="h-10 w-10 text-red-400" />
+                  <h3 className="text-xl font-semibold">Invisible to Locals</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No Google Business Profile integration, inconsistent NAP (Name, Address, Phone), and zero local keywords mean <span className="text-red-400 font-semibold">customers can't find you</span> when they search "near me."
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Problem 3 */}
+              <Card className="bg-red-500/10 border-red-500/20">
+                <CardContent className="p-6 space-y-4">
+                  <Zap className="h-10 w-10 text-red-400" />
+                  <h3 className="text-xl font-semibold">Bouncing Visitors</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Confusing navigation, hidden contact info, and unprofessional design make visitors leave in seconds. <span className="text-red-400 font-semibold">Every bounce is lost revenue.</span>
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how-it-works" className="py-20 border-t border-white/10">
+        <div className="container">
+          <div className="max-w-4xl mx-auto space-y-12">
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-serif italic text-gold">How It Works</h2>
+              <p className="text-xl text-muted-foreground">
+                AI-powered analysis in 3 simple steps
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Step 1 */}
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-gold">1</span>
+                </div>
+                <h3 className="text-xl font-semibold">Submit Your Website</h3>
+                <p className="text-sm text-muted-foreground">
+                  Enter your business name and website URL. Takes 30 seconds.
+                </p>
+              </div>
+
+              {/* Step 2 */}
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-gold">2</span>
+                </div>
+                <h3 className="text-xl font-semibold">AI Analyzes Everything</h3>
+                <p className="text-sm text-muted-foreground">
+                  Our AI captures your site, checks mobile optimization, load speed, SEO, and design quality.
+                </p>
+              </div>
+
+              {/* Step 3 */}
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-gold">3</span>
+                </div>
+                <h3 className="text-xl font-semibold">Get Actionable Report</h3>
+                <p className="text-sm text-muted-foreground">
+                  Receive a detailed audit with specific fixes to improve rankings and conversions.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" className="py-20 border-t border-white/10">
+        <div className="container">
+          <div className="max-w-4xl mx-auto space-y-12">
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-serif italic text-gold">What You Get</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Feature 1 */}
+              <Card className="bg-black/50 border-white/10">
+                <CardContent className="p-6 space-y-4">
+                  <BarChart3 className="h-8 w-8 text-gold" />
+                  <h3 className="text-lg font-semibold">Prestige Score (0-100)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Instant quality rating based on design, UX, mobile-friendliness, and trust signals.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Feature 2 */}
+              <Card className="bg-black/50 border-white/10">
+                <CardContent className="p-6 space-y-4">
+                  <Search className="h-8 w-8 text-gold" />
+                  <h3 className="text-lg font-semibold">Local SEO Analysis</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Check Google Business Profile integration, NAP consistency, and local keyword usage.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Feature 3 */}
+              <Card className="bg-black/50 border-white/10">
+                <CardContent className="p-6 space-y-4">
+                  <Zap className="h-8 w-8 text-gold" />
+                  <h3 className="text-lg font-semibold">Performance Audit</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Identify slow load times, unoptimized images, and technical issues killing conversions.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Feature 4 */}
+              <Card className="bg-black/50 border-white/10">
+                <CardContent className="p-6 space-y-4">
+                  <Mail className="h-8 w-8 text-gold" />
+                  <h3 className="text-lg font-semibold">Actionable Recommendations</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Get specific, prioritized fixes you can implement immediately to improve rankings.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section id="free-audit" className="py-20 border-t border-white/10">
+        <div className="container">
+          <div className="max-w-2xl mx-auto text-center space-y-8">
+            <h2 className="text-4xl md:text-5xl font-serif italic">
+              Ready to Stop Losing{" "}
+              <span className="text-gold">Customers?</span>
+            </h2>
+            <p className="text-xl text-muted-foreground">
+              Get your free website audit in 24 hours. No credit card required.
+            </p>
+
+            <Card className="bg-black/50 border-white/10">
+              <CardContent className="p-6">
+                <form onSubmit={handleFreeAudit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      placeholder="Your Business Name"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                    <Input
+                      placeholder="Your Website URL"
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-gold hover:bg-gold/90 text-black font-semibold h-12 text-lg"
+                  >
+                    {isSubmitting ? "Analyzing..." : "Get Your Free Audit"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-16 bg-black">
+      <footer className="border-t border-white/10 py-8">
         <div className="container">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-10">
-            <div className="flex flex-col items-center md:items-start gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/gyGbyIhzvPIKVJwA.jpg')] bg-cover opacity-80 border border-gold/30"></div>
-                <span className="font-serif text-xl italic text-gold">Velvet Alchemy</span>
-              </div>
-              <p className="font-mono text-[10px] text-white/20 tracking-widest">BUILT WITH INTENT IN RENO, NV</p>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+              <span className="font-serif italic text-gold">Velvet Alchemy</span>
             </div>
-
-            <div className="flex flex-wrap justify-center gap-10 font-mono text-[10px] tracking-widest text-white/40">
-              <a href="#" className="hover:text-gold transition-colors">PRIVACY_PROTOCOL</a>
-              <a href="#" className="hover:text-gold transition-colors">TERMS_OF_YIELD</a>
-              <a href="#" className="hover:text-gold transition-colors">SECURITY_STATUS</a>
+            <p>© 2026 Velvet Alchemy. All rights reserved.</p>
+            <div className="flex items-center gap-6">
+              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
+              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
+              <a href="#" className="hover:text-foreground transition-colors">Contact</a>
             </div>
-
-            <div className="flex items-center gap-4">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-              <span className="font-mono text-[10px] tracking-widest text-white/40">SYSTEM STATUS: OPTIMAL</span>
-            </div>
-          </div>
-          <div className="mt-16 text-center border-t border-white/5 pt-8">
-            <p className="font-mono text-[9px] text-white/10 tracking-[1em]">MATHEMATICAL CERTAINTY IN REVENUE EXPANSION</p>
           </div>
         </div>
       </footer>

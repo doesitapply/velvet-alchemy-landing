@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign, FileOutput } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
@@ -29,11 +29,9 @@ export default function LeadDetail() {
     { enabled: !!leadId && !!user }
   );
 
-  const ENABLE_ASSETS = import.meta.env.VITE_ENABLE_ASSETS === "true";
-
   const { data: assets, isLoading: assetsLoading, refetch: refetchAssets } = trpc.visionary.getAssets.useQuery(
     { leadId: leadId! },
-    { enabled: ENABLE_ASSETS && !!leadId && !!user }
+    { enabled: !!leadId && !!user }
   );
 
   const generateAssets = trpc.visionary.generateAssets.useMutation({
@@ -139,17 +137,17 @@ export default function LeadDetail() {
 
   // Email generation query (returns email content for manual sending via Gmail MCP)
   const [emailData, setEmailData] = useState<any>(null);
-
+  
   const handleGenerateEmail = async () => {
     try {
       const utils = trpc.useUtils();
       const result = await utils.email.generateOutreach.fetch({ leadId: leadId! });
       setEmailData(result);
-
+      
       // Copy email to clipboard for easy pasting
       const emailText = `To: ${result.to}\nSubject: ${result.subject}\n\n${result.body}`;
       await navigator.clipboard.writeText(emailText);
-
+      
       toast.success("Email content copied to clipboard! Use Gmail to send.");
     } catch (error: any) {
       toast.error(`Failed to generate email: ${error.message}`);
@@ -240,11 +238,12 @@ export default function LeadDetail() {
               <div className="flex items-center gap-4 text-sm text-muted-foreground font-mono">
                 <span>Created: {new Date(lead.createdAt).toLocaleDateString()}</span>
                 <span>•</span>
-                <span className={`px-2 py-1 rounded-sm ${lead.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
+                <span className={`px-2 py-1 rounded-sm ${
+                  lead.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
                   lead.status === 'audited' ? 'bg-green-500/10 text-green-500' :
-                    lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-500' :
-                      'bg-gray-500/10 text-gray-500'
-                  }`}>
+                  lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-500' :
+                  'bg-gray-500/10 text-gray-500'
+                }`}>
                   {lead.status.toUpperCase()}
                 </span>
               </div>
@@ -284,8 +283,8 @@ export default function LeadDetail() {
 
           {/* Progress Bar */}
           {lead.status === 'pending' && (
-            <AuditProgressBar
-              leadId={lead.id}
+            <AuditProgressBar 
+              leadId={lead.id} 
               onComplete={() => {
                 toast.success("Audit completed!");
                 refetch(); // Refetch lead data instead of reloading page
@@ -301,8 +300,8 @@ export default function LeadDetail() {
             <Card className="p-4">
               <h2 className="text-xl font-serif italic mb-4">Visual Capture</h2>
               <div className="border border-border rounded-sm overflow-hidden">
-                <img
-                  src={lead.screenshotUrl}
+                <img 
+                  src={lead.screenshotUrl} 
                   alt={`Screenshot of ${lead.companyName}`}
                   className="w-full h-auto"
                 />
@@ -319,7 +318,7 @@ export default function LeadDetail() {
                   <h3 className="text-sm font-mono text-muted-foreground mb-2">SUMMARY</h3>
                   <p className="text-sm">{audit.summary || "No summary available"}</p>
                 </div>
-
+                
                 {audit.prestigeScore !== null && (
                   <div>
                     <h3 className="text-sm font-mono text-muted-foreground mb-2">PRESTIGE SCORE</h3>
@@ -327,20 +326,21 @@ export default function LeadDetail() {
                       <div className="text-5xl font-serif italic">{audit.prestigeScore}</div>
                       <div className="flex-1">
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className={`h-full transition-all ${audit.prestigeScore >= 80 ? 'bg-green-500' :
+                          <div 
+                            className={`h-full transition-all ${
+                              audit.prestigeScore >= 80 ? 'bg-green-500' :
                               audit.prestigeScore >= 60 ? 'bg-yellow-500' :
-                                audit.prestigeScore >= 40 ? 'bg-orange-500' :
-                                  'bg-red-500'
-                              }`}
+                              audit.prestigeScore >= 40 ? 'bg-orange-500' :
+                              'bg-red-500'
+                            }`}
                             style={{ width: `${audit.prestigeScore}%` }}
                           />
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                           {audit.prestigeScore >= 80 ? 'Exceptional' :
-                            audit.prestigeScore >= 60 ? 'Good' :
-                              audit.prestigeScore >= 40 ? 'Needs Improvement' :
-                                'Critical Issues'}
+                           audit.prestigeScore >= 60 ? 'Good' :
+                           audit.prestigeScore >= 40 ? 'Needs Improvement' :
+                           'Critical Issues'}
                         </p>
                       </div>
                     </div>
@@ -398,11 +398,12 @@ export default function LeadDetail() {
                               {auditData.visualDebt.map((item: any, i: number) => (
                                 <div key={i} className="border border-border rounded-sm p-4 space-y-2">
                                   <div className="flex items-center gap-2">
-                                    <span className={`text-xs px-2 py-1 rounded-sm font-mono ${item.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
+                                    <span className={`text-xs px-2 py-1 rounded-sm font-mono ${
+                                      item.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
                                       item.severity === 'high' ? 'bg-orange-500/10 text-orange-500' :
-                                        item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
-                                          'bg-blue-500/10 text-blue-500'
-                                      }`}>
+                                      item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
+                                      'bg-blue-500/10 text-blue-500'
+                                    }`}>
                                       {item.severity.toUpperCase()}
                                     </span>
                                     <span className="text-xs px-2 py-1 rounded-sm font-mono bg-muted">
@@ -436,162 +437,160 @@ export default function LeadDetail() {
           )}
 
           {/* Assets Section */}
-          {ENABLE_ASSETS && (
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-serif italic">Generated Assets</h2>
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => generateAssets.mutate({ leadId: leadId! })}
-                    disabled={generateAssets.isPending || assetsLoading}
-                    variant="default"
-                  >
-                    {generateAssets.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Generate Assets
-                      </>
-                    )}
-                  </Button>
-                  {lead.status === 'audited' && lead.detailedReport && (
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-serif italic">Generated Assets</h2>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => generateAssets.mutate({ leadId: leadId! })}
+                  disabled={generateAssets.isPending || assetsLoading}
+                  variant="default"
+                >
+                  {generateAssets.isPending ? (
                     <>
-                      <Button
-                        onClick={() => generateWebsite.mutate({ leadId: leadId! })}
-                        disabled={generateWebsite.isPending}
-                        variant="default"
-                        className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500"
-                      >
-                        {generateWebsite.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Generating Website...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Generate Website
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        onClick={() => downloadWebsite.mutate({ leadId: leadId! })}
-                        disabled={downloadWebsite.isPending}
-                        variant="outline"
-                        className="border-green-500 text-green-500 hover:bg-green-500/10"
-                      >
-                        {downloadWebsite.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Preparing...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Download ZIP
-                          </>
-                        )}
-                      </Button>
-                      <Select
-                        value={selectedPackage}
-                        onValueChange={(value: 'basic' | 'standard' | 'premium') => setSelectedPackage(value)}
-                      >
-                        <SelectTrigger className="w-[280px] border-2 border-gold/30 bg-background/50">
-                          <SelectValue placeholder="Select package" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="basic">
-                            <div className="flex flex-col">
-                              <span className="font-bold">💎 Basic - $3,000</span>
-                              <span className="text-xs text-muted-foreground">Single-page website</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="standard">
-                            <div className="flex flex-col">
-                              <span className="font-bold">🏆 Standard - $5,000</span>
-                              <span className="text-xs text-muted-foreground">Multi-page website</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="premium">
-                            <div className="flex flex-col">
-                              <span className="font-bold">👑 Premium - $8,000</span>
-                              <span className="text-xs text-muted-foreground">Full website + extras</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        onClick={() => createInvoice.mutate({
-                          leadId: leadId!,
-                          packageType: selectedPackage
-                        })}
-                        disabled={createInvoice.isPending}
-                        variant="default"
-                        className="bg-gradient-to-r from-gold to-yellow-600 hover:from-gold/90 hover:to-yellow-500 text-black font-bold"
-                      >
-                        {createInvoice.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          <>
-                            <DollarSign className="mr-2 h-4 w-4" />
-                            Send Invoice
-                          </>
-                        )}
-                      </Button>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Assets
                     </>
                   )}
-                </div>
+                </Button>
+                {lead.status === 'audited' && lead.detailedReport && (
+                  <>
+                    <Button
+                      onClick={() => generateWebsite.mutate({ leadId: leadId! })}
+                      disabled={generateWebsite.isPending}
+                      variant="default"
+                      className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500"
+                    >
+                      {generateWebsite.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating Website...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generate Website
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => downloadWebsite.mutate({ leadId: leadId! })}
+                      disabled={downloadWebsite.isPending}
+                      variant="outline"
+                      className="border-green-500 text-green-500 hover:bg-green-500/10"
+                    >
+                      {downloadWebsite.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Preparing...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Download ZIP
+                        </>
+                      )}
+                    </Button>
+                    <Select
+                      value={selectedPackage}
+                      onValueChange={(value: 'basic' | 'standard' | 'premium') => setSelectedPackage(value)}
+                    >
+                      <SelectTrigger className="w-[280px] border-2 border-gold/30 bg-background/50">
+                        <SelectValue placeholder="Select package" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="basic">
+                          <div className="flex flex-col">
+                            <span className="font-bold">💎 Basic - $3,000</span>
+                            <span className="text-xs text-muted-foreground">Single-page website</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="standard">
+                          <div className="flex flex-col">
+                            <span className="font-bold">🏆 Standard - $5,000</span>
+                            <span className="text-xs text-muted-foreground">Multi-page website</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="premium">
+                          <div className="flex flex-col">
+                            <span className="font-bold">👑 Premium - $8,000</span>
+                            <span className="text-xs text-muted-foreground">Full website + extras</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={() => createInvoice.mutate({ 
+                        leadId: leadId!,
+                        packageType: selectedPackage
+                      })}
+                      disabled={createInvoice.isPending}
+                      variant="default"
+                      className="bg-gradient-to-r from-gold to-yellow-600 hover:from-gold/90 hover:to-yellow-500 text-black font-bold"
+                    >
+                      {createInvoice.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <DollarSign className="mr-2 h-4 w-4" />
+                          Send Invoice
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
               </div>
+            </div>
 
-              {assetsLoading ? (
-                <div className="flex items-center justify-center p-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : assets && assets.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {assets.map((asset: any) => (
-                    <div key={asset.id} className="border border-border rounded-sm p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-mono uppercase text-muted-foreground">
-                          {(asset.type || '').replace(/_/g, " ")}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(asset.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <img
-                        src={asset.url}
-                        alt={asset.type}
-                        className="w-full rounded-sm border border-border"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => window.open(asset.url, "_blank")}
-                      >
-                        View Full Size
-                      </Button>
+            {assetsLoading ? (
+              <div className="flex items-center justify-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : assets && assets.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {assets.map((asset: any) => (
+                  <div key={asset.id} className="border border-border rounded-sm p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-mono uppercase text-muted-foreground">
+                        {asset.type.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(asset.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 space-y-4">
-                  <Sparkles className="h-12 w-12 mx-auto text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    No assets generated yet. Click "Generate Assets" to create high-fidelity visual assets for this lead.
-                  </p>
-                </div>
-              )}
-            </Card>
-          )}
+                    <img
+                      src={asset.url}
+                      alt={asset.type}
+                      className="w-full rounded-sm border border-border"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => window.open(asset.url, "_blank")}
+                    >
+                      View Full Size
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 space-y-4">
+                <Sparkles className="h-12 w-12 mx-auto text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  No assets generated yet. Click "Generate Assets" to create high-fidelity visual assets for this lead.
+                </p>
+              </div>
+            )}
+          </Card>
 
           {/* Outreach Section */}
           <Card className="p-6">
@@ -608,21 +607,29 @@ export default function LeadDetail() {
                   </Button>
                 )}
                 <Button
-                  onClick={() => window.open(`/leads/${leadId}/packet`, '_blank')}
-                  variant="outline"
-                  className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
-                >
-                  <FileOutput className="mr-2 h-4 w-4" />
-                  Print Sales Packet ($5k)
-                </Button>
-                <Button
                   onClick={() => setEmailDialogOpen(true)}
                   variant="outline"
                 >
                   <Mail className="mr-2 h-4 w-4" />
                   Custom Email
                 </Button>
-                {/* Old 'Generate Draft' button removed in favor of AI Outreach */}
+                <Button
+                  onClick={() => generateDraft.mutate({ leadId: leadId! })}
+                  disabled={generateDraft.isPending}
+                  variant="outline"
+                >
+                  {generateDraft.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating Draft...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Generate Draft (Old)
+                    </>
+                  )}
+                </Button>
                 <Button
                   onClick={() => {
                     generateOutreach.mutate({ leadId: leadId! });

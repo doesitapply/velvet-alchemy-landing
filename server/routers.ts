@@ -24,12 +24,9 @@ import { onboardingRouter } from "./onboardingRouter";
 import { costRouter } from "./costRouter";
 import { outreachRouter } from "./outreachRouter";
 import { providerRouter } from "./providerRouter";
-import { testRouter } from "./routers/testRouter";
-import { cronRouter } from "./cronRouter";
-import { conversationsRouter } from "./conversationsRouter";
 
 export const appRouter = router({
-  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   governor: governorRouter,
   charmer: charmerRouter,
@@ -46,9 +43,6 @@ export const appRouter = router({
   cost: costRouter,
   outreach: outreachRouter,
   provider: providerRouter,
-  test: testRouter,
-  cron: cronRouter,
-  conversations: conversationsRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -77,121 +71,58 @@ export const appRouter = router({
       .input(z.object({
         companyName: z.string().min(1),
         websiteUrl: z.string().url(),
-        contactEmail: z.string().email(),
-        // Honeypot field (should be empty). If present, likely a bot.
-        hp: z.string().optional(),
       }))
-      .mutation(async ({ ctx, input }) => {
-        // Simple bot filter
-        if (input.hp && input.hp.trim().length > 0) {
-          // Pretend success to avoid training bots
-          return {
-            lead: null,
-            audit: null,
-            paymentLinkUrl: process.env.STRIPE_PAYMENT_LINK_URL ?? null,
-          } as const;
-        }
+      .mutation(async ({ input }) => {
+        // For public form submissions, use a default system user ID
+        const SYSTEM_USER_ID = 1; // Owner's user ID from env
 
-        // For public form submissions, use a default system user ID.
-        // (We keep leads.userId NOT NULL for now to avoid schema migrations.)
-        const SYSTEM_USER_ID = 1;
-
-        // Basic rate limit (per IP) using existing rateLimit mechanism.
-        // If IP is unavailable, fall back to user-based limiter.
-        try {
-          const ip = (ctx.req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() || ctx.req.socket.remoteAddress || "unknown";
-          const action = `public_lead_submit:${ip}`;
-          await checkRateLimit(SYSTEM_USER_ID, action);
-        } catch {
-          // Don't hard-fail public submissions on rate-limit errors during MVP.
-        }
-
-        // Capture screenshot (best-effort; do not block lead creation)
-        let screenshotUrl = "";
-        let fileKey = "";
-
+        // Capture screenshot
         const screenshot = await captureScreenshot(input.websiteUrl);
-
-        if (screenshot.success) {
-          try {
-            fileKey = `leads/public/${nanoid()}.png`;
-            const uploadResult = await storagePut(fileKey, screenshot.buffer, "image/png");
-            screenshotUrl = uploadResult.url;
-          } catch (e) {
-            console.warn(`[Lead Public] Screenshot upload failed; using placeholder.`, e);
-            screenshotUrl = "https://placehold.co/600x400/1a1a1a/gold?text=Visual+Capture+Unavailable";
-            fileKey = "leads/placeholder.png";
-          }
-        } else {
-          console.warn(`[Lead Public] Screenshot failed: ${screenshot.error}. Using placeholder.`);
-          screenshotUrl = "https://placehold.co/600x400/1a1a1a/gold?text=Visual+Capture+Unavailable";
-          fileKey = "leads/placeholder.png";
+        
+        if (!screenshot.success) {
+          throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }
 
+        // Upload to S3
+        const fileKey = `leads/public/${nanoid()}.png`;
+        const uploadResult = await storagePut(fileKey, screenshot.buffer, 'image/png');
+
+        // Create lead record
         const lead = await createLead({
           userId: SYSTEM_USER_ID,
           companyName: input.companyName,
           websiteUrl: input.websiteUrl,
-          contactEmail: input.contactEmail,
-          screenshotUrl,
+          screenshotUrl: uploadResult.url,
           screenshotKey: fileKey,
-          status: "new",
+          status: 'pending',
         });
 
-        if (!lead) throw new Error("Failed to create lead record");
-
-        // Persist to Supabase (Vercel-safe) if configured.
-        // This makes "capture-first" real in production.
-        try {
-          const { getSupabaseAdmin } = await import("./lib/supabaseAdmin");
-          const supabase = getSupabaseAdmin();
-          if (supabase) {
-            await supabase.from("public_leads").insert({
-              company_name: input.companyName,
-              website_url: input.websiteUrl,
-              contact_email: input.contactEmail,
-              status: "new",
-              screenshot_url: screenshotUrl || null,
-              prestige_score: null,
-              meta: {
-                local_lead_id: lead.id,
-                user_agent: ctx.req.headers["user-agent"] ?? null,
-                ip:
-                  (ctx.req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
-                  ctx.req.socket.remoteAddress ||
-                  null,
-              },
-            });
-          }
-        } catch (e) {
-          // Never block revenue capture on Supabase issues during MVP.
-          console.warn("[Lead Public] Supabase insert failed (non-fatal)", e);
+        if (!lead) {
+          throw new Error('Failed to create lead record');
         }
 
-        // MVP: do NOT block submission on LLM audit.
-        // If keys are present we can run it; otherwise skip and keep the lead in 'new'.
-        let audit: Awaited<ReturnType<typeof createAudit>> | null = null;
-        const hasLLM = Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
-        if (hasLLM) {
-          try {
-            const auditResult = await analyzeVisualDebt(screenshotUrl, input.websiteUrl, input.companyName);
-            audit = await createAudit({
-              leadId: lead.id,
-              summary: auditResult.summary,
-              prestigeScore: auditResult.prestigeScore,
-              visualDebtData: JSON.stringify(auditResult),
-            });
-            await updateLead(lead.id, { prestigeScore: auditResult.prestigeScore, status: "audited" });
-          } catch (e) {
-            console.warn(`[Lead Public] Visual audit failed; leaving lead as 'new'.`, e);
-          }
-        }
+        // Run visual audit using LLM
+        const auditResult = await analyzeVisualDebt(
+          uploadResult.url,
+          input.websiteUrl,
+          input.companyName
+        );
 
-        return {
-          lead,
-          audit,
-          paymentLinkUrl: process.env.STRIPE_PAYMENT_LINK_URL ?? null,
-        } as const;
+        // Create audit record with LLM results
+        const audit = await createAudit({
+          leadId: lead.id,
+          summary: auditResult.summary,
+          prestigeScore: auditResult.prestigeScore,
+          visualDebtData: JSON.stringify(auditResult),
+        });
+
+        // Update lead with prestige score
+        const updatedLead = await updateLead(lead.id, {
+          prestigeScore: auditResult.prestigeScore,
+          status: 'audited',
+        });
+
+        return { lead: updatedLead || lead, audit };
       }),
 
     create: protectedProcedure
@@ -221,7 +152,7 @@ export const appRouter = router({
 
         // Capture screenshot
         const screenshot = await captureScreenshot(input.websiteUrl);
-
+        
         if (!screenshot.success) {
           throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }
@@ -298,9 +229,9 @@ export const appRouter = router({
         if (!lead) {
           throw new Error('Lead not found');
         }
-
+        
         const audit = await getAuditByLeadId(lead.id);
-
+        
         return { lead, audit };
       }),
 
@@ -314,7 +245,7 @@ export const appRouter = router({
 
         // Capture screenshot
         const screenshot = await captureScreenshot(lead.websiteUrl);
-
+        
         if (!screenshot.success) {
           throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }

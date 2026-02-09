@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { appRouter } from "./routers";
-import { createLead } from "./db";
+import { getDb } from "./db";
+import { leads } from "../drizzle/schema";
 
 /**
  * Payment Router Tests
@@ -22,15 +23,20 @@ describe("Payment Router", () => {
 
   beforeAll(async () => {
     // Create a test lead for payment tests
-    const lead = await createLead({
-      userId: mockUser.id,
-      companyName: "Test Payment Company",
-      websiteUrl: "https://testpayment.com",
-      status: "audited",
-    });
+    const db = await getDb();
+    if (!db) throw new Error("Database connection failed");
 
-    if (!lead) throw new Error("Failed to create test lead");
-    testLeadId = lead.id;
+    const [result] = await db.execute(
+      `INSERT INTO leads (companyName, websiteUrl, status, userId) 
+       VALUES ('Test Payment Company', 'https://testpayment.com', 'audited', ${mockUser.id})`
+    ) as any;
+
+    // Get the inserted lead ID
+    const [leadResult] = await db.execute(
+      `SELECT id FROM leads WHERE companyName = 'Test Payment Company' ORDER BY id DESC LIMIT 1`
+    ) as any;
+
+    testLeadId = leadResult[0].id;
   });
 
   it("should create a Stripe checkout session for standard package", async () => {

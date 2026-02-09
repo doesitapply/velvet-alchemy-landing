@@ -105,7 +105,7 @@ export const charmerRouter = router({
           name: `${lead.companyName} - Outreach`,
           status: "draft",
         })
-        .returning({ id: campaigns.id });
+        .$returningId();
 
       // Create draft
       const [draft] = await db
@@ -118,7 +118,7 @@ export const charmerRouter = router({
           recipientName: copy.recipientName,
           status: "pending_approval",
         })
-        .returning({ id: outreachDrafts.id });
+        .$returningId();
 
       // Log audit event
       await logAudit({

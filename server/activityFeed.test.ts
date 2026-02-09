@@ -1,13 +1,31 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { getAllLeads, getAllPayments } from "./db";
+import { getDb } from "./db";
+import { sql } from "drizzle-orm";
 
 describe("Activity Feed", () => {
+  let db: Awaited<ReturnType<typeof getDb>>;
+
+  beforeAll(async () => {
+    db = await getDb();
+    if (!db) throw new Error("Database connection failed");
+  });
+
   it("should fetch unified activity feed with leads and payments", async () => {
     // Get recent leads
-    const recentLeads = (await getAllLeads()).slice(0, 20);
+    const recentLeads = await db!.execute(
+      sql`SELECT id, companyName, status, createdAt, updatedAt, prestigeScore 
+          FROM leads 
+          ORDER BY createdAt DESC 
+          LIMIT 20`
+    );
 
     // Get recent payments
-    const recentPayments = (await getAllPayments()).slice(0, 20);
+    const recentPayments = await db!.execute(
+      sql`SELECT id, lead_id, amount, status, package_type, created_at 
+          FROM payments 
+          ORDER BY created_at DESC 
+          LIMIT 20`
+    );
 
     expect(recentLeads).toBeDefined();
     expect(recentPayments).toBeDefined();
@@ -16,11 +34,20 @@ describe("Activity Feed", () => {
   });
 
   it("should combine leads and payments into unified activity stream", async () => {
-    const recentLeads = (await getAllLeads()).slice(0, 5);
+    const recentLeads = await db!.execute(
+      sql`SELECT id, companyName, status, createdAt, updatedAt, prestigeScore 
+          FROM leads 
+          ORDER BY createdAt DESC 
+          LIMIT 5`
+    );
 
-    const recentPayments = (await getAllPayments())
-      .filter((p) => p.status === "completed")
-      .slice(0, 5);
+    const recentPayments = await db!.execute(
+      sql`SELECT id, lead_id, amount, status, package_type, created_at 
+          FROM payments 
+          WHERE status = 'completed'
+          ORDER BY created_at DESC 
+          LIMIT 5`
+    );
 
     const activities: Array<{
       id: string;
@@ -71,8 +98,19 @@ describe("Activity Feed", () => {
   });
 
   it("should limit activity feed to 15 items", async () => {
-    const recentLeads = (await getAllLeads()).slice(0, 20);
-    const recentPayments = (await getAllPayments()).slice(0, 20);
+    const recentLeads = await db!.execute(
+      sql`SELECT id, companyName, status, createdAt, updatedAt, prestigeScore 
+          FROM leads 
+          ORDER BY createdAt DESC 
+          LIMIT 20`
+    );
+
+    const recentPayments = await db!.execute(
+      sql`SELECT id, lead_id, amount, status, package_type, created_at 
+          FROM payments 
+          ORDER BY created_at DESC 
+          LIMIT 20`
+    );
 
     const totalActivities = recentLeads.length + recentPayments.filter((p: any) => p.status === 'completed').length;
     const expectedCount = Math.min(totalActivities, 15);

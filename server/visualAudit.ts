@@ -1,4 +1,4 @@
-import { invokeAI } from "./aiProvider";
+import { invokeLLM } from "./_core/llm";
 
 export interface VisualDebtItem {
   category: "design" | "ux" | "branding" | "content" | "technical";
@@ -30,40 +30,7 @@ export async function analyzeVisualDebt(
   companyName: string
 ): Promise<VisualAuditResult> {
   try {
-    if (!screenshotUrl) {
-      throw new Error("Missing screenshot");
-    }
-
-    // Accept either a public http(s) URL or an inline data URL (used by scripts/tests)
-    const isHttpUrl = /^https?:\/\//.test(screenshotUrl);
-    const isDataUrl = /^data:image\/(png|jpe?g|webp);base64,/.test(screenshotUrl);
-
-    if (!isHttpUrl && !isDataUrl) {
-      throw new Error("Invalid screenshot URL (expected http(s) or data:image/*;base64)");
-    }
-
-    // Fix for local development: OpenAI cannot download files from localhost.
-    // Fetch the file locally and convert to base64.
-    if (screenshotUrl.includes('localhost') || screenshotUrl.includes('127.0.0.1')) {
-      try {
-        console.log(`[Visual Audit] Localhost URL detected. Fetching ${screenshotUrl} to convert to Base64...`);
-        const imageRes = await fetch(screenshotUrl);
-        if (imageRes.ok) {
-          const buffer = await imageRes.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString('base64');
-          const mimeType = imageRes.headers.get('content-type') || 'image/png';
-          screenshotUrl = `data:${mimeType};base64,${base64}`;
-          console.log(`[Visual Audit] Successfully converted local image to Base64 (${base64.length} chars)`);
-        } else {
-          console.warn(`[Visual Audit] Failed to fetch local image: ${imageRes.statusText}`);
-        }
-      } catch (err) {
-        console.warn(`[Visual Audit] Error converting local image to Base64:`, err);
-        // Continue and let AI fail if it must
-      }
-    }
-
-    const response = await invokeAI({
+    const response = await invokeLLM({
       messages: [
         {
           role: "system",
@@ -110,61 +77,66 @@ Be honest and specific. Focus on issues that directly impact local search rankin
           ],
         },
       ],
-      responseFormat: "json_schema",
-      schema: {
-        name: "visual_audit",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            visualDebt: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  category: {
-                    type: "string",
-                    enum: ["design", "ux", "branding", "content", "technical"],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "visual_audit",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              visualDebt: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    category: {
+                      type: "string",
+                      enum: ["design", "ux", "branding", "content", "technical"],
+                    },
+                    severity: {
+                      type: "string",
+                      enum: ["critical", "high", "medium", "low"],
+                    },
+                    issue: { type: "string" },
+                    recommendation: { type: "string" },
                   },
-                  severity: {
-                    type: "string",
-                    enum: ["critical", "high", "medium", "low"],
-                  },
-                  issue: { type: "string" },
-                  recommendation: { type: "string" },
+                  required: ["category", "severity", "issue", "recommendation"],
+                  additionalProperties: false,
                 },
-                required: ["category", "severity", "issue", "recommendation"],
-                additionalProperties: false,
+              },
+              prestigeScore: { type: "integer", minimum: 0, maximum: 100 },
+              summary: { type: "string" },
+              strengths: {
+                type: "array",
+                items: { type: "string" },
+              },
+              weaknesses: {
+                type: "array",
+                items: { type: "string" },
               },
             },
-            prestigeScore: { type: "integer", minimum: 0, maximum: 100 },
-            summary: { type: "string" },
-            strengths: {
-              type: "array",
-              items: { type: "string" },
-            },
-            weaknesses: {
-              type: "array",
-              items: { type: "string" },
-            },
+            required: ["visualDebt", "prestigeScore", "summary", "strengths", "weaknesses"],
+            additionalProperties: false,
           },
-          required: ["visualDebt", "prestigeScore", "summary", "strengths", "weaknesses"],
-          additionalProperties: false,
         },
       },
     });
 
-    if (!response.content) {
+    const message = response.choices[0]?.message;
+    if (!message || !message.content) {
       throw new Error("No response from LLM");
     }
 
-    const content = response.content;
+    const content = typeof message.content === 'string' 
+      ? message.content 
+      : JSON.stringify(message.content);
 
     const result: VisualAuditResult = JSON.parse(content);
     return result;
   } catch (error: any) {
     console.error("[Visual Audit] Failed to analyze screenshot:", error);
-
+    
     // Return fallback result on error
     return {
       visualDebt: [
