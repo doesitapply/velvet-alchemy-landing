@@ -1,9 +1,0 @@
-{
-  "query": "INSERT INTO `ai_providers` (name, displayName, isEnabled, priority, costPer1kTokens) VALUES\n('manus', 'Manus AI', true, 0, 200),\n('openai', 'OpenAI', false, 1, 500),\n('anthropic', 'Anthropic', false, 2, 300),\n('google', 'Google AI', false, 3, 125)\nON DUPLICATE KEY UPDATE displayName=VALUES(displayName);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute INSERT INTO `ai_providers` (name, displayName, isEnabled, priority, costPer1kTokens) VALUES\n('manus', 'Manus AI', true, 0, 200),\n('openai', 'OpenAI', false, 1, 500),\n('anthropic', 'Anthropic', false, 2, 300),\n('google', 'Google AI', false, 3, 125)\nON DUPLICATE KEY UPDATE displayName=VALUES(displayName);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1531
-}

@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
 Technographic Hunter - Supabase Integration
-Scrapes domains and pushes data to Supabase
+Scrapes domains and pushes data to Supabase (Async Edition)
 """
 
 import os
 import sys
+import asyncio
 from datetime import datetime
 from hunter import TechnographicHunter
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(".env.local")
 
 # Check for supabase library
 try:
@@ -19,15 +24,18 @@ except ImportError:
 
 class ScraperPipeline:
     def __init__(self):
-        # Get Supabase credentials from environment
+        # Get Supabase credentials
         supabase_url = os.environ.get("SUPABASE_URL")
         supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
         
-        if not supabase_url or not supabase_key:
-            print("❌ Error: Missing Supabase credentials")
-            print("Set environment variables:")
-            print("  export SUPABASE_URL='your-project-url'")
-            print("  export SUPABASE_SERVICE_ROLE_KEY='your-service-role-key'")
+        print(f"Attempting to connect to Supabase at: {supabase_url}")
+        
+        try:
+            self.supabase: Client = create_client(supabase_url, supabase_key)
+            self.hunter = TechnographicHunter(headless=True)
+            print("✅ Successfully initialized Supabase client & Async Hunter")
+        except Exception as e:
+            print(f"❌ Error initializing pipeline: {e}")
             sys.exit(1)
         
         self.supabase: Client = create_client(supabase_url, supabase_key)
@@ -35,19 +43,18 @@ class ScraperPipeline:
         
         print("✅ Connected to Supabase")
     
-    def scan_and_store(self, domain: str) -> bool:
+    async def process_domain(self, domain: str) -> bool:
         """
-        Scan a domain and store results in Supabase
-        Returns True if successful, False otherwise
+        Scan a single domain and store results (Async)
         """
         print(f"[Scanning] {domain}...")
         
         try:
-            # Run the hunter
-            data = self.hunter.analyze_target(domain)
+            # Run the hunter (await the async call)
+            data = await self.hunter.analyze_target_async(domain)
             
             if data["status"] != "active":
-                print(f"  ⚠️  Skipped: {data['status']}")
+                print(f"  ⚠️  Skipped {domain}: {data['status']} ({data.get('error_detail', '')})")
                 return False
             
             # Prepare payload for Supabase
@@ -61,13 +68,15 @@ class ScraperPipeline:
                 "last_scanned_at": datetime.utcnow().isoformat()
             }
             
-            # Upsert to Supabase (insert if new, update if exists)
+            # Upsert to Supabase
+            # Note: supbase-py is synchronous HTTP client, so we run it in a thread if blocking is an issue
+            # For 5-10 concurrent tasks, likely fine to run directly or wrap in to_thread
             response = self.supabase.table("technographic_leads").upsert(
                 payload,
                 on_conflict="url"
             ).execute()
             
-            # Log what we found
+            # Log success
             signals = [k for k, v in data["signals"].items() if v]
             pain_points = [k for k, v in data["pain_points"].items() if v]
             
@@ -75,36 +84,33 @@ class ScraperPipeline:
             if signals:
                 print(f"     Signals: {', '.join(signals)}")
             if pain_points:
-                print(f"     Pain Points: {', '.join(pain_points)}")
+                print(f"     Pain: {', '.join(pain_points)}")
             
             return True
             
         except Exception as e:
-            print(f"  ❌ Error: {e}")
+            print(f"  ❌ Error processing {domain}: {e}")
             return False
-    
-    def scan_batch(self, domains: list) -> dict:
+
+    async def scan_batch_async(self, domains: list) -> dict:
         """
-        Scan multiple domains and return stats
+        Scan multiple domains concurrently
         """
         stats = {
             "total": len(domains),
             "success": 0,
-            "failed": 0,
-            "shopify_found": 0,
-            "high_value": 0  # Shopify + missing analytics
+            "failed": 0
         }
         
         print(f"\n=== Starting batch scan of {len(domains)} domains ===\n")
         
-        for domain in domains:
-            if self.scan_and_store(domain):
-                stats["success"] += 1
-                
-                # Check if this was a high-value lead
-                # (We'd need to query back, but for now just count successes)
-            else:
-                stats["failed"] += 1
+        # Create tasks
+        tasks = [self.process_domain(d) for d in domains]
+        results = await asyncio.gather(*tasks)
+        
+        # Tally results
+        stats["success"] = sum(1 for r in results if r)
+        stats["failed"] = stats["total"] - stats["success"]
         
         print(f"\n=== Scan Complete ===")
         print(f"Total: {stats['total']}")
@@ -114,52 +120,26 @@ class ScraperPipeline:
         return stats
 
 
-def main():
+async def main_async():
     """
-    Main entry point for the scraper pipeline
+    Main entry point
     """
-    # Validation Mix - 25 domains
+    # Validation Mix
     test_domains = [
-        # --- Known Shopify (Should be TRUE) ---
+        # --- Known Shopify ---
         "gymshark.com",
         "allbirds.com",
-        "kyliecosmetics.com",
-        "colourpop.com",
-        "fashionnova.com",
-        "redbullshop.com",
         
-        # --- The Control Group (Should be FALSE for Shopify) ---
-        "wikipedia.org",
-        "stripe.com",       # Should be TRUE for Stripe, FALSE for Shopify
-        "example.com",
-        "craigslist.org",
-        
-        # --- Local Reno Candidates (The "Wild West") ---
-        "flowingtidepub.com",           # Your test case
-        "renorunningcompany.com",       # Likely local retail
-        "silverandblueoutfitters.com",  # UNR Gear (High probability of e-commerce)
+        # --- Local Reno ---
+        "flowingtidepub.com",
+        "renorunningcompany.com",
+        "silverandblueoutfitters.com",
         "greatbasincoop.com",
-        "renocyclery.com",
-        "pantryproducts.com",           # Local skincare
-        "sierranevada.com",             # Big local brewery
-        "peppermillreno.com",           # Casino (Likely custom tech)
-        "washoecounty.gov",             # Gov (Should be FALSE/Neglected)
-        "naturalpawsreno.com",
-        "renosparkscheer.com",
-        "moananeedlery.com",
-        "buyinreno.com",
-        "visithartley.com"
+        "renocyclery.com"
     ]
     
     pipeline = ScraperPipeline()
-    stats = pipeline.scan_batch(test_domains)
-    
-    print(f"\n✅ Pipeline complete. {stats['success']} domains stored in Supabase.")
-    print("\nNext steps:")
-    print("1. Check your Supabase dashboard to verify data")
-    print("2. Run with your full domain list (50+ domains)")
-    print("3. Build the API endpoint to serve this data")
-
+    await pipeline.scan_batch_async(test_domains)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main_async())

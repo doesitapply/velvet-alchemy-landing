@@ -1,8 +1,0 @@
-{
-  "query": "ALTER TABLE leads \nADD COLUMN IF NOT EXISTS detailed_report JSON DEFAULT '{\"visual_audit\": {\"score\": 0, \"critique\": \"\"}, \"technical_audit\": {\"load_speed\": \"\", \"mobile_friendly\": null}, \"conversion_leaks\": [], \"competitor_analysis\": {\"competitor_url\": \"\", \"gap_found\": \"\"}, \"suggested_fix\": \"\"}';\n\nALTER TABLE leads \nADD COLUMN IF NOT EXISTS last_deep_scan_at TIMESTAMP;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute ALTER TABLE leads \nADD COLUMN IF NOT EXISTS detailed_report JSON DEFAULT '{\"visual_audit\": {\"score\": 0, \"critique\": \"\"}, \"technical_audit\": {\"load_speed\": \"\", \"mobile_friendly\": null}, \"conversion_leaks\": [], \"competitor_analysis\": {\"competitor_url\": \"\", \"gap_found\": \"\"}, \"suggested_fix\": \"\"}';\n\nALTER TABLE leads \nADD COLUMN IF NOT EXISTS last_deep_scan_at TIMESTAMP;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1101 (42000) at line 1: BLOB/TEXT/JSON column 'detailed_report' can't have a default value"
-  ]
-}

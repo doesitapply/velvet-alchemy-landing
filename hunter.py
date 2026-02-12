@@ -1,26 +1,46 @@
 #!/usr/bin/env python3
 """
-Technographic Hunter - Core Detection Script
-Detects tech stack signals + pain points (negative signals) for selling opportunities
+Technographic Hunter - Core Detection Script (Playwright Edition)
+Detects tech stack signals + pain points (negative signals) for selling opportunities.
+Now with 100% more async headless browser magic.
 """
 
-import requests
-from bs4 import BeautifulSoup
 import re
-import socket
-from urllib.parse import urlparse
+import asyncio
+from typing import TypedDict, Optional
+from playwright.async_api import async_playwright, Page, Browser
+
+class Signals(TypedDict):
+    shopify: bool
+    klaviyo: bool
+    stripe: bool
+    meta_pixel: bool
+    ga4: bool
+    gtm: bool
+
+class PainPoints(TypedDict):
+    ssl_error: bool
+    missing_analytics: bool
+    neglected_site: bool
+    mobile_issue: bool # New: Detect if site is mobile friendly (basic check)
+
+class ScanResult(TypedDict):
+    url: str
+    status: str
+    signals: Signals
+    pain_points: PainPoints
+    error_detail: str
+    screenshot_path: Optional[str]
 
 class TechnographicHunter:
-    def __init__(self):
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-        }
-
-    def analyze_target(self, url):
+    def __init__(self, headless: bool = True):
+        self.headless = headless
+        
+    async def analyze_target_async(self, url: str) -> ScanResult:
         if not url.startswith('http'):
             url = f'https://{url}'
-        
-        result = {
+            
+        result: ScanResult = {
             "url": url,
             "status": "active",
             "signals": {
@@ -34,109 +54,125 @@ class TechnographicHunter:
             "pain_points": {
                 "ssl_error": False,
                 "missing_analytics": False,
-                "neglected_site": False  # Checks for old copyright dates
-            }
+                "neglected_site": False,
+                "mobile_issue": False
+            },
+            "error_detail": "",
+            "screenshot_path": None
         }
 
-        try:
-            # 1. SSL/Connection Check
+        async with async_playwright() as p:
+            # Launch browser with stealth-ish configs
+            browser = await p.chromium.launch(headless=self.headless)
+            context = await browser.new_context(
+                viewport={'width': 1280, 'height': 800},
+                user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+            )
+            
+            page = await context.new_page()
+            
             try:
-                response = requests.get(url, headers=self.headers, timeout=5)
-            except requests.exceptions.SSLError:
-                result["pain_points"]["ssl_error"] = True
-                # Try again without verify to get the HTML content anyway
-                response = requests.get(url, headers=self.headers, verify=False, timeout=5)
+                # 1. Navigation & SSL Check
+                try:
+                    response = await page.goto(url, timeout=15000, wait_until="domcontentloaded")
+                    if not response:
+                        raise Exception("No response received")
+                except Exception as e:
+                    if "SSL" in str(e) or "CERT" in str(e):
+                        result["pain_points"]["ssl_error"] = True
+                        # Try to bypass SSL error for scraping
+                        context_insecure = await browser.new_context(ignore_https_errors=True)
+                        page = await context_insecure.new_page()
+                        await page.goto(url, timeout=15000, wait_until="domcontentloaded")
+                    else:
+                        raise e
+
+                # 2. Wait a bit for dynamic content (pixels/chats)
+                await page.wait_for_timeout(2000)
+                
+                # 3. Get Content
+                content = await page.content()
+                content_lower = content.lower()
+                
+                # 4. Signal Hunting (Regex + DOM checks)
+                
+                # Check Global Objects (More reliable than regex for some libs)
+                js_checks = await page.evaluate("""() => {
+                    return {
+                        hasShopify: !!window.Shopify,
+                        hasFB: !!window.fbq,
+                        hasGTM: !!window.google_tag_manager,
+                        hasKlaviyo: !!window._learnq,
+                        hasStripe: !!window.Stripe
+                    }
+                }""")
+                
+                if js_checks['hasShopify'] or 'cdn.shopify.com' in content_lower:
+                    result["signals"]["shopify"] = True
+                    
+                if js_checks['hasKlaviyo'] or 'static.klaviyo.com' in content_lower:
+                    result["signals"]["klaviyo"] = True
+                    
+                if js_checks['hasStripe'] or 'js.stripe.com' in content_lower:
+                    result["signals"]["stripe"] = True
+                    
+                if js_checks['hasFB'] or 'fbevents.js' in content_lower:
+                    result["signals"]["meta_pixel"] = True
+                    
+                if re.search(r'googletagmanager\.com/gtag/js\?id=g-', content_lower) or re.search(r'gtag\(\'config\',\s*\'g-', content_lower):
+                    result["signals"]["ga4"] = True
+                    
+                if js_checks['hasGTM'] or 'googletagmanager.com/gtm.js' in content_lower:
+                    result["signals"]["gtm"] = True
+
+                # 5. Pain Point Logic
+                
+                # Missing Analytics (Shopify stores SHOULD have these)
+                if result["signals"]["shopify"] and not (result["signals"]["ga4"] or result["signals"]["gtm"] or result["signals"]["meta_pixel"]):
+                    result["pain_points"]["missing_analytics"] = True
+
+                # Neglected Site (Copyright check)
+                if "copyright" in content_lower or "©" in content_lower:
+                    if "2025" not in content_lower and "2026" not in content_lower:
+                        result["pain_points"]["neglected_site"] = True
+
             except Exception as e:
-                result["status"] = "dead"
-                return result
-
-            html = response.text.lower()
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # 2. Signal Hunting (Regex is faster than DOM traversal for raw script detection)
-            
-            # Shopify: Look for the global Shopify object or CDN links
-            if 'window.shopify' in html or 'cdn.shopify.com' in html:
-                result["signals"]["shopify"] = True
-
-            # Klaviyo: Look for the identifiable tracking script
-            if 'static.klaviyo.com' in html or '_learnq' in html:
-                result["signals"]["klaviyo"] = True
-
-            # Stripe: Look for the JS library
-            if 'js.stripe.com' in html:
-                result["signals"]["stripe"] = True
-
-            # Meta Pixel: Look for the events ID or standard loader
-            if 'fbevents.js' in html or 'connect.facebook.net' in html:
-                result["signals"]["meta_pixel"] = True
-
-            # GA4: Look for the G- ID specifically (Universal Analytics is UA-, which is dead)
-            if re.search(r'googletagmanager\.com/gtag/js\?id=g-', html) or re.search(r'gtag\(\'config\',\s*\'g-', html):
-                result["signals"]["ga4"] = True
-            
-            # GTM (Google Tag Manager): The "hidden" analytics wrapper
-            if 'googletagmanager.com/gtm.js' in html:
-                result["signals"]["gtm"] = True
-
-            # 3. Pain Point Logic
-            
-            # Missing Analytics: "Flying Blind" = Shopify but NO GA4, NO GTM, NO Pixel
-            # This is the REAL money signal - they're losing money on ads
-            if result["signals"]["shopify"] and not (result["signals"]["ga4"] or result["signals"]["gtm"] or result["signals"]["meta_pixel"]):
-                result["pain_points"]["missing_analytics"] = True
-
-            # Neglected Site: Check footer for old copyright years (e.g., "2023" or older)
-            footer_text = soup.get_text()
-            # Simple check for copyright followed by a year that ISN'T 2025 or 2026
-            if "copyright" in html or "©" in html:
-                # If we don't find 2025 or 2026, flag it
-                if "2025" not in html and "2026" not in html:
-                    result["pain_points"]["neglected_site"] = True
-
-        except Exception as e:
-            result["status"] = "error"
-            result["error_detail"] = str(e)
-
+                # If basic nav fails, we might still have SSL error caught above
+                if not result["pain_points"]["ssl_error"]:
+                    result["status"] = "error"
+                    result["error_detail"] = str(e)
+            finally:
+                await context.close()
+                await browser.close()
+                
         return result
 
-
-def test_batch(domains):
-    """Test hunter on multiple domains and print results"""
-    hunter = TechnographicHunter()
+async def test_batch_async(domains: list[str]) -> list[ScanResult]:
+    hunter = TechnographicHunter(headless=True)
     results = []
     
-    print("=== Technographic Hunter - Validation Test ===\n")
+    print(f"=== Async Hunter Scanning {len(domains)} domains ===")
     
-    for domain in domains:
-        print(f"[Scanning] {domain}...")
-        result = hunter.analyze_target(domain)
-        
-        print(f"  Status: {result['status']}")
-        print(f"  Signals: {', '.join([k for k, v in result['signals'].items() if v])}")
-        print(f"  Pain Points: {', '.join([k for k, v in result['pain_points'].items() if v])}")
-        
-        # Calculate "opportunity score" (more pain points = higher value)
-        pain_count = sum(1 for v in result['pain_points'].values() if v)
-        signal_count = sum(1 for v in result['signals'].items() if v)
-        opportunity_score = (pain_count * 30) + (signal_count * 10)
-        
-        print(f"  Opportunity Score: {opportunity_score}/100")
-        print()
-        
-        results.append(result)
+    # Run all scans efficiently
+    tasks = [hunter.analyze_target_async(d) for d in domains]
+    results = await asyncio.gather(*tasks)
     
+    for res in results:
+        print(f"\n[Domain] {res['url']}")
+        if res['status'] == 'active':
+            signals = [k for k, v in res['signals'].items() if v]
+            pain = [k for k, v in res['pain_points'].items() if v]
+            print(f"  ✅ Signals: {', '.join(signals) if signals else 'None'}")
+            print(f"  ⚠️  Pain: {', '.join(pain) if pain else 'None'}")
+        else:
+            print(f"  ❌ Error: {res['error_detail']}")
+            
     return results
 
-
-# Quick Test Block
 if __name__ == "__main__":
-    # Test on Reno businesses from Google Maps
-    test_domains = [
-        "flowingtidepub.com",  # Original test case
-        "shopify.com",         # Known Shopify (control)
-        "stripe.com",          # Known Stripe (control)
-        # Add 3-5 Reno businesses here for validation
+    # Quick test
+    domains = [
+        "gymshark.com", # Should detect Shopify + everything
+        "example.com",  # Should be empty
     ]
-    
-    test_batch(test_domains)
+    asyncio.run(test_batch_async(domains))

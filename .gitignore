@@ -105,3 +105,15 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Local generated artifacts (keep repo clean)
+audit-artifacts/
+simulated_storage/generated/
+simulated_storage/leads/
+__pycache__/
+*.pyc
+
+# Vercel Environment Export
+vercel.env
+.vercel
+.env*.local

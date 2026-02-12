@@ -1,9 +1,0 @@
-{
-  "query": "SELECT l.id, l.companyName, l.websiteUrl, a.summary, a.prestigeScore \nFROM leads l \nLEFT JOIN audits a ON l.id = a.leadId \nWHERE l.status = 'audited' \nAND l.id NOT IN (SELECT leadId FROM email_queue)\nAND l.id != 360018\nLIMIT 5;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT l.id, l.companyName, l.websiteUrl, a.summary, a.prestigeScore \nFROM leads l \nLEFT JOIN audits a ON l.id = a.leadId \nWHERE l.status = 'audited' \nAND l.id NOT IN (SELECT leadId FROM email_queue)\nAND l.id != 360018\nLIMIT 5;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1527
-}

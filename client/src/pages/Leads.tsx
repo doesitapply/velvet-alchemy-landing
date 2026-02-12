@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square, Camera, Trash2 } from "lucide-react";
+import { Loader2, ExternalLink, Eye, Search, Plus, Download, Star, Zap, CheckSquare, Square, Camera, Trash2, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -37,10 +37,11 @@ export default function Leads() {
   const [auditProgress, setAuditProgress] = useState({ current: 0, total: 0 });
   const [capturingScreenshot, setCapturingScreenshot] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<{ id: number; name: string } | null>(null);
 
   const batchAuditMutation = trpc.orchestrator.batchAuditSelected.useMutation();
-  
+
   const deleteLead = trpc.leads.delete.useMutation({
     onSuccess: () => {
       toast.success("Lead deleted successfully");
@@ -52,6 +53,31 @@ export default function Leads() {
       toast.error(error.message);
     },
   });
+
+  const syncHunter = {
+    // Mocking useMutation signature loosely for UI
+    isPending: isAuditing, // Re-using state logic or need new state
+    mutate: async () => {
+      try {
+        const secret = import.meta.env.VITE_RELAY_SECRET;
+        const res = await fetch("/api/relay/sync", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${secret}`
+          }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Sync failed");
+        toast.success(`Synced ${data.count} leads from Hunter`);
+        refetch();
+        setSyncDialogOpen(false);
+      } catch (e: any) {
+        toast.error(e.message);
+        setSyncDialogOpen(false);
+      }
+    },
+    data: null
+  };
 
   const handleDeleteClick = (id: number, name: string) => {
     setLeadToDelete({ id, name });
@@ -88,44 +114,65 @@ export default function Leads() {
     createLead.mutate({ companyName, websiteUrl });
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (!leads || leads.length === 0) {
       toast.error("No leads to export");
       return;
     }
 
-    // CSV headers
-    const headers = ["Company Name", "Website", "Status", "Prestige Score", "Has Assets", "Has Outreach", "Created Date"];
-    
-    // CSV rows
-    const rows = leads.map(lead => [
-      lead.companyName,
-      lead.websiteUrl,
-      lead.status,
-      lead.prestigeScore || "Not audited",
-      lead.hasAssets ? "Yes" : "No",
-      lead.hasOutreach ? "Yes" : "No",
-      new Date(lead.createdAt).toLocaleDateString()
-    ]);
+    const toastId = toast.loading("Preparing CSV export...");
 
-    // Combine headers and rows
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
+    // Yield to let UI update
+    await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Create download link
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `velvet-alchemy-leads-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    try {
+      // CSV headers
+      const headers = ["Company Name", "Website", "Status", "Prestige Score", "Has Assets", "Has Outreach", "Created Date"];
+      let csvContent = headers.join(",") + "\n";
 
-    toast.success(`Exported ${leads.length} leads to CSV`);
+      // Process in chunks to avoid blocking UI for too long
+      const CHUNK_SIZE = 500;
+      const totalLeads = leads.length;
+
+      for (let i = 0; i < totalLeads; i += CHUNK_SIZE) {
+        const chunk = leads.slice(i, i + CHUNK_SIZE);
+
+        const chunkRows = chunk.map(lead => [
+          lead.companyName,
+          lead.websiteUrl,
+          lead.status,
+          lead.prestigeScore || "Not audited",
+          lead.hasAssets ? "Yes" : "No",
+          lead.hasOutreach ? "Yes" : "No",
+          new Date(lead.createdAt).toLocaleDateString()
+        ]);
+
+        csvContent += chunkRows.map(row => row.map(cell => `"${cell}"`).join(",")).join("\n") + "\n";
+
+        // Yield to main thread every chunk
+        if (i + CHUNK_SIZE < totalLeads) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+
+      // Create download link
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `velvet-alchemy-leads-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.dismiss(toastId);
+      toast.success(`Exported ${leads.length} leads to CSV`);
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.dismiss(toastId);
+      toast.error("Failed to export CSV");
+    }
   };
 
   const toggleLeadSelection = (leadId: number) => {
@@ -165,7 +212,7 @@ export default function Leads() {
 
   const handleAuditSelected = async () => {
     const leadIds = Array.from(selectedLeads);
-    
+
     if (leadIds.length === 0) {
       toast.error("No leads selected");
       return;
@@ -183,7 +230,7 @@ export default function Leads() {
     try {
       // Trigger background processing
       await batchAuditMutation.mutateAsync({ leadIds });
-      
+
       // Poll for progress every 5 seconds
       const pollInterval = setInterval(async () => {
         const updated = await refetch();
@@ -191,9 +238,9 @@ export default function Leads() {
           const lead = updated.data?.find(l => l.id === id);
           return lead?.status === 'audited';
         }).length;
-        
+
         setAuditProgress({ current: completedCount, total: leadIds.length });
-        
+
         if (completedCount === leadIds.length) {
           clearInterval(pollInterval);
           setIsAuditing(false);
@@ -209,7 +256,7 @@ export default function Leads() {
         setIsAuditing(false);
         setAuditProgress({ current: 0, total: 0 });
       }, 600000);
-      
+
     } catch (error) {
       toast.error(`Batch audit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsAuditing(false);
@@ -251,7 +298,7 @@ export default function Leads() {
           </div>
 
           <div className="flex gap-3">
-            <Button 
+            <Button
               onClick={handleExportCSV}
               variant="outline"
               className="gap-2 border-gold/30 text-gold hover:bg-gold/10"
@@ -260,6 +307,49 @@ export default function Leads() {
               Export CSV
             </Button>
 
+            <Button
+              onClick={() => setSyncDialogOpen(true)}
+              variant="outline"
+              disabled={syncHunter.isPending}
+              className="gap-2 border-gold/30 text-gold hover:bg-gold/10"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncHunter.isPending ? "animate-spin" : ""}`} />
+              Sync Hunter
+            </Button>
+
+            <Dialog open={syncDialogOpen} onOpenChange={setSyncDialogOpen}>
+              <DialogContent className="bg-black border-white/10">
+                <DialogHeader>
+                  <DialogTitle className="text-gold">Sync from Hunter</DialogTitle>
+                  <DialogDescription>
+                    This will fetch leads from your external Hunter instance.
+                    <br /><br />
+                    <strong className="text-white">Prerequisites:</strong>
+                    <ul className="list-disc pl-4 mt-2 mb-4">
+                      <li>Local server must be running</li>
+                      <li>ngrok must be active (if using relay)</li>
+                    </ul>
+                    Are you ready to proceed?
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSyncDialogOpen(false)}
+                    className="border-white/10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => syncHunter.mutate()}
+                    className="bg-gold text-black hover:bg-gold/90"
+                  >
+                    Yes, Sync Now
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2 bg-gold text-black hover:bg-gold/90">
@@ -267,63 +357,63 @@ export default function Leads() {
                   Create Lead
                 </Button>
               </DialogTrigger>
-            <DialogContent className="bg-black border-white/10">
-              <DialogHeader>
-                <DialogTitle className="text-gold">Create New Lead</DialogTitle>
-                <DialogDescription>
-                  Enter the company details to capture and audit their website
-                </DialogDescription>
-              </DialogHeader>
+              <DialogContent className="bg-black border-white/10">
+                <DialogHeader>
+                  <DialogTitle className="text-gold">Create New Lead</DialogTitle>
+                  <DialogDescription>
+                    Enter the company details to capture and audit their website
+                  </DialogDescription>
+                </DialogHeader>
 
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name</Label>
-                  <Input
-                    id="companyName"
-                    placeholder="e.g., Luxury Watches Inc."
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Company Name</Label>
+                    <Input
+                      id="companyName"
+                      placeholder="e.g., Luxury Watches Inc."
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="websiteUrl">Website URL</Label>
+                    <Input
+                      id="websiteUrl"
+                      placeholder="https://example.com"
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="websiteUrl">Website URL</Label>
-                  <Input
-                    id="websiteUrl"
-                    placeholder="https://example.com"
-                    value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                  className="border-white/10"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateLead}
-                  disabled={createLead.isPending}
-                  className="bg-gold text-black hover:bg-gold/90"
-                >
-                  {createLead.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Create Lead"
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                    className="border-white/10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateLead}
+                    disabled={createLead.isPending}
+                    className="bg-gold text-black hover:bg-gold/90"
+                  >
+                    {createLead.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Lead"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -549,6 +639,6 @@ export default function Leads() {
         title="Delete Lead"
         description="This will permanently delete this lead and all associated data (audits, assets, outreach). This action cannot be undone."
       />
-    </div>
+    </div >
   );
 }

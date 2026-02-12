@@ -1,9 +1,0 @@
-{
-  "query": "DELETE FROM api_calls;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute DELETE FROM api_calls;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 1524
-}

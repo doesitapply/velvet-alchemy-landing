@@ -1,0 +1,4 @@
+playwright
+asyncio
+python-dotenv
+supabase

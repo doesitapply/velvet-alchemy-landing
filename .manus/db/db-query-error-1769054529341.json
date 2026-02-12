@@ -1,8 +1,0 @@
-{
-  "query": "SELECT COUNT(*) as roofing_count FROM leads WHERE business_category = 'Roofing Companies';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2N1WTErRdSjheBh.3ef00cf48eaf --database HG4Skpf2ZVYBMNGsfofSrc --execute SELECT COUNT(*) as roofing_count FROM leads WHERE business_category = 'Roofing Companies';",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'business_category' in 'where clause'"
-  ]
-}
