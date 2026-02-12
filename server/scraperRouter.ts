@@ -264,7 +264,7 @@ export const scraperRouter = router({
                 messages: [
                   {
                     role: "system",
-                    content: \`You are "The Gatekeeper" for an elite agency selling $5,000 - $10,000 website overhauls. Your ONLY job is to find businesses with MONEY and POOR DIGITAL MANNERS.
+                    content: `You are "The Gatekeeper" for an elite agency selling $5,000 - $10,000 website overhauls. Your ONLY job is to find businesses with MONEY and POOR DIGITAL MANNERS.
 
                             CRITICAL QUALIFICATION RULES (Pass = TRUE):
                             1. **High Customer Value**: One new customer must be worth $500+ to them (e.g., Med Spas, Lawyers, HVAC, Luxury Builders).
@@ -280,17 +280,17 @@ export const scraperRouter = router({
 
                             Your analysis must be ruthless. If they sell $5 lattes, REJECT. If they sell $10,000 facelifts, ACCEPT.
                             
-                            Return a JSON object.\`
+                            Return a JSON object.`
                   },
                   {
                     role: "user",
-                    content: \`Qualify this business:
-                            Name: \${businessName}
-                            Category: \${category}
-                            Address: \${details.result.formatted_address}
-                            Reviews: \${reviewCount}
+                    content: `Qualify this business:
+                            Name: ${businessName}
+                            Category: ${category}
+                            Address: ${details.result.formatted_address}
+                            Reviews: ${reviewCount}
                             
-                            Is this a valid high-ticket prospect?\`
+                            Is this a valid high-ticket prospect?`
                   }
                 ],
                 responseFormat: "json_schema",
@@ -311,17 +311,17 @@ export const scraperRouter = router({
 
               const result = JSON.parse(qualification.content || "{}");
               if (!result.isQualified) {
-                console.log(\`[Smart Filter] Skipped \${businessName}: \${result.reason}\`);
+                console.log(`[Smart Filter] Skipped ${businessName}: ${result.reason}`);
                 continue;
               }
             } catch (aiError) {
-              console.warn(\`[Smart Filter] AI failed for \${businessName}, proceeding cautiously.\`, aiError);
+              console.warn(`[Smart Filter] AI failed for ${businessName}, proceeding cautiously.`, aiError);
             }
 
             // === END SMART FILTERING ===
 
           } catch (error) {
-            console.error(`Failed to fetch details for ${ place.name }: `, error);
+            console.error(`Failed to fetch details for ${place.name}: `, error);
             continue;
           }
 
@@ -329,12 +329,12 @@ export const scraperRouter = router({
             // Check if lead already exists by URL
             const dbConn = await db.getDb();
             if (!dbConn) continue;
-            
+
             const { eq } = await import("drizzle-orm");
             const { leads } = await import("../drizzle/schema");
             const existing = await dbConn.select().from(leads).where(eq(leads.websiteUrl, url)).limit(1);
             if (existing.length > 0) {
-              console.log(`Lead already exists: ${ businessName }`);
+              console.log(`Lead already exists: ${businessName}`);
               continue;
             }
 
@@ -355,14 +355,14 @@ export const scraperRouter = router({
                 const { executePipeline } = await import("./orchestrator");
                 // Queue audit in background (don't await to avoid blocking scraper)
                 executePipeline(lead.id, ctx.user.id).catch((err: any) => {
-                  console.error(`Auto - audit failed for lead ${ lead.id }: `, err);
+                  console.error(`Auto - audit failed for lead ${lead.id}: `, err);
                 });
               } catch (auditError) {
-                console.error(`Failed to trigger auto - audit for ${ businessName }: `, auditError);
+                console.error(`Failed to trigger auto - audit for ${businessName}: `, auditError);
               }
             }
           } catch (error) {
-            console.error(`Error creating lead for ${ businessName }: `, error);
+            console.error(`Error creating lead for ${businessName}: `, error);
             errors.push({
               businessName,
               url,
@@ -405,7 +405,7 @@ export const scraperRouter = router({
         { value: "injury_lawyer", label: "Personal Injury Lawyers", keywords: ["personal injury lawyer", "accident attorney", "injury law firm"] },
         { value: "criminal_lawyer", label: "Criminal Defense", keywords: ["criminal defense attorney", "DUI lawyer", "defense firm"] },
         { value: "divorce_lawyer", label: "Family Law", keywords: ["divorce lawyer", "family law attorney", "custody lawyer"] },
-        
+
         // Home Services (Big Ticket)
         { value: "hvac", label: "HVAC Services", keywords: ["hvac replacement", "ac installation", "furnace repair"] },
         { value: "solar", label: "Solar Installers", keywords: ["solar panel installer", "solar energy company", "commercial solar"] },
@@ -418,7 +418,7 @@ export const scraperRouter = router({
         { value: "wedding_venue", label: "Wedding Venues", keywords: ["wedding venue", "event center", "luxury reception", "banquet hall"] },
         { value: "jeweler", label: "Luxury Jewelers", keywords: ["custom jeweler", "diamond store", "engagement rings", "fine jewelry"] },
         { value: "boutique_hotel", label: "Boutique Hotels", keywords: ["boutique hotel", "luxury inn", "bed and breakfast"] },
-        
+
         // Classic Staples (Still good)
         { value: "restaurant", label: "Fine Dining", keywords: ["fine dining", "steakhouse", "seafood restaurant", "upscale dining"] },
         { value: "roofing", label: "Roofing Companies", keywords: ["roofer", "roof replacement", "commercial roofing"] },
@@ -427,19 +427,5 @@ export const scraperRouter = router({
     };
   }),
 
-  /**
-   * Sync leads from External Hunter (Supabase)
-   */
-  syncFromHunter: protectedProcedure.mutation(async ({ ctx }) => {
-    try {
-      const { syncHunterLeads } = await import("./lib/hunterSync");
-      return await syncHunterLeads(ctx.user.id);
-    } catch (error: any) {
-      // Wrap error for tRPC
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: error.message
-      });
-    }
-  }),
+
 });
