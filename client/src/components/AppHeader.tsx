@@ -88,7 +88,7 @@ export default function AppHeader() {
         {/* Logo */}
         <Link href="/command-center">
           <div className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-            <div className="h-10 w-10 md:h-12 md:w-12 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-md border-2 border-gold/50 shadow-lg shadow-gold/20" />
+            <div className="h-10 w-10 md:h-12 md:w-12 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/VumRZfUcLTFVWsnv.jpg')] bg-cover bg-center rounded-md border-2 border-gold/50 shadow-lg shadow-gold/20" />
             <div className="flex flex-col">
               <span className="font-serif text-xl md:text-2xl italic tracking-wide text-gold font-bold">
                 Velvet Alchemy
@@ -216,7 +216,7 @@ export default function AppHeader() {
               <SheetHeader>
                 <SheetTitle className="text-left">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="h-10 w-10 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-md border-2 border-gold/50" />
+                    <div className="h-10 w-10 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/VumRZfUcLTFVWsnv.jpg')] bg-cover bg-center rounded-md border-2 border-gold/50" />
                     <div className="flex flex-col">
                       <span className="font-serif text-xl italic text-gold font-bold">
                         Velvet Alchemy

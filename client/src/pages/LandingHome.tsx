@@ -76,21 +76,7 @@ export default function Home() {
               </Button>
             </div>
 
-            {/* Social Proof */}
-            <div className="flex flex-wrap justify-center gap-8 pt-8 text-sm text-white/60">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-gold" />
-                <span>Avg. deal closes in <strong className="text-white">3 days</strong></span>
-              </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-gold" />
-                <span><strong className="text-white">87%</strong> of audited businesses respond</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-gold" />
-                <span>Stripe secure payments</span>
-              </div>
-            </div>
+
           </div>
         </div>
       </section>

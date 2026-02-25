@@ -22,7 +22,7 @@ export function TopNav() {
         {/* Logo */}
         <Link href="/command-center">
           <a className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-gold/50" />
+            <div className="h-8 w-8 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/VumRZfUcLTFVWsnv.jpg')] bg-cover bg-center rounded-sm border border-gold/50" />
             <span className="font-serif text-xl italic tracking-wide text-gold">
               Velvet Alchemy
             </span>

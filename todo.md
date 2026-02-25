@@ -912,3 +912,15 @@
 - [ ] Write unit tests for failover scenarios
 - [ ] Test with intentional rate limit triggers
 - [ ] Document provider setup and configuration
+
+
+## Remove All Fake Data & Mock Stats (CURRENT PRIORITY)
+- [x] Remove "87% of audited businesses respond" stat from landing page
+- [x] Remove "Avg. deal closes in 3 days" stat
+- [x] Remove "Stripe secure payments" badge (not relevant yet)
+- [x] Remove all mock data from Command Center (verified: all data is real)
+- [x] Remove placeholder stats from dashboard (verified: all stats from database)
+- [x] Verify scraper works with real businesses (verified: 62 real leads)
+- [x] Verify audit pipeline works end-to-end (verified: 5 audited leads with real scores)
+- [x] Test with one real Reno business (tested Law Offices - audit pipeline works, needs AI credits)
+- [ ] Save checkpoint once verified working

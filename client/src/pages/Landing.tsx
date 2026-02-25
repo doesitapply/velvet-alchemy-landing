@@ -71,7 +71,7 @@ export default function Landing() {
       <header className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/50 backdrop-blur-md">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+            <div className="h-8 w-8 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/VumRZfUcLTFVWsnv.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
             <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm font-mono text-muted-foreground">
@@ -372,7 +372,7 @@ export default function Landing() {
         <div className="container">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 bg-[url('/images/alchemy-symbol.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
+              <div className="h-6 w-6 bg-[url('https://files.manuscdn.com/user_upload_by_module/session_file/91847194/VumRZfUcLTFVWsnv.jpg')] bg-cover bg-center rounded-sm border border-white/20"></div>
               <span className="font-serif italic text-gold">Velvet Alchemy</span>
             </div>
             <p>© 2026 Velvet Alchemy. All rights reserved.</p>
