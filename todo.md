@@ -937,3 +937,10 @@
 - [x] Add GOOGLE_AI_API_KEY to env (native Gemini API)
 - [x] Test that Gemini key works (✓ passing)
 - [ ] Save checkpoint
+
+## Scraper 0-Results Bug Fix
+- [x] Root cause: invokeAI() was calling removed openai/anthropic packages, silently skipping all businesses
+- [x] Fix: invokeAI() now delegates to invokeLLM() which has the working Gemini fallback chain
+- [x] Test: scraper.test.ts passes — Gemini 2.5 Flash qualifies leads correctly
+- [x] Server restarted with fix applied
+- [ ] Save checkpoint

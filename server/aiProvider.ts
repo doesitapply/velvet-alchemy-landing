@@ -357,114 +357,39 @@ export async function invokeAI(
     leadId?: number;
   }
 ): Promise<AIResponse> {
-  const operation = options?.operation || "unknown";
-  const providers = await getEnabledProviders();
+  // Delegate directly to invokeLLM which has the full multi-provider fallback chain
+  // (Manus AI → OpenAI → Anthropic → Google Gemini) built in.
+  // This avoids the old DB-driven provider loop which required packages that are no longer installed.
+  const startTime = Date.now();
 
-  if (providers.length === 0) {
-    throw new Error("No AI providers enabled. Please configure at least one provider.");
-  }
+  const llmResponse = await invokeLLM({
+    messages: request.messages,
+    max_tokens: request.maxTokens,
+    response_format: request.responseFormat === "json_schema" ? {
+      type: "json_schema",
+      json_schema: request.schema as any,
+    } : undefined,
+  });
 
-  const errors: Array<{ provider: string; error: string }> = [];
+  const latencyMs = Date.now() - startTime;
+  const choice = llmResponse.choices[0];
+  const usage = llmResponse.usage;
 
-  // Try each provider in priority order
-  for (const provider of providers) {
-    try {
-      console.log(`[AI Provider] Trying ${provider.displayName}...`);
-      
-      let response: AIResponse;
+  const content = typeof choice.message.content === "string"
+    ? choice.message.content
+    : Array.isArray(choice.message.content)
+      ? (choice.message.content as Array<{ type: string; text?: string }>)
+          .map(c => c.type === "text" ? (c.text ?? "") : "").join("")
+      : "";
 
-      // Invoke provider-specific function
-      switch (provider.name) {
-        case "manus":
-          response = await invokeManusAI(request);
-          break;
-        case "openai":
-          if (!provider.apiKey) {
-            throw new Error("OpenAI API key not configured");
-          }
-          response = await invokeOpenAI(request, provider.apiKey);
-          break;
-        case "anthropic":
-          if (!provider.apiKey) {
-            throw new Error("Anthropic API key not configured");
-          }
-          response = await invokeAnthropic(request, provider.apiKey);
-          break;
-        case "google":
-          if (!provider.apiKey) {
-            throw new Error("Google AI API key not configured");
-          }
-          response = await invokeGoogleAI(request, provider.apiKey);
-          break;
-        default:
-          throw new Error(`Unknown provider: ${provider.name}`);
-      }
-
-      // Calculate cost
-      const cost = calculateCost(response.totalTokens, provider.costPer1kTokens);
-      response.cost = cost;
-
-      // Log success
-      await logAPIUsage(
-        provider.id,
-        operation,
-        response.model,
-        response.promptTokens,
-        response.completionTokens,
-        response.totalTokens,
-        cost,
-        response.latencyMs,
-        true,
-        undefined,
-        options?.userId,
-        options?.leadId
-      );
-
-      // Update health
-      await updateProviderHealth(provider.id, true, response.latencyMs);
-
-      console.log(`[AI Provider] ✅ Success with ${provider.displayName} (${response.totalTokens} tokens, $${(cost / 100).toFixed(4)})`);
-      
-      return response;
-
-    } catch (error: any) {
-      const errorMessage = error.message || String(error);
-      errors.push({ provider: provider.displayName, error: errorMessage });
-
-      console.error(`[AI Provider] ❌ Failed with ${provider.displayName}:`, errorMessage);
-
-      // Log failure
-      await logAPIUsage(
-        provider.id,
-        operation,
-        request.model || "unknown",
-        0,
-        0,
-        0,
-        0,
-        0,
-        false,
-        errorMessage,
-        options?.userId,
-        options?.leadId
-      );
-
-      // Update health
-      await updateProviderHealth(provider.id, false, 0);
-
-      // If rate limit error, try next provider immediately
-      if (isRateLimitError(error)) {
-        console.log(`[AI Provider] ⚠️ Rate limit hit on ${provider.displayName}, trying next provider...`);
-        continue;
-      }
-
-      // For other errors, also try next provider
-      console.log(`[AI Provider] ⚠️ Error on ${provider.displayName}, trying next provider...`);
-      continue;
-    }
-  }
-
-  // All providers failed
-  const errorSummary = errors.map(e => `${e.provider}: ${e.error}`).join("; ");
-  throw new Error(`All AI providers failed. Errors: ${errorSummary}`);
+  return {
+    content,
+    promptTokens: usage?.prompt_tokens ?? 0,
+    completionTokens: usage?.completion_tokens ?? 0,
+    totalTokens: usage?.total_tokens ?? 0,
+    model: llmResponse.model ?? "unknown",
+    provider: "auto",
+    latencyMs,
+    cost: 0,
+  };
 }
