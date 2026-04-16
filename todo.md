@@ -924,3 +924,16 @@
 - [x] Verify audit pipeline works end-to-end (verified: 5 audited leads with real scores)
 - [x] Test with one real Reno business (tested Law Offices - audit pipeline works, needs AI credits)
 - [ ] Save checkpoint once verified working
+
+## OpenAI Permanent Fallback
+- [ ] Inspect current invokeLLM and audit pipeline code
+- [ ] Build fallback wrapper: Manus AI → OpenAI on 412/429/503
+- [ ] Add OPENAI_API_KEY secret
+- [ ] Validate key with test
+- [ ] Test audit runs end-to-end with OpenAI
+
+## Multi-Provider AI Fallback Chain
+- [x] Implement provider chain: Manus → OpenAI → Anthropic → Google Gemini
+- [x] Add GOOGLE_AI_API_KEY to env (native Gemini API)
+- [x] Test that Gemini key works (✓ passing)
+- [ ] Save checkpoint
