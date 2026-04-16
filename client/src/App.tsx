@@ -24,6 +24,7 @@ import CostDashboard from "./pages/CostDashboard";
 import OutreachApproval from "./pages/OutreachApproval";
 import VoiceSetup from "./pages/VoiceSetup";
 import AIProviders from "./pages/AIProviders";
+import ApiKeys from "./pages/ApiKeys";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/outreach-approval" component={OutreachApproval} />
       <Route path="/voice-setup" component={VoiceSetup} />
       <Route path="/ai-providers" component={AIProviders} />
+      <Route path="/api-keys" component={ApiKeys} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

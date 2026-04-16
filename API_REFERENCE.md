@@ -1,3 +1,63 @@
+# Velvet Alchemy REST API v1
+
+> **External API for AI agents, automation tools, and integrations.**  
+> Base URL: `https://your-domain.com/api/v1`  
+> Auth: `Authorization: Bearer va_live_...`  
+> Generate keys at `/api-keys` in the dashboard.
+
+## Scopes
+
+| Scope | Grants Access To |
+|---|---|
+| `leads:read` | GET /leads, GET /leads/:id |
+| `leads:write` | POST /leads |
+| `scrape` | POST /scrape |
+| `audit` | POST /leads/:id/audit |
+| `pipeline` | POST /pipeline |
+| `*` | All endpoints |
+
+## Endpoints
+
+| Method | Path | Scope | Description |
+|---|---|---|---|
+| GET | `/api/v1/status` | any | Health check, confirm auth |
+| GET | `/api/v1/leads` | `leads:read` | List leads (filter by status, paginate) |
+| GET | `/api/v1/leads/:id` | `leads:read` | Get lead + latest audit |
+| POST | `/api/v1/leads` | `leads:write` | Create lead manually |
+| POST | `/api/v1/scrape` | `scrape` | Search Google Maps — returns raw results, no DB save |
+| POST | `/api/v1/leads/:id/audit` | `audit` | Run AI audit on existing lead |
+| POST | `/api/v1/pipeline` | `pipeline` | Scrape + create leads + optionally audit in one call |
+
+### POST /api/v1/pipeline (Power Endpoint)
+```json
+// Request
+{ "category": "dentist", "city": "Henderson", "state": "NV", "limit": 10, "autoAudit": true }
+
+// Response
+{ "leads": [{ "id": 125, "companyName": "...", "audit": { "prestigeScore": 28, "summary": "..." } }], "count": 8 }
+```
+
+### Claude/GPT Tool Definition
+```json
+{
+  "name": "run_pipeline",
+  "description": "Scrape local businesses and audit their websites for redesign opportunities",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "category": { "type": "string" },
+      "city": { "type": "string" },
+      "state": { "type": "string" },
+      "limit": { "type": "number", "default": 10 },
+      "autoAudit": { "type": "boolean", "default": false }
+    },
+    "required": ["category", "city"]
+  }
+}
+```
+
+---
+
 # API REFERENCE 📡
 
 **Last Updated:** January 26, 2026 at 4:26 AM PST  

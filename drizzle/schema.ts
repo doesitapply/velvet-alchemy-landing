@@ -408,3 +408,24 @@ export const providerHealth = mysqlTable("provider_health", {
 
 export type ProviderHealth = typeof providerHealth.$inferSelect;
 export type InsertProviderHealth = typeof providerHealth.$inferInsert;
+
+/**
+ * API Keys for external access (REST API)
+ * Allows external apps and AI agents to control the pipeline programmatically.
+ */
+export const apiKeys = mysqlTable("api_keys", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // Owner of this key
+  name: varchar("name", { length: 100 }).notNull(), // Human-readable label (e.g., "n8n automation")
+  keyHash: varchar("keyHash", { length: 64 }).notNull().unique(), // SHA-256 hash of the raw key
+  keyPrefix: varchar("keyPrefix", { length: 12 }).notNull(), // First 8 chars for display (e.g., "va_live_ab")
+  scopes: text("scopes").notNull(), // JSON array: ["leads:read","leads:write","scrape","audit","pipeline"]
+  isActive: boolean("isActive").default(true).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  expiresAt: timestamp("expiresAt"), // NULL = never expires
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;

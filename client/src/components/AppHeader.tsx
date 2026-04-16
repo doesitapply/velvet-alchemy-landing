@@ -17,6 +17,7 @@ import {
   ChevronDown,
   DollarSign,
   Activity,
+  KeyRound,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -47,6 +48,7 @@ export default function AppHeader() {
     ],
     system: [
       { path: "/export", label: "Export", icon: Download },
+      { path: "/api-keys", label: "API Keys", icon: KeyRound },
       { path: "/governor", label: "Governor", icon: Shield },
       { path: "/help", label: "Help", icon: HelpCircle },
     ],

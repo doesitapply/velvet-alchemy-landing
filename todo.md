@@ -944,3 +944,38 @@
 - [x] Test: scraper.test.ts passes — Gemini 2.5 Flash qualifies leads correctly
 - [x] Server restarted with fix applied
 - [ ] Save checkpoint
+
+## Public REST API (External Access)
+- [ ] Add api_keys table to drizzle schema (id, key_hash, name, scopes, created_at, last_used_at, is_active)
+- [ ] Run db:push to migrate
+- [ ] Build API key generation and management tRPC procedures
+- [ ] Build API key management UI page (/settings/api-keys)
+- [ ] Build Express middleware for API key auth (Bearer token validation)
+- [ ] Build REST router at /api/v1/* with endpoints:
+  - [ ] GET /api/v1/leads — list leads with filters
+  - [ ] GET /api/v1/leads/:id — get lead detail + audit
+  - [ ] POST /api/v1/leads — create lead manually
+  - [ ] POST /api/v1/scrape — trigger scrape job
+  - [ ] POST /api/v1/leads/:id/audit — trigger audit on a lead
+  - [ ] POST /api/v1/leads/:id/outreach — generate outreach draft
+  - [ ] POST /api/v1/pipeline — run full pipeline on a lead
+  - [ ] GET /api/v1/status — system health check
+- [ ] Write API reference documentation (Markdown)
+- [ ] Test all endpoints with curl
+- [ ] Save checkpoint
+
+## Public REST API for External Integrations (COMPLETE)
+- [x] api_keys table created in DB
+- [x] apiKeyRouter: create, list, revoke, delete keys via tRPC
+- [x] REST API mounted at /api/v1/* with Bearer token auth
+- [x] GET /api/v1/status — health check
+- [x] GET /api/v1/leads — list leads
+- [x] GET /api/v1/leads/:id — get lead + audit
+- [x] POST /api/v1/leads — create lead
+- [x] POST /api/v1/scrape — search Google Maps
+- [x] POST /api/v1/leads/:id/audit — run AI audit
+- [x] POST /api/v1/pipeline — scrape + create + audit in one call
+- [x] API Keys management UI at /api-keys
+- [x] API Keys nav link added to AppHeader
+- [x] API_REFERENCE.md updated with REST v1 docs
+- [x] Unit tests: 8/8 passing
