@@ -60,6 +60,17 @@ export const leads = mysqlTable("leads", {
   globalRank: int("globalRank"), // Global traffic ranking
   bounceRate: decimal("bounceRate", { precision: 5, scale: 2 }), // Bounce rate percentage
   trafficDataFetchedAt: timestamp("trafficDataFetchedAt"), // When traffic data was last fetched
+  // Google Maps enrichment fields
+  phone: varchar("phone", { length: 32 }),
+  address: varchar("address", { length: 512 }),
+  city: varchar("city", { length: 128 }),
+  state: varchar("state", { length: 64 }),
+  googleRating: decimal("googleRating", { precision: 3, scale: 1 }),
+  reviewCount: int("reviewCount"),
+  reviewSnippets: text("reviewSnippets"), // JSON array of up to 3 review texts
+  googlePlaceId: varchar("googlePlaceId", { length: 255 }),
+  businessStatus: varchar("businessStatus", { length: 64 }), // OPERATIONAL, CLOSED_TEMPORARILY, etc.
+  category: varchar("category", { length: 128 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

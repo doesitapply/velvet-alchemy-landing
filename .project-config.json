@@ -1,0 +1,46 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [
+    "db",
+    "server",
+    "user"
+  ],
+  "dev_command": "pnpm run dev",
+  "env_vars": {
+    "DATABASE_URL": "mysql://2N1WTErRdSjheBh.3ef00cf48eaf:A3gDgA4dU2fR97wDUMC2@gateway02.us-east-1.prod.aws.tidbcloud.com:4000/HG4Skpf2ZVYBMNGsfofSrc?ssl={\"rejectUnauthorized\":true}"
+  },
+  "experiments": null,
+  "git_remote": {
+    "repo_url": "s3://vida-prod-gitrepo/webdev-git/91847194/HG4Skpf2ZVYBMNGsfofSrc",
+    "access_key_id": "ASIAZV3A2ECZD6IK3KUN",
+    "secret_access_key": "ZHvwG6Y+tDOmMP4sJAOF253REkh8lIdS1xHu9sTY",
+    "session_token": "IQoJb3JpZ2luX2VjED4aCXVzLWVhc3QtMSJHMEUCIFYe1rdz2cuQwyDab/Oa86H1byR8KmSy8Vo64kplghvEAiEAyJSGjc9acb/DCoy3fsOrAqFZCd1kz+aZl+PnLkF3sw8q4gMIBxAEGgw2NjUzODYwOTg4NjYiDN1MEvLkKL3xMOJpPSq/A6u6vTzZ/DvgIk8XwjjGkn4TWCYEVj/PVa6LvPgF/kFAVDNqU9zitqZ3tpqIIP+6SOE808IFWACYiEu10T+NMidiCdylV24KvtGZYP5wAryfh3fBqbhcLtKKUuDyREJUwleP+84UqtvPQeMlixvYEkKGLQvIao6mv2Nt5jAOgS8JAj9SR6XT2lreqcsNdqKuVNSCTeJmtAraRA9exddjvHKR/YUovAUPwiTnjw2B/bM2RGstOM5dD2sXzvD5J20837orIyPlQvDJsRPudJR1HlOHT2h/X4To7BDAzB52n68LU18S4hfOpoGoBlGm3cGIEv6lI131Vq7aJstZoO3is/8fqwPWNboj1aTEA/NNlV4u2zKFC73ehokv6j7AK6waypt9AkF5vOjkDOrKcto9m3ZGEFmGJtGQQmJs1Dhz0+HpCNbTFI5dcl1PflJBSpMVxGsS7iCXHOrQtm6pm/k0YGIRS4Eq3HyCN891WNfNd9hmdmVExZl2sjJoXJtEjez3Q4OhzUbll4dduz4ZmVjl1frA+JEWS1gzne6fHXmT7mht80RWY8wQ2NZMg3ys4LomwX7AFyyR59y4RO27cE85SjDPn7zQBjqdAQmaSqNLhDeGIuK7Ws8YikCgEdUDik8qYOPbRtzHvQtFMNj5o5hsY4buQTMCZ/rrhGzJke0E63ejJJghHLzXbCbI8qpngjkDnek46vtR/0m0xQttO/8mkC4zNuxw8Q29jd7Nes+0PnmDmsjDGlH+epxSAPKr3X+K7zaKfIVk8VNfDo8pFiWPdZuM6eV3vLmV5MsY/iNTXDmeP+hmrMo=",
+    "expiration": "2026-05-22T01:59:43.000Z"
+  },
+  "name": "velvet-alchemy-landing",
+  "path": "/home/ubuntu/velvet-alchemy-landing",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "isLdE39kUvk9q6fwELGFYM",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "GOOGLE_AI_API_KEY": "AQ.Ab8RN6KJSnIykOInLDYv15hWzwMKojXG79OqjJbstzqdlE_g1w",
+    "JWT_SECRET": "UsjBP5QWDxmJ6rmozdmPoR",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OPENAI_API_KEY": "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",
+    "OWNER_NAME": "Cameron Church",
+    "OWNER_OPEN_ID": "iPc4QUSCieFT4idu8ghQZq",
+    "STRIPE_SECRET_KEY": "sk_test_51StYbPBivdKg5sw53I5ImiafkVA3kquK6sk8V8SdWLy28BMI2TMYAkEGNBpq8bP8mGvdFj4c2y7gNGjAVhLTpst000RhsgW43z",
+    "STRIPE_WEBHOOK_SECRET": "whsec_dqQWpNAlW4gE2UmDsiK78yKqc1KzUJbb",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "11d3f0ef-36df-494e-ba77-a4bec0ad2a33",
+    "VITE_APP_ID": "HG4Skpf2ZVYBMNGsfofSrc",
+    "VITE_APP_LOGO": "https://files.manuscdn.com/user_upload_by_module/web_dev_logo/91847194/XbePxrFqTPyBgcKB.png",
+    "VITE_APP_TITLE": "Velvet Alchemy - Revenue Instrument",
+    "VITE_FRONTEND_FORGE_API_KEY": "XvJL6aop9y7HYi9Ajir277",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im",
+    "VITE_STRIPE_PUBLISHABLE_KEY": "pk_test_51StYbPBivdKg5sw5mGWj0VI6EaPuw6GRILXKQUWvcggzyG9UEXNf3k58qAfLLWYAC7bltLow9p2UZFUahZDOZwA800kNluDp4s"
+  },
+  "template_id": "web-db-user",
+  "test_command": "pnpm test"
+}

@@ -189,6 +189,7 @@ export type PlaceDetailsResult = {
     website?: string;
     rating?: number;
     user_ratings_total?: number;
+    business_status?: string;
     reviews?: Array<{
       author_name: string;
       rating: number;

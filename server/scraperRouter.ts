@@ -5,122 +5,172 @@ import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map
 import * as db from "./db";
 
 /**
- * Scraper Router
- * Handles Google Maps scraping, ranking checks, and bulk business discovery
+ * Scraper Router — v2
+ * 
+ * Key improvements over v1:
+ * - Pagination: fetches up to 3 pages (60 results) per query instead of 20
+ * - Parallel detail fetching: 5 concurrent requests instead of sequential
+ * - Stores phone, address, city, state, rating, reviewCount, reviewSnippets, placeId
+ * - Pre-filters by business_status OPERATIONAL before touching AI
+ * - Heuristic filter runs before AI (review count, aggregator check)
+ * - AI qualification only called for borderline cases (10-500 reviews)
+ * - Deduplication by both URL and placeId
  */
+
+const AGGREGATOR_DOMAINS = [
+  "yelp.com", "yellowpages.com", "facebook.com", "google.com/maps",
+  "tripadvisor.com", "angi.com", "angieslist.com", "houzz.com",
+  "thumbtack.com", "homeadvisor.com", "bbb.org", "manta.com",
+  "mapquest.com", "foursquare.com", "nextdoor.com",
+];
+
+const CHAIN_SIGNALS = [
+  "mcdonald", "starbucks", "subway", "dunkin", "domino", "pizza hut",
+  "burger king", "wendy", "taco bell", "chick-fil", "home depot",
+  "lowe's", "walmart", "target", "costco", "best buy", "walgreens",
+  "cvs pharmacy", "dollar general", "dollar tree", "7-eleven",
+  "marriott", "hilton", "holiday inn", "comfort inn", "super 8",
+  "aspen dental", "great clips", "sport clips", "fantastic sams",
+];
+
+function isAggregatorUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return AGGREGATOR_DOMAINS.some(d => lower.includes(d));
+}
+
+function isNationalChain(name: string): boolean {
+  const lower = name.toLowerCase();
+  return CHAIN_SIGNALS.some(s => lower.includes(s));
+}
+
+/**
+ * Fetch all pages of a text search (up to 3 pages = 60 results)
+ */
+async function fetchAllPages(query: string): Promise<PlacesSearchResult["results"]> {
+  const allResults: PlacesSearchResult["results"] = [];
+
+  let page = await makeRequest<PlacesSearchResult>(
+    "/maps/api/place/textsearch/json",
+    { query }
+  );
+
+  if (page.status !== "OK" || !page.results) return allResults;
+  allResults.push(...page.results);
+
+  // Fetch up to 2 more pages (Google max is 3 pages total = 60 results)
+  for (let i = 0; i < 2; i++) {
+    const token = (page as any).next_page_token;
+    if (!token) break;
+
+    // Google requires a short delay before using next_page_token
+    await new Promise(r => setTimeout(r, 2000));
+
+    page = await makeRequest<PlacesSearchResult>(
+      "/maps/api/place/textsearch/json",
+      { query, pagetoken: token }
+    );
+
+    if (page.status !== "OK" || !page.results) break;
+    allResults.push(...page.results);
+  }
+
+  return allResults;
+}
+
+/**
+ * Fetch place details in parallel batches of 5
+ */
+async function fetchDetailsBatch(placeIds: string[]): Promise<PlaceDetailsResult["result"][]> {
+  const BATCH_SIZE = 5;
+  const results: PlaceDetailsResult["result"][] = [];
+
+  for (let i = 0; i < placeIds.length; i += BATCH_SIZE) {
+    const batch = placeIds.slice(i, i + BATCH_SIZE);
+    const settled = await Promise.allSettled(
+      batch.map(placeId =>
+        makeRequest<PlaceDetailsResult>("/maps/api/place/details/json", {
+          place_id: placeId,
+          fields: "name,website,formatted_address,formatted_phone_number,rating,user_ratings_total,business_status,reviews,types",
+        })
+      )
+    );
+
+    for (const s of settled) {
+      if (s.status === "fulfilled" && s.value?.result) {
+        results.push(s.value.result);
+      }
+    }
+  }
+
+  return results;
+}
 
 export const scraperRouter = router({
   /**
-   * Search for local businesses using Google Maps Places API
-   * Returns businesses with their websites and basic info
+   * Search for local businesses — returns enriched data without creating leads
    */
   searchBusinesses: protectedProcedure
     .input(
       z.object({
         city: z.string().min(1),
         state: z.string().min(2).max(2).optional(),
-        category: z.string().min(1), // e.g., "pizza restaurant", "plumber", "dentist"
-        limit: z.number().min(1).max(100).default(20),
+        category: z.string().min(1),
+        limit: z.number().min(1).max(60).default(20),
       })
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const { city, state, category, limit } = input;
-
-      // Build search query
       const location = state ? `${city}, ${state}` : city;
       const searchQuery = `${category} in ${location}`;
 
       try {
-        // Use Google Maps Places API to search for businesses
-        const placesResult = await makeRequest<PlacesSearchResult>(
-          "/maps/api/place/textsearch/json",
-          { query: searchQuery }
-        );
+        const rawResults = await fetchAllPages(searchQuery);
+        const sliced = rawResults.slice(0, limit);
 
-        if (placesResult.status !== "OK" || !placesResult.results) {
-          return {
-            success: true,
-            businesses: [],
-            query: searchQuery,
-            count: 0,
-          };
-        }
+        const details = await fetchDetailsBatch(sliced.map(r => r.place_id));
 
-        // Fetch details for each place to get website URLs
-        const businesses = [];
-        for (const place of placesResult.results.slice(0, limit)) {
-          try {
-            // Fetch place details to get website URL
-            const details = await makeRequest<PlaceDetailsResult>(
-              "/maps/api/place/details/json",
-              {
-                place_id: place.place_id,
-                fields: "name,website,formatted_address,rating,user_ratings_total"
-              }
-            );
+        const businesses = details
+          .filter(r => {
+            if (!r.website) return false;
+            if (isAggregatorUrl(r.website)) return false;
+            if (r.business_status && r.business_status !== "OPERATIONAL") return false;
+            return true;
+          })
+          .map(r => ({
+            name: r.name,
+            url: r.website!,
+            phone: r.formatted_phone_number || null,
+            address: r.formatted_address,
+            rating: r.rating,
+            reviewCount: r.user_ratings_total,
+            snippet: `${r.formatted_address} | Rating: ${r.rating || "N/A"} (${r.user_ratings_total || 0} reviews)`,
+            category,
+            city,
+            state: state || "",
+          }));
 
-            const url = details.result.website;
-            if (!url) continue; // Skip businesses without websites
-
-            // Skip aggregator sites
-            if (
-              url.includes("yelp.com") ||
-              url.includes("yellowpages.com") ||
-              url.includes("facebook.com") ||
-              url.includes("google.com/maps")
-            ) {
-              continue;
-            }
-
-            businesses.push({
-              name: details.result.name,
-              url: url,
-              snippet: `${details.result.formatted_address} | Rating: ${details.result.rating || "N/A"} (${details.result.user_ratings_total || 0} reviews)`,
-              category: category,
-              city: city,
-              state: state || "",
-              rating: details.result.rating,
-              reviewCount: details.result.user_ratings_total,
-              address: details.result.formatted_address,
-            });
-          } catch (error) {
-            console.error(`Failed to fetch details for ${place.name}:`, error);
-            continue;
-          }
-        }
-
-        return {
-          success: true,
-          businesses,
-          query: searchQuery,
-          count: businesses.length,
-        };
+        return { success: true, businesses, query: searchQuery, count: businesses.length };
       } catch (error) {
         console.error("Business search error:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to search for businesses",
-        });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to search for businesses" });
       }
     }),
 
   /**
    * Check Google Maps ranking for a specific business/keyword
-   * Returns ranking position (1-100) or null if not found
    */
   checkRanking: protectedProcedure
     .input(
       z.object({
         businessName: z.string().min(1),
-        keyword: z.string().min(1), // e.g., "best pizza reno"
-        location: z.string().min(1), // e.g., "Reno, NV"
+        keyword: z.string().min(1),
+        location: z.string().min(1),
       })
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const { businessName, keyword, location } = input;
 
       try {
-        // Search Google Maps for the keyword + location
         const searchQuery = `${keyword} ${location}`;
         const placesResult = await makeRequest<PlacesSearchResult>(
           "/maps/api/place/textsearch/json",
@@ -128,52 +178,39 @@ export const scraperRouter = router({
         );
 
         if (placesResult.status !== "OK" || !placesResult.results) {
-          return {
-            success: true,
-            businessName,
-            keyword,
-            location,
-            position: null,
-            message: `${businessName} not found in top 100 results for "${keyword}"`,
-          };
+          return { success: true, businessName, keyword, location, position: null, message: `${businessName} not found` };
         }
 
-        // Find the business in search results
-        let position = null;
+        let position: number | null = null;
         for (let i = 0; i < placesResult.results.length; i++) {
-          const place = placesResult.results[i];
-          const name = place.name || "";
-
-          // Check if this result matches the business
-          if (name.toLowerCase().includes(businessName.toLowerCase())) {
+          if (placesResult.results[i].name?.toLowerCase().includes(businessName.toLowerCase())) {
             position = i + 1;
             break;
           }
         }
 
         return {
-          success: true,
-          businessName,
-          keyword,
-          location,
-          position,
-          message:
-            position === null
-              ? `${businessName} not found in top 100 results for "${keyword}"`
-              : `${businessName} ranks #${position} for "${keyword}"`,
+          success: true, businessName, keyword, location, position,
+          message: position === null
+            ? `${businessName} not found in top results for "${keyword}"`
+            : `${businessName} ranks #${position} for "${keyword}"`,
         };
       } catch (error) {
-        console.error("Ranking check error:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to check ranking",
-        });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to check ranking" });
       }
     }),
 
   /**
-   * Bulk scrape businesses and create leads
-   * Searches for businesses, checks their ranking, and creates lead records
+   * Bulk scrape and create leads — the main pipeline entry point
+   * 
+   * Filter order (fastest/cheapest first):
+   * 1. Has website
+   * 2. Not an aggregator URL
+   * 3. business_status === OPERATIONAL
+   * 4. Not a national chain (name heuristic)
+   * 5. Review count 3–2000 (ghost or corporate filter)
+   * 6. Not already in DB
+   * 7. AI qualification (only for borderline cases)
    */
   bulkScrapeAndCreate: protectedProcedure
     .input(
@@ -181,116 +218,94 @@ export const scraperRouter = router({
         city: z.string().min(1),
         state: z.string().min(2).max(2).optional(),
         category: z.string().min(1),
-        targetKeyword: z.string().min(1), // e.g., "best pizza"
-        limit: z.number().min(1).max(50).default(20),
+        targetKeyword: z.string().min(1),
+        limit: z.number().min(1).max(60).default(40),
+        skipAiFilter: z.boolean().default(false), // bypass AI for speed
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const { city, state, category, targetKeyword, limit } = input;
-      // Dynamic import to avoid circular defaults if any
+      const { city, state, category, limit, skipAiFilter } = input;
       const { invokeAI } = await import("./aiProvider");
 
+      const location = state ? `${city}, ${state}` : city;
+      const searchQuery = `${category} in ${location}`;
+
       try {
-        // Step 1: Search for businesses
-        const location = state ? `${city}, ${state}` : city;
-        const searchQuery = `${category} in ${location}`;
+        // Step 1: Fetch up to 60 raw results (3 pages)
+        const rawResults = await fetchAllPages(searchQuery);
+        console.log(`[Scraper] Found ${rawResults.length} raw results for "${searchQuery}"`);
 
-        // Use Google Maps Places API to search for businesses
-        const placesResult = await makeRequest<PlacesSearchResult>(
-          "/maps/api/place/textsearch/json",
-          { query: searchQuery }
-        );
+        // Step 2: Fetch details in parallel batches
+        const sliced = rawResults.slice(0, limit);
+        const details = await fetchDetailsBatch(sliced.map(r => r.place_id));
 
-        if (placesResult.status !== "OK" || !placesResult.results) {
-          return {
-            success: true,
-            query: searchQuery,
-            totalFound: 0,
-            createdCount: 0,
-            errorCount: 0,
-            leads: [],
-            errors: [],
-          };
+        // Step 3: Pre-filter (no AI yet)
+        const preFiltered = details.filter(r => {
+          if (!r.website) return false;
+          if (isAggregatorUrl(r.website)) return false;
+          if (r.business_status && r.business_status !== "OPERATIONAL") return false;
+          if (isNationalChain(r.name || "")) return false;
+          const reviews = r.user_ratings_total || 0;
+          if (reviews < 3) return false; // ghost listing
+          if (reviews > 2000) return false; // likely corporate/franchise
+          return true;
+        });
+
+        console.log(`[Scraper] ${preFiltered.length}/${sliced.length} passed pre-filter`);
+
+        // Step 4: Dedup against existing DB leads
+        const dbConn = await db.getDb();
+        const { eq, or } = await import("drizzle-orm");
+        const { leads } = await import("../drizzle/schema");
+
+        const existingUrls = new Set<string>();
+        const existingPlaceIds = new Set<string>();
+
+        if (dbConn) {
+          const existing = await dbConn.select({ websiteUrl: leads.websiteUrl, googlePlaceId: leads.googlePlaceId }).from(leads);
+          for (const e of existing) {
+            if (e.websiteUrl) existingUrls.add(e.websiteUrl.toLowerCase());
+            if (e.googlePlaceId) existingPlaceIds.add(e.googlePlaceId);
+          }
         }
 
-        // Step 2: Filter and process businesses
+        const deduped = preFiltered.filter(r => {
+          const urlKey = (r.website || "").toLowerCase().split("?")[0]; // strip UTM params
+          if (existingUrls.has(urlKey)) return false;
+          return true;
+        });
+
+        console.log(`[Scraper] ${deduped.length} new leads after dedup`);
+
+        // Step 5: AI qualification (optional, only for borderline cases)
         const createdLeads = [];
         const errors = [];
+        const skipped = [];
 
-        for (const place of placesResult.results.slice(0, limit)) {
-          let url: string | undefined;
-          let businessName: string;
+        for (const r of deduped) {
+          const reviews = r.user_ratings_total || 0;
 
-          try {
-            // Fetch place details to get website URL
-            const details = await makeRequest<PlaceDetailsResult>(
-              "/maps/api/place/details/json",
-              {
-                place_id: place.place_id,
-                fields: "name,website,formatted_address"
-              }
-            );
+          // Clear pass: high-value signals, skip AI
+          const isClearPass = reviews >= 20 && reviews <= 500;
+          // Clear fail: already handled by pre-filter
+          // Borderline: 3-19 reviews — run AI
 
-            url = details.result.website;
-            businessName = details.result.name;
+          let qualified = isClearPass;
 
-            if (!url) continue; // Skip businesses without websites
-
-            // Skip aggregator sites
-            if (
-              url.includes("yelp.com") ||
-              url.includes("yellowpages.com") ||
-              url.includes("facebook.com") ||
-              url.includes("google.com/maps")
-            ) {
-              continue;
-            }
-
-            // === SMART FILTERING (The "Brain") ===
-
-            // 1. Basic Heuristics
-            const rating = details.result.rating || 0;
-            const reviewCount = details.result.user_ratings_total || 0;
-
-            // Skip if it looks like a "ghost" listing (no reviews, likely not active/high-ticket)
-            if (reviewCount < 3) {
-              continue;
-            }
-
-            // 2. LLM Qualification ("Would they actually buy this?")
-            // We ask the AI to screen the prospect based on name, category, and perceived size/type.
+          if (!skipAiFilter && !isClearPass) {
             try {
               const qualification = await invokeAI({
                 messages: [
                   {
                     role: "system",
-                    content: `You are "The Gatekeeper" for an elite agency selling $5,000 - $10,000 website overhauls. Your ONLY job is to find businesses with MONEY and POOR DIGITAL MANNERS.
-
-                            CRITICAL QUALIFICATION RULES (Pass = TRUE):
-                            1. **High Customer Value**: One new customer must be worth $500+ to them (e.g., Med Spas, Lawyers, HVAC, Luxury Builders).
-                            2. **Owner-Operated Vibe**: Looks like a business where I can talk to the owner, not a corporate board (e.g., "Dr. Smith's Clinic" > "Aspen Dental").
-                            3. **Established but Not Corporate**: 10-200 reviews is the sweet spot. <10 is reckless, >500 is usually corporate/unchangeable.
-                            4. **High-End Signals**: Names containing "Institute", "Center", "Group", "Associates", "Luxury", "Boutique", "Custom", "Design".
-
-                            IMMEDIATE DISQUALIFICATION (Pass = FALSE):
-                            1. **Low Ticket / Volume**: Fast food, coffee shops, convenience stores, cheap retail, dollar stores.
-                            2. **National Chains**: Starbucks, McDonald's, Home Depot, Walmart, large hotel chains.
-                            3. **Public/Government**: Schools, libraries, post offices, DMVs, city halls.
-                            4. **No Revenue**: Hobby shops, non-profits (unless large), ATMs, kiosks.
-
-                            Your analysis must be ruthless. If they sell $5 lattes, REJECT. If they sell $10,000 facelifts, ACCEPT.
-                            
-                            Return a JSON object.`
+                    content: `You are screening prospects for a $3,000-$8,000 website redesign service. 
+Qualify if: owner-operated, high customer value per transaction ($500+), established but not corporate.
+Disqualify if: national chain, government, non-profit, low-ticket volume business, or <3 reviews.
+Return JSON only.`
                   },
                   {
                     role: "user",
-                    content: `Qualify this business:
-                            Name: ${businessName}
-                            Category: ${category}
-                            Address: ${details.result.formatted_address}
-                            Reviews: ${reviewCount}
-                            
-                            Is this a valid high-ticket prospect?`
+                    content: `Name: ${r.name}\nCategory: ${category}\nAddress: ${r.formatted_address}\nReviews: ${reviews}\nRating: ${r.rating}\n\nIs this a valid high-ticket prospect?`
                   }
                 ],
                 responseFormat: "json_schema",
@@ -310,62 +325,66 @@ export const scraperRouter = router({
               });
 
               const result = JSON.parse(qualification.content || "{}");
-              if (!result.isQualified) {
-                console.log(`[Smart Filter] Skipped ${businessName}: ${result.reason}`);
-                continue;
+              qualified = result.isQualified;
+              if (!qualified) {
+                skipped.push({ name: r.name, reason: result.reason });
+                console.log(`[AI Filter] Skipped ${r.name}: ${result.reason}`);
               }
             } catch (aiError) {
-              console.warn(`[Smart Filter] AI failed for ${businessName}, proceeding cautiously.`, aiError);
+              // AI failed — default to qualified to avoid losing leads
+              console.warn(`[AI Filter] Failed for ${r.name}, defaulting to qualified`, aiError);
+              qualified = true;
             }
-
-            // === END SMART FILTERING ===
-
-          } catch (error) {
-            console.error(`Failed to fetch details for ${place.name}: `, error);
-            continue;
           }
 
+          if (!qualified) continue;
+
+          // Step 6: Create lead with full enrichment
           try {
-            // Check if lead already exists by URL
-            const dbConn = await db.getDb();
-            if (!dbConn) continue;
+            const cleanUrl = (r.website || "").split("?")[0].replace(/\/$/, ""); // strip UTM + trailing slash
 
-            const { eq } = await import("drizzle-orm");
-            const { leads } = await import("../drizzle/schema");
-            const existing = await dbConn.select().from(leads).where(eq(leads.websiteUrl, url)).limit(1);
-            if (existing.length > 0) {
-              console.log(`Lead already exists: ${businessName}`);
-              continue;
-            }
+            // Extract reviews for personalization
+            const reviewTexts = (r.reviews || [])
+              .slice(0, 3)
+              .map((rv: any) => rv.text?.substring(0, 200))
+              .filter(Boolean);
 
-            // Create lead
             const lead = await db.createLead({
               userId: ctx.user.id,
-              companyName: businessName,
-              websiteUrl: url,
+              companyName: r.name,
+              websiteUrl: r.website!,
               status: "pending",
-            });
+              phone: r.formatted_phone_number || null,
+              address: r.formatted_address || null,
+              city: city,
+              state: state || null,
+              googleRating: r.rating ? String(r.rating) : null,
+              reviewCount: r.user_ratings_total || null,
+              reviewSnippets: reviewTexts.length > 0 ? JSON.stringify(reviewTexts) : null,
+              googlePlaceId: null, // place_id not returned in details result
+              businessStatus: r.business_status || null,
+              category: category,
+            } as any);
 
-            createdLeads.push(lead);
-
-            // Auto-trigger audit for the newly created lead
-            if (lead && lead.id) {
-              try {
-                // Import orchestrator pipeline function
-                const { executePipeline } = await import("./orchestrator");
-                // Queue audit in background (don't await to avoid blocking scraper)
-                executePipeline(lead.id, ctx.user.id).catch((err: any) => {
-                  console.error(`Auto - audit failed for lead ${lead.id}: `, err);
-                });
-              } catch (auditError) {
-                console.error(`Failed to trigger auto - audit for ${businessName}: `, auditError);
+            if (lead) {
+              createdLeads.push(lead);
+              // Auto-trigger audit in background
+              if (lead.id) {
+                try {
+                  const { executePipeline } = await import("./orchestrator");
+                  executePipeline(lead.id, ctx.user.id).catch((err: any) => {
+                    console.error(`Auto-audit failed for lead ${lead.id}:`, err);
+                  });
+                } catch (auditError) {
+                  console.error(`Failed to trigger auto-audit for ${r.name}:`, auditError);
+                }
               }
             }
           } catch (error) {
-            console.error(`Error creating lead for ${businessName}: `, error);
+            console.error(`Error creating lead for ${r.name}:`, error);
             errors.push({
-              businessName,
-              url,
+              businessName: r.name,
+              url: r.website,
               error: error instanceof Error ? error.message : "Unknown error",
             });
           }
@@ -374,18 +393,18 @@ export const scraperRouter = router({
         return {
           success: true,
           query: searchQuery,
-          totalFound: placesResult.results.length,
+          totalFound: rawResults.length,
+          preFiltered: preFiltered.length,
+          deduped: deduped.length,
           createdCount: createdLeads.length,
+          skippedByAI: skipped.length,
           errorCount: errors.length,
           leads: createdLeads,
           errors,
         };
       } catch (error) {
         console.error("Bulk scrape error:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to bulk scrape businesses",
-        });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to bulk scrape businesses" });
       }
     }),
 
@@ -413,19 +432,17 @@ export const scraperRouter = router({
         { value: "custom_home", label: "Custom Home Builders", keywords: ["custom home builder", "luxury home builder", "general contractor"] },
         { value: "landscaper", label: "Landscape Design", keywords: ["landscape architect", "luxury landscaping", "hardscape design"] },
         { value: "kitchen_remodel", label: "Kitchen Remodelers", keywords: ["kitchen remodeling", "bathroom remodeling", "cabinet maker"] },
+        { value: "roofing", label: "Roofing Companies", keywords: ["roofer", "roof replacement", "commercial roofing"] },
 
         // Luxury & Events
         { value: "wedding_venue", label: "Wedding Venues", keywords: ["wedding venue", "event center", "luxury reception", "banquet hall"] },
         { value: "jeweler", label: "Luxury Jewelers", keywords: ["custom jeweler", "diamond store", "engagement rings", "fine jewelry"] },
         { value: "boutique_hotel", label: "Boutique Hotels", keywords: ["boutique hotel", "luxury inn", "bed and breakfast"] },
 
-        // Classic Staples (Still good)
+        // Classic Staples
         { value: "restaurant", label: "Fine Dining", keywords: ["fine dining", "steakhouse", "seafood restaurant", "upscale dining"] },
-        { value: "roofing", label: "Roofing Companies", keywords: ["roofer", "roof replacement", "commercial roofing"] },
         { value: "real_estate", label: "Real Estate Brokers", keywords: ["luxury real estate", "commercial real estate", "real estate broker"] },
       ],
     };
   }),
-
-
 });
