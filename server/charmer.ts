@@ -54,7 +54,7 @@ export async function generateOutreachCopy(
   }));
 
   // Generate outreach copy using LLM
-  const prompt = `You are "The Charmer," an elite copywriter for a luxury digital transformation agency. Your job is to write a personalized, seductive outreach email to a high-net-worth business owner.
+  const prompt = `You are an elite outreach consultant for a premium digital solutions partner. Your job is to write a personalized, compelling outreach email to a business owner.
 
 **Target Lead:**
 - Company: ${lead.companyName}
@@ -71,23 +71,23 @@ ${assetUrls.length > 0 ? assetUrls.map((a) => `- ${a.type}: ${a.url}`).join("\n"
 
 **Your Task:**
 Write a short, high-impact outreach email (150-200 words) that:
-1. Opens with a compliment about their strengths (if any)
-2. Subtly identifies 1-2 specific visual debt issues without being insulting
-3. Teases the generated assets as a "gift" or "vision" of their upgraded brand
-4. Creates urgency and curiosity without being salesy
-5. Ends with a soft CTA (e.g., "Would you like to see the full transformation?")
+1. Opens with a sincere compliment about their strengths (if any)
+2. Professionaly identifies 1-2 specific visual debt issues without being critical
+3. Introduces the generated assets as a vision of their potentially upgraded digital presence
+4. Creates genuine value and curiosity
+5. Ends with a professional CTA (e.g., "Would you like to see the full audit?")
 
 **Tone:**
-- Confident, not arrogant
-- Seductive, not desperate
-- Specific, not generic
-- Luxury, not cheap
+- Confident and authoritative
+- Professional and value-driven
+- Specific and data-backed
+- Premium and sophisticated
 
 **Output Format (JSON):**
 {
-  "subject": "A short, intriguing subject line (5-8 words)",
+  "subject": "A short, professional subject line (5-8 words)",
   "body": "The email body in plain text (no HTML)",
-  "recipientName": "Inferred name from company (e.g., 'John' from 'John's Pools') or null if unknown"
+  "recipientName": "Inferred name from company or null if unknown"
 }
 
 Generate the email now.`;
@@ -97,7 +97,7 @@ Generate the email now.`;
       {
         role: "system",
         content:
-          "You are The Charmer, an elite copywriter specializing in luxury outreach. You write seductive, high-converting emails that make business owners feel seen and valued.",
+          "You are a premium business outreach specialist. You write compelling, high-converting emails that lead with value and professional insight.",
       },
       {
         role: "user",

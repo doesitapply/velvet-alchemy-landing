@@ -40,6 +40,21 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // Mock OAuth Portal route for local development
+  app.get("/app-auth", (req, res) => {
+    const redirectUri = req.query.redirectUri as string;
+    const state = req.query.state as string;
+    if (redirectUri) {
+      const callbackUrl = new URL(redirectUri);
+      callbackUrl.searchParams.set("code", "mock-code");
+      callbackUrl.searchParams.set("state", state);
+      res.redirect(callbackUrl.toString());
+    } else {
+      res.status(400).send("redirectUri is required");
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

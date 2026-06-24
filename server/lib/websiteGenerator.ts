@@ -103,21 +103,27 @@ export async function generateWebsite(
   input: WebsiteGenerationInput
 ): Promise<GeneratedWebsite> {
   const colorPalette = getIndustryColorPalette(input.businessCategory);
-  
+
   // Extract key information from audit
   const report = input.detailedReport;
-  const conversionLeaks = report?.conversion_leaks || [];
-  const technicalIssues = report?.technical_audit?.issues || [];
-  const suggestedFix = report?.suggested_fix || "";
+  const conversionLeaks = report?.conversion_leaks ||
+    (report?.visualAudit?.visualDebt?.map((d: any) => d.issue) || []);
+  const technicalIssues = report?.technical_audit?.issues ||
+    (report?.technicalLeaks?.map((d: any) => d.issue) || []);
+  const revenueRecovery = report?.revenueRecoveryPotential || 0;
 
   // Build prompt for AI
   const prompt = `You are a professional web developer. Generate a modern, mobile-responsive website for a local business.
-
+  
 **Business Information:**
 - Company Name: ${input.companyName}
 - Category: ${input.businessCategory}
 - Current Website: ${input.websiteUrl}
 - Prestige Score: ${input.prestigeScore}/100
+
+**Revenue Recovery Opportunity:**
+- This business is estimated to be losing $${revenueRecovery.toLocaleString()} ANNUALLY due to current website leaks.
+- The new website must highlight its "Revenue Recovery" features (e.g., better CTAs, mobile speed, trust signals).
 
 **Problems to Fix:**
 ${conversionLeaks.slice(0, 3).map((leak: string) => `- ${leak}`).join('\n')}
@@ -136,12 +142,13 @@ ${technicalIssues.slice(0, 3).map((issue: string) => `- ${issue}`).join('\n')}
 
 **Sections to Include:**
 1. Hero section with clear headline and CTA
-2. Services section (list 3-5 main services)
-3. About section (brief company story)
-4. Contact section with form and map
-5. Footer with contact info and social links
+2. Revenue Recovery / Value Prop section: Explain how this new site stops "silent revenue leaks" and pays for itself.
+3. Services section (list 3-5 main services)
+4. About section (brief company story)
+5. Contact section with form and map
+6. Footer with contact info and social links
 
-Generate ONLY the HTML code. Use inline CSS for styling. Make it production-ready.`;
+Generate ONLY the HTML code. Use inline CSS for styling. Make it production-ready. Ensure the design looks premium and high-end.`;
 
   console.log('[WebsiteGenerator] Generating website for:', input.companyName);
 
@@ -160,7 +167,7 @@ Generate ONLY the HTML code. Use inline CSS for styling. Make it production-read
 
   const rawContent = response.choices[0].message.content;
   let htmlContent = "";
-  
+
   if (typeof rawContent === 'string') {
     htmlContent = rawContent;
   } else if (Array.isArray(rawContent)) {
@@ -170,7 +177,7 @@ Generate ONLY the HTML code. Use inline CSS for styling. Make it production-read
       .map((item: any) => item.text)
       .join('');
   }
-  
+
   // Clean up markdown code blocks if AI added them
   htmlContent = htmlContent.replace(/```html\n?/g, '').replace(/```\n?/g, '').trim();
 
@@ -239,18 +246,18 @@ export function saveWebsiteToFile(
 ): string {
   const fs = require('fs');
   const path = require('path');
-  
+
   const projectDir = path.join('/tmp', `website-${projectId}`);
-  
+
   // Create project directory
   if (!fs.existsSync(projectDir)) {
     fs.mkdirSync(projectDir, { recursive: true });
   }
-  
+
   // Write files
   fs.writeFileSync(path.join(projectDir, 'index.html'), website.html);
   fs.writeFileSync(path.join(projectDir, 'styles.css'), website.css);
   fs.writeFileSync(path.join(projectDir, 'script.js'), website.js);
-  
+
   return projectDir;
 }

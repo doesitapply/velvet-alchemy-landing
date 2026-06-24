@@ -33,9 +33,9 @@ function Router() {
       <Route path="/customer-portal" component={CustomerPortal} />
       <Route path="/old-home" component={Home} />
       <Route path="/about" component={About} />
-       <Route path="/governor" component={GovernorDashboard} />
-           <Route path={"/charmer"} component={Charmer} />
-      <Route path={"/orchestrator"} component={Orchestrator} />
+      <Route path="/governor" component={GovernorDashboard} />
+      <Route path="/charmer" component={Charmer} />
+      <Route path="/orchestrator" component={Orchestrator} />
       <Route path="/command-center" component={CommandCenter} />
       <Route path="/dashboard">
         <Redirect to="/command-center" />

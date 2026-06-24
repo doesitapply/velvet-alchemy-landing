@@ -47,6 +47,17 @@ class OAuthService {
     code: string,
     state: string
   ): Promise<ExchangeTokenResponse> {
+    if (code === "mock-code") {
+      return {
+        accessToken: "mock-access-token",
+        idToken: "mock-id-token",
+        refreshToken: "mock-refresh-token",
+        expiresIn: 3600,
+        tokenType: "Bearer",
+        scope: "openid profile email",
+      };
+    }
+
     const payload: ExchangeTokenRequest = {
       clientId: ENV.appId,
       grantType: "authorization_code",
@@ -65,6 +76,17 @@ class OAuthService {
   async getUserInfoByToken(
     token: ExchangeTokenResponse
   ): Promise<GetUserInfoResponse> {
+    if (token.accessToken === "mock-access-token") {
+      return {
+        openId: "mock-user-id",
+        projectId: ENV.appId,
+        name: "Mock User",
+        email: "mock@example.com",
+        platform: "google",
+        loginMethod: "google",
+      };
+    }
+
     const { data } = await this.client.post<GetUserInfoResponse>(
       GET_USER_INFO_PATH,
       {
@@ -235,6 +257,17 @@ class SDKServer {
   async getUserInfoWithJwt(
     jwtToken: string
   ): Promise<GetUserInfoWithJwtResponse> {
+    if (jwtToken.startsWith("mock-")) {
+      return {
+        openId: "mock-user-id",
+        projectId: ENV.appId,
+        name: "Mock User",
+        email: "mock@example.com",
+        platform: "google",
+        loginMethod: "google",
+      };
+    }
+
     const payload: GetUserInfoWithJwtRequest = {
       jwtToken,
       projectId: ENV.appId,

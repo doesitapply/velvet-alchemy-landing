@@ -113,13 +113,19 @@ async function runScreenshotAndAuditStage(leadId: number, userId: number): Promi
         leadId,
         summary: auditResult.summary,
         prestigeScore: auditResult.prestigeScore,
+        estimatedRevenueLoss: auditResult.estimatedRevenueLoss,
         visualDebtData: JSON.stringify(auditResult.visualDebt),
       });
 
-      // Update lead status to 'audited' and copy prestige score
+      // Update lead status to 'audited' and copy prestige score and detailed report
       await db.update(leads).set({
         status: 'audited',
         prestigeScore: auditResult.prestigeScore,
+        detailedReport: JSON.stringify({
+          visualAudit: auditResult,
+          technicalLeaks: auditResult.visualDebt.filter(d => d.category === 'technical'),
+          revenueRecoveryPotential: auditResult.estimatedRevenueLoss,
+        }),
       }).where(eq(leads.id, leadId));
     } else {
       // Audit already exists, ensure lead status is 'audited'

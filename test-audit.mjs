@@ -1,15 +1,15 @@
-import { executePipeline } from './server/orchestrator.js';
+import 'dotenv/config';
+import { executePipeline } from './server/orchestrator.ts';
 
-// Test audit on lead ID 150001 (Ira Hansen Plumbing)
-console.log('Starting audit pipeline test...');
-console.log('Lead ID: 150001 (Ira Hansen and Sons Plumbing)');
-console.log('---');
+const leadId = 1;
+const userId = 1;
+
+console.log(`Starting pipeline test for lead ${leadId}...`);
 
 try {
-  await executePipeline(150001);
-  console.log('✅ Pipeline started successfully!');
-  console.log('Check the database for progress updates.');
+  await executePipeline(leadId, userId);
+  console.log('✅ Pipeline execution started!');
+  console.log('Verify results in the DB or via the dashboard.');
 } catch (error) {
-  console.error('❌ Pipeline failed:', error.message);
-  console.error(error.stack);
+  console.error('❌ Pipeline failed:', error);
 }

@@ -8,15 +8,21 @@ import os
 import sys
 import asyncio
 from datetime import datetime
+from typing import Any, Optional
 from hunter import TechnographicHunter
-from dotenv import load_dotenv
 
-# Load environment variables
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    print("⚠️  To run this script: pip install python-dotenv")
+    def load_dotenv(dotenv_path: Optional[str] = None) -> None: pass
+
+
 load_dotenv(".env.local")
 
 # Check for supabase library
 try:
-    from supabase import create_client, Client
+    from supabase import create_client, Client  # type: ignore
 except ImportError:
     print("❌ Error: supabase library not installed")
     print("Run: pip install supabase")
@@ -65,7 +71,7 @@ class ScraperPipeline:
                 "has_ga4": data["signals"]["ga4"],
                 "ssl_error": data["pain_points"]["ssl_error"],
                 "neglected": data["pain_points"]["neglected_site"],
-                "last_scanned_at": datetime.utcnow().isoformat()
+                "last_scanned_at": datetime.now().isoformat()
             }
             
             # Upsert to Supabase
@@ -92,7 +98,7 @@ class ScraperPipeline:
             print(f"  ❌ Error processing {domain}: {e}")
             return False
 
-    async def scan_batch_async(self, domains: list) -> dict:
+    async def scan_batch_async(self, domains: list[str]) -> dict[str, Any]:
         """
         Scan multiple domains concurrently
         """
@@ -139,7 +145,7 @@ async def main_async():
     ]
     
     pipeline = ScraperPipeline()
-    await pipeline.scan_batch_async(test_domains)
+    _ = await pipeline.scan_batch_async(test_domains)
 
 if __name__ == "__main__":
     asyncio.run(main_async())

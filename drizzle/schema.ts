@@ -73,6 +73,7 @@ export const audits = mysqlTable("audits", {
   leadId: int("leadId").notNull(),
   summary: text("summary"), // Placeholder for now, will be LLM-generated later
   prestigeScore: int("prestigeScore"), // 0-100, null for MVP
+  estimatedRevenueLoss: int("estimatedRevenueLoss"), // Estimated annual revenue loss in USD
   visualDebtData: text("visualDebtData"), // JSON string for structured audit data
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

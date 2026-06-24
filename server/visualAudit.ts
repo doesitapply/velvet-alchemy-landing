@@ -10,6 +10,7 @@ export interface VisualDebtItem {
 export interface VisualAuditResult {
   visualDebt: VisualDebtItem[];
   prestigeScore: number; // 0-100
+  estimatedRevenueLoss: number; // Estimated annual revenue loss in USD
   summary: string;
   strengths: string[];
   weaknesses: string[];
@@ -34,7 +35,9 @@ export async function analyzeVisualDebt(
       messages: [
         {
           role: "system",
-          content: `You are an expert web designer and local business consultant. Your task is to audit website screenshots for small businesses. Evaluate design quality, user experience, mobile-friendliness, trust signals, and conversion optimization. Focus on practical improvements that help local businesses compete online. Be critical but constructive.`,
+          content: `You are an expert web designer and local business consultant. Your task is to audit website screenshots for small businesses. Evaluate design quality, user experience, mobile-friendliness, trust signals, and conversion optimization. Focus on practical improvements that help local businesses compete online. Be critical but constructive.
+          
+          Crucially, you must estimate the "Annual Revenue Loss" caused by these visual leaks. For a typical small business, assume a 5-10% conversion lift could be achieved with a professional site. Calculate the loss based on typical industry ticket prices (e.g., $1500 for a plumber, $5000 for a remodeler, $150 for a hair salon).`,
         },
         {
           role: "user",
@@ -60,6 +63,7 @@ Return your analysis in the following JSON format:
     }
   ],
   "prestigeScore": 0-100 (integer, where 100 = perfect small business website execution),
+  "estimatedRevenueLoss": integer (Estimated annual revenue lost due to current design/UX leaks, in USD),
   "summary": "2-3 sentence overall assessment",
   "strengths": ["List of 2-3 positive aspects"],
   "weaknesses": ["List of 2-3 critical issues that hurt conversions or rankings"]
@@ -106,6 +110,7 @@ Be honest and specific. Focus on issues that directly impact local search rankin
                 },
               },
               prestigeScore: { type: "integer", minimum: 0, maximum: 100 },
+              estimatedRevenueLoss: { type: "integer", minimum: 0 },
               summary: { type: "string" },
               strengths: {
                 type: "array",
@@ -116,7 +121,7 @@ Be honest and specific. Focus on issues that directly impact local search rankin
                 items: { type: "string" },
               },
             },
-            required: ["visualDebt", "prestigeScore", "summary", "strengths", "weaknesses"],
+            required: ["visualDebt", "prestigeScore", "estimatedRevenueLoss", "summary", "strengths", "weaknesses"],
             additionalProperties: false,
           },
         },
@@ -128,15 +133,15 @@ Be honest and specific. Focus on issues that directly impact local search rankin
       throw new Error("No response from LLM");
     }
 
-    const content = typeof message.content === 'string' 
-      ? message.content 
+    const content = typeof message.content === 'string'
+      ? message.content
       : JSON.stringify(message.content);
 
     const result: VisualAuditResult = JSON.parse(content);
     return result;
   } catch (error: any) {
     console.error("[Visual Audit] Failed to analyze screenshot:", error);
-    
+
     // Return fallback result on error
     return {
       visualDebt: [
@@ -148,6 +153,7 @@ Be honest and specific. Focus on issues that directly impact local search rankin
         },
       ],
       prestigeScore: 50,
+      estimatedRevenueLoss: 0,
       summary: `Audit failed for ${companyName}. Error: ${error.message}`,
       strengths: ["Unable to analyze"],
       weaknesses: ["Audit system error"],
