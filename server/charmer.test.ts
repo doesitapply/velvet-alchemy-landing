@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { generateOutreachCopy } from "./charmer";
 import type { Lead, Audit } from "../drizzle/schema";
 
+// LLM calls can take 10-20s — use 30s timeout for all tests in this suite
+const LLM_TIMEOUT = 30_000;
+
 describe("The Charmer - Outreach Generation", () => {
   const mockLead: Lead = {
     id: 1,
@@ -72,15 +75,14 @@ describe("The Charmer - Outreach Generation", () => {
     expect(typeof result.body).toBe("string");
     expect(result.subject.length).toBeGreaterThan(0);
     expect(result.body.length).toBeGreaterThan(0);
-  });
+  }, LLM_TIMEOUT);
 
   it("should include company name in context", async () => {
     const result = await generateOutreachCopy(mockLead, mockAudit, mockAssets);
 
-    // The LLM should reference the company or be contextually relevant
     expect(result.body.length).toBeGreaterThan(50);
     expect(result.subject.length).toBeGreaterThan(5);
-  });
+  }, LLM_TIMEOUT);
 
   it("should handle leads without audit data", async () => {
     const result = await generateOutreachCopy(mockLead, null, []);
@@ -89,13 +91,13 @@ describe("The Charmer - Outreach Generation", () => {
     expect(result).toHaveProperty("body");
     expect(result.subject.length).toBeGreaterThan(0);
     expect(result.body.length).toBeGreaterThan(0);
-  });
+  }, LLM_TIMEOUT);
 
   it("should infer recipient email from website URL", async () => {
     const result = await generateOutreachCopy(mockLead, mockAudit, mockAssets);
 
     expect(result.recipientEmail).toContain("luxurypoolsreno.com");
-  });
+  }, LLM_TIMEOUT);
 
   it("should generate different copy for different leads", async () => {
     const lead1 = { ...mockLead, companyName: "Tech Startup A" };
@@ -104,10 +106,9 @@ describe("The Charmer - Outreach Generation", () => {
     const result1 = await generateOutreachCopy(lead1, mockAudit, mockAssets);
     const result2 = await generateOutreachCopy(lead2, mockAudit, mockAssets);
 
-    // While not guaranteed to be different, they should at least be valid
     expect(result1.body.length).toBeGreaterThan(0);
     expect(result2.body.length).toBeGreaterThan(0);
-  });
+  }, LLM_TIMEOUT);
 
   it("should handle malformed visual debt data gracefully", async () => {
     const badAudit: Audit = {
@@ -119,23 +120,21 @@ describe("The Charmer - Outreach Generation", () => {
 
     expect(result).toHaveProperty("subject");
     expect(result).toHaveProperty("body");
-  });
+  }, LLM_TIMEOUT);
 
   it("should generate subject lines within reasonable length", async () => {
     const result = await generateOutreachCopy(mockLead, mockAudit, mockAssets);
 
-    // Subject should be concise (5-15 words typically)
     const wordCount = result.subject.split(" ").length;
     expect(wordCount).toBeGreaterThan(2);
     expect(wordCount).toBeLessThan(20);
-  });
+  }, LLM_TIMEOUT);
 
   it("should generate body text within reasonable length", async () => {
     const result = await generateOutreachCopy(mockLead, mockAudit, mockAssets);
 
-    // Body should be 150-300 words as per prompt
     const wordCount = result.body.split(/\s+/).length;
     expect(wordCount).toBeGreaterThan(50);
     expect(wordCount).toBeLessThan(500);
-  });
+  }, LLM_TIMEOUT);
 });

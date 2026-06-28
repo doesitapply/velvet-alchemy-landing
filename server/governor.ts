@@ -140,9 +140,9 @@ export async function checkDomainReputation(domain: string): Promise<boolean> {
   // For MVP, just check against a simple blacklist
 
   const blacklist = [
-    "example.com", // Placeholder
     "spam.com",
     "malware.com",
+    "phishing.com",
   ];
 
   const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");

@@ -12,10 +12,11 @@
   "experiments": null,
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/91847194/HG4Skpf2ZVYBMNGsfofSrc",
-    "access_key_id": "ASIAZV3A2ECZD6IK3KUN",
-    "secret_access_key": "ZHvwG6Y+tDOmMP4sJAOF253REkh8lIdS1xHu9sTY",
-    "session_token": "IQoJb3JpZ2luX2VjED4aCXVzLWVhc3QtMSJHMEUCIFYe1rdz2cuQwyDab/Oa86H1byR8KmSy8Vo64kplghvEAiEAyJSGjc9acb/DCoy3fsOrAqFZCd1kz+aZl+PnLkF3sw8q4gMIBxAEGgw2NjUzODYwOTg4NjYiDN1MEvLkKL3xMOJpPSq/A6u6vTzZ/DvgIk8XwjjGkn4TWCYEVj/PVa6LvPgF/kFAVDNqU9zitqZ3tpqIIP+6SOE808IFWACYiEu10T+NMidiCdylV24KvtGZYP5wAryfh3fBqbhcLtKKUuDyREJUwleP+84UqtvPQeMlixvYEkKGLQvIao6mv2Nt5jAOgS8JAj9SR6XT2lreqcsNdqKuVNSCTeJmtAraRA9exddjvHKR/YUovAUPwiTnjw2B/bM2RGstOM5dD2sXzvD5J20837orIyPlQvDJsRPudJR1HlOHT2h/X4To7BDAzB52n68LU18S4hfOpoGoBlGm3cGIEv6lI131Vq7aJstZoO3is/8fqwPWNboj1aTEA/NNlV4u2zKFC73ehokv6j7AK6waypt9AkF5vOjkDOrKcto9m3ZGEFmGJtGQQmJs1Dhz0+HpCNbTFI5dcl1PflJBSpMVxGsS7iCXHOrQtm6pm/k0YGIRS4Eq3HyCN891WNfNd9hmdmVExZl2sjJoXJtEjez3Q4OhzUbll4dduz4ZmVjl1frA+JEWS1gzne6fHXmT7mht80RWY8wQ2NZMg3ys4LomwX7AFyyR59y4RO27cE85SjDPn7zQBjqdAQmaSqNLhDeGIuK7Ws8YikCgEdUDik8qYOPbRtzHvQtFMNj5o5hsY4buQTMCZ/rrhGzJke0E63ejJJghHLzXbCbI8qpngjkDnek46vtR/0m0xQttO/8mkC4zNuxw8Q29jd7Nes+0PnmDmsjDGlH+epxSAPKr3X+K7zaKfIVk8VNfDo8pFiWPdZuM6eV3vLmV5MsY/iNTXDmeP+hmrMo=",
-    "expiration": "2026-05-22T01:59:43.000Z"
+    "access_key_id": "ASIAZV3A2ECZAIJXKUCN",
+    "secret_access_key": "mpVMKLiv/Bc953wbINzmpszNpOWtD5ZiVNdCpmsK",
+    "session_token": "IQoJb3JpZ2luX2VjEK7//////////wEaCXVzLWVhc3QtMSJHMEUCIQDZ5mj+JuyrqXuoWLtwNbS12BvIJ2MPZeeVzsYntYZ02gIgAajnqHm27UiCAJASAF0gr55d4sF2WAgkulUQX0R/X9Yq4gMIdxAEGgw2NjUzODYwOTg4NjYiDJ7GAkH2XBxoqT/M9iq/Ax7Up51PeuGph3cRQCeC3nhvzZC1rFyfo5hLwCvbUuCQpGSlia3dDc5WJ7olUGXfql9X7nzRchQiSxRRSMCPD+wbfa7FyMRBjMvPu058KyF+wGPIH8NSg2oizPsOOrJOjw1hcQr3T97nkNiY7cYW3EM65ZbjDaCI87OV1a4JD4Nn0h3j3Qf8nk5H397TVWgZgTCBztgEYyryqVTezh7Gn5EOrtINNEm8onnlbur7j1SoXI9TsTYv0hiW8pyfO+3LVZNkipcRc7js/reMy9y3UBnpJs2Bd7w3RAkrH2WYyoxynTQvWKJFPEVmeI9Sazn4kqIDys8DvVJydIgRjChuOoiNECLQLHIXKCXeJFs+XqkG0rSGwS7oqU2mTpXm4mJAN9psRFXZjNGgTvfcrnxXmjt1Y9jNXTuvsnfiakclY6Q8iYDt6LiUw5evPUmbv11QI/8kuTFiDREVaLvHLOAMmB//C/gSm6Oo6FcrHKYWL7iXCUHOJ8iFPWy6Lf6zxRyivVmx1QbwTo81LS1rf7xGWnLcSllQnZY3uF8BFLUDL4MUj7Hj4NLdbAn+CCd4dpEBAAk9MYPplEgzcShsoi3LHjCHv/3RBjqdAQO+FYuuZRkFp1dZcu3gfqZ6JzhYqPQKnAxfxYMDDvVrF7sxUJeHznqhec/o87QDiCB+4kZDcFpuAQ8zi+krZSxvDM4C6m3RxMglxw8hZP+OFogFHY2PnPImWcA5YSlHNGwjamdiwZ4nFS6juY8erj5BVhaAgABRkszL+kjK2coK/8rPWqGF/spCgIZnkCPbbf6x5RK4UUDe5Z5Emr0=",
+    "expiration": "2026-06-27T17:28:39.000Z",
+    "backend": "GIT_BACKEND_S3"
   },
   "name": "velvet-alchemy-landing",
   "path": "/home/ubuntu/velvet-alchemy-landing",

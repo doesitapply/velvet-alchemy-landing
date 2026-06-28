@@ -117,3 +117,4 @@ __pycache__/
 vercel.env
 .vercel
 .env*.local
+.project-config.json

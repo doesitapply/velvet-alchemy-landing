@@ -315,8 +315,7 @@ export const payments = mysqlTable("payments", {
   package_type: mysqlEnum("package_type", ["basic", "standard", "premium"]).notNull(),
   payment_link: varchar("payment_link", { length: 512 }),
   created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-  completed_at: timestamp("completed_at"),
+  paid_at: timestamp("paid_at"),
 });
 
 export type Payment = typeof payments.$inferSelect;
