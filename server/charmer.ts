@@ -140,9 +140,12 @@ Generate the email now.`;
   const content = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
   const parsed = JSON.parse(content);
 
-  // Infer recipient email (for now, use a placeholder or website domain)
-  // In production, this would come from lead enrichment or manual input
-  const recipientEmail = lead.websiteUrl
+  // Use verified owner email from enrichment pipeline.
+  // Falls back to contact@domain only if no verified email was found.
+  // The pending_approval gate ensures a human reviews before any send.
+  const recipientEmail = (lead as any).verifiedOwnerEmail
+    ? (lead as any).verifiedOwnerEmail
+    : lead.websiteUrl
     ? `contact@${new URL(lead.websiteUrl).hostname}`
     : "contact@example.com";
 

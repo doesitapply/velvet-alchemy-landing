@@ -1,4 +1,6 @@
 import { invokeLLM } from "../_core/llm";
+import { findVerifiedOwnerEmail, type EnrichedContact } from "./emailEnrichment";
+import { sendSmsOutreach } from "./smsOutreach";
 
 /**
  * Revenue Calculator
@@ -169,9 +171,21 @@ export async function findCompetitorGaps(companyName: string, category: string, 
   };
 }
 
+export interface EnrichmentResult {
+  detailedReport: any;
+  revenueLoss: { annual: number; monthly: number };
+  /** Verified owner email if found, null otherwise */
+  verifiedEmail: string | null;
+  /** Which outreach channel was selected */
+  outreachChannel: "email" | "sms" | "none";
+  /** Whether an SMS was sent (only true if phone existed and Twilio is configured) */
+  smsSent: boolean;
+}
+
 /**
  * Complete Enrichment Pipeline
- * Combines all analysis functions to populate detailedReport
+ * Combines all analysis functions to populate detailedReport.
+ * Also runs email enrichment and routes to email or SMS outreach.
  */
 export async function enrichLead(lead: {
   id: number;
@@ -181,10 +195,8 @@ export async function enrichLead(lead: {
   location: string;
   screenshotUrl: string | null;
   prestigeScore: number | null;
-}): Promise<{
-  detailedReport: any;
-  revenueLoss: { annual: number; monthly: number };
-}> {
+  phone?: string | null;
+}): Promise<EnrichmentResult> {
   console.log(`[Enrichment] Starting enrichment for ${lead.companyName}`);
   
   // Calculate revenue loss
@@ -231,13 +243,58 @@ export async function enrichLead(lead: {
     suggested_fix: `Redesign with modern UI, optimize for mobile, add clear CTAs, and improve page speed to recover an estimated $${revenueLoss.annualLoss.toLocaleString()}/year in lost revenue.`,
   };
   
-  console.log(`[Enrichment] Completed for ${lead.companyName} - Annual loss: $${revenueLoss.annualLoss}`);
-  
+  // ── Email Enrichment & Outreach Routing ──────────────────────────────────
+  let verifiedEmail: string | null = null;
+  let outreachChannel: "email" | "sms" | "none" = "none";
+  let smsSent = false;
+
+  try {
+    const domain = lead.websiteUrl
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .split("/")[0];
+
+    const contact: EnrichedContact | null = await findVerifiedOwnerEmail(domain);
+
+    if (contact) {
+      verifiedEmail = contact.email;
+      outreachChannel = "email";
+      console.log(
+        `[Enrichment] Found verified email for ${lead.companyName}: ${contact.email} (${contact.confidence}% confidence via ${contact.source})`
+      );
+    } else if (lead.phone) {
+      // No verified email — fall back to SMS if phone is available
+      outreachChannel = "sms";
+      console.log(`[Enrichment] No email found for ${lead.companyName}, routing to SMS: ${lead.phone}`);
+
+      const smsResult = await sendSmsOutreach({
+        toPhone: lead.phone,
+        companyName: lead.companyName,
+        prestigeScore: lead.prestigeScore ?? 50,
+        leadId: lead.id,
+      });
+
+      smsSent = smsResult.success;
+      if (!smsResult.success) {
+        console.warn(`[Enrichment] SMS failed for ${lead.companyName}: ${smsResult.error}`);
+      }
+    } else {
+      console.log(`[Enrichment] No email or phone for ${lead.companyName} — no outreach channel available`);
+    }
+  } catch (enrichErr) {
+    console.error(`[Enrichment] Email enrichment error for ${lead.companyName}:`, enrichErr);
+  }
+
+  console.log(`[Enrichment] Completed for ${lead.companyName} - Annual loss: $${revenueLoss.annualLoss} | Channel: ${outreachChannel}`);
+
   return {
     detailedReport,
     revenueLoss: {
       annual: revenueLoss.annualLoss,
       monthly: revenueLoss.monthlyLoss,
     },
+    verifiedEmail,
+    outreachChannel,
+    smsSent,
   };
 }

@@ -168,6 +168,7 @@ export async function initializeSystemConfig(): Promise<void> {
     { key: "global_kill_switch", value: "false", description: "Global system kill-switch" },
     { key: "rate_limit_enabled", value: "true", description: "Enable rate limiting" },
     { key: "domain_check_enabled", value: "true", description: "Enable domain reputation checks" },
+    { key: "daily_cost_budget_cents", value: "1000", description: "Daily API spend budget in cents ($10.00 default). Exceeding this auto-trips the global kill-switch." },
   ];
 
   for (const config of defaults) {

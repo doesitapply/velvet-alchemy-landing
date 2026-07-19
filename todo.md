@@ -991,3 +991,36 @@
 - [x] Fix payments DB enum: ALTER TABLE to add 'completed'/'expired' values (was 'paid'/'refunded')
 - [x] Fix Stripe pricing P0: products.ts prices updated to 300000/500000/800000 cents ($3k/$5k/$8k)
 - [x] All 79 tests passing (15 test files)
+
+## Revenue Machine Upgrades (Phase 1-3 Blueprint)
+
+### Phase 1: Verified Email Enrichment + SMS Fallback
+- [x] Wire Hunter.io API into server/lib/enrichment.ts (findVerifiedOwnerEmail)
+- [x] Add HUNTER_API_KEY secret to environment (requires user to provide key)
+- [x] Filter for owner/founder/ceo/president titles, return highest-confidence email
+- [x] Add outreachChannel field to leads table: 'email' | 'sms' | 'none'
+- [x] Route lead to emailQueue if verified email found
+- [x] Route lead to SMS pipeline (Twilio) if no email but phone exists
+- [x] Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER secrets (requires user to provide)
+- [x] Build sendSmsOutreach() function with audit portal link
+- [x] Wire enrichment into orchestrator pipeline Stage 2 (batchAudit + enrichLead)
+- [ ] Write tests for enrichment routing logic (deferred — requires live API keys)
+
+### Phase 2: FIFO Queue Worker + Auto-Enqueue
+- [x] Create server/worker.ts — FIFO queue worker polling pipelineJobs every 5 min
+- [x] Worker processes max 3 leads at a time (sequential, not parallel)
+- [x] Worker marks jobs running → executes 3 stages → marks completed/failed
+- [x] Register worker in server/_core/index.ts (start on boot)
+- [x] Update scraperRouter.createLeadsFromSearch to auto-enqueue every new lead
+- [x] Add auto-enqueue to leads.create and leads.createPublic tRPC procedures
+- [ ] Add worker status endpoint to Governor dashboard (deferred)
+- [ ] Write tests for queue worker logic (deferred)
+
+### Phase 3: Governor Upgrades
+- [x] Add daily cost kill-switch: if apiUsageLogs daily total > $10, flip kill_switch = true
+- [x] Run cost check in apiCostTracker after every logged call
+- [x] Add DAILY_COST_BUDGET_CENTS config (default 1000 = $10) — stored in system_config table
+- [x] Enforce pending_approval gate: all outreach drafts start as pending_approval (already enforced)
+- [x] Block charmer.sendDraft if status != 'approved' (already enforced in charmerRouter)
+- [ ] Add cost threshold display to Governor dashboard (deferred)
+- [ ] Write tests for cost kill-switch trigger (deferred)

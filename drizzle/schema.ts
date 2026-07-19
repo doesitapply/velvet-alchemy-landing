@@ -60,6 +60,9 @@ export const leads = mysqlTable("leads", {
   globalRank: int("globalRank"), // Global traffic ranking
   bounceRate: decimal("bounceRate", { precision: 5, scale: 2 }), // Bounce rate percentage
   trafficDataFetchedAt: timestamp("trafficDataFetchedAt"), // When traffic data was last fetched
+  // Outreach routing fields (set by enrichment pipeline)
+  outreachChannel: mysqlEnum("outreachChannel", ["email", "sms", "none"]).default("none").notNull(),
+  verifiedOwnerEmail: varchar("verifiedOwnerEmail", { length: 320 }), // Hunter.io/Snov.io verified email
   // Google Maps enrichment fields
   phone: varchar("phone", { length: 32 }),
   address: varchar("address", { length: 512 }),

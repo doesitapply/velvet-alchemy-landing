@@ -124,6 +124,14 @@ export const appRouter = router({
           status: 'audited',
         });
 
+        // Auto-enqueue public lead into FIFO pipeline queue
+        try {
+          const { enqueueLeadForPipeline } = await import('./worker');
+          await enqueueLeadForPipeline(lead.id);
+        } catch (enqueueErr) {
+          console.error('[leads.createPublic] Failed to enqueue lead for pipeline:', enqueueErr);
+        }
+
         return { lead: updatedLead || lead, audit };
       }),
 
@@ -207,6 +215,14 @@ export const appRouter = router({
           details: `Created lead for ${input.companyName}`,
           status: 'success',
         });
+
+        // Auto-enqueue into FIFO pipeline queue
+        try {
+          const { enqueueLeadForPipeline } = await import('./worker');
+          await enqueueLeadForPipeline(lead.id);
+        } catch (enqueueErr) {
+          console.error('[leads.create] Failed to enqueue lead for pipeline:', enqueueErr);
+        }
 
         return { lead: updatedLead || lead, audit };
       }),

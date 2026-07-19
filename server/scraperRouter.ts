@@ -368,15 +368,13 @@ Return JSON only.`
 
             if (lead) {
               createdLeads.push(lead);
-              // Auto-trigger audit in background
+              // Auto-enqueue into FIFO pipeline queue (worker processes every 5 min)
               if (lead.id) {
                 try {
-                  const { executePipeline } = await import("./orchestrator");
-                  executePipeline(lead.id, ctx.user.id).catch((err: any) => {
-                    console.error(`Auto-audit failed for lead ${lead.id}:`, err);
-                  });
-                } catch (auditError) {
-                  console.error(`Failed to trigger auto-audit for ${r.name}:`, auditError);
+                  const { enqueueLeadForPipeline } = await import("./worker");
+                  await enqueueLeadForPipeline(lead.id);
+                } catch (enqueueError) {
+                  console.error(`Failed to enqueue lead ${lead.id} for pipeline:`, enqueueError);
                 }
               }
             }

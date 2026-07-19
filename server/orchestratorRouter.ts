@@ -105,24 +105,33 @@ export const orchestratorRouter = router({
               visualDebtData: JSON.stringify(auditResult),
             });
 
-            // Run enrichment to populate detailed report
+            // Run enrichment to populate detailed report + email/SMS routing
             const enrichmentResult = await enrichLead({
               id: lead.id,
               companyName: lead.companyName,
               websiteUrl: lead.websiteUrl,
-              category: 'default', // TODO: Add category field to leads table
-              location: '', // TODO: Add location field to leads table
+              category: lead.category ?? 'default',
+              location: lead.city ? `${lead.city}, ${lead.state ?? ''}` : '',
               screenshotUrl: lead.screenshotUrl,
               prestigeScore: auditResult.prestigeScore,
+              phone: lead.phone,
             });
 
-            // Update lead with prestige score and detailed report
-            await updateLead(leadId, {
+            // Update lead with prestige score, detailed report, and outreach channel
+            const leadUpdates: Record<string, any> = {
               prestigeScore: auditResult.prestigeScore,
               status: 'audited',
               detailedReport: JSON.stringify(enrichmentResult.detailedReport),
               lastDeepScanAt: new Date(),
-            });
+            };
+            if (enrichmentResult.outreachChannel !== 'none') {
+              (leadUpdates as any).outreachChannel = enrichmentResult.outreachChannel;
+            }
+            if (enrichmentResult.verifiedEmail) {
+              // Store verified email in the lead record for the Charmer to use
+              (leadUpdates as any).verifiedOwnerEmail = enrichmentResult.verifiedEmail;
+            }
+            await updateLead(leadId, leadUpdates);
             
             if (!audit) {
               console.error(`[BatchAudit] Failed to create audit for lead ${leadId}`);
