@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign } from "lucide-react";
+import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign, PhoneCall, CheckCircle2, XCircle, PhoneMissed } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 import { EmailComposeDialog } from "@/components/EmailComposeDialog";
@@ -125,6 +125,16 @@ export default function LeadDetail() {
 
 
 
+  const triggerHandoff = trpc.leads.triggerHandoff.useMutation({
+    onSuccess: (data) => {
+      toast.success(`⚡ SMIRK call queued — ${data.state}`);
+      refetch();
+    },
+    onError: (error: any) => {
+      toast.error(`Handoff failed: ${error.message}`);
+    },
+  });
+
   const sendDirectEmail = trpc.charmer.sendDirectEmail.useMutation({
     onSuccess: () => {
       toast.success("Email sent successfully!");
@@ -242,13 +252,31 @@ export default function LeadDetail() {
                   lead.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
                   lead.status === 'audited' ? 'bg-green-500/10 text-green-500' :
                   lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-500' :
+                  lead.status === 'smirk_queued' ? 'bg-violet-500/10 text-violet-400' :
+                  lead.status === 'smirk_contacted' ? 'bg-indigo-500/10 text-indigo-400' :
                   'bg-gray-500/10 text-gray-500'
                 }`}>
-                  {lead.status.toUpperCase()}
+                  {lead.status === 'smirk_queued' ? '⚡ SMIRK QUEUED' :
+                   lead.status === 'smirk_contacted' ? '⚡ SMIRK CONTACTED' :
+                   lead.status.toUpperCase()}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {['audited', 'contacted'].includes(lead.status) && (lead as any).phone && (
+                <Button
+                  onClick={() => triggerHandoff.mutate({ id: lead.id })}
+                  disabled={triggerHandoff.isPending}
+                  size="lg"
+                  className="gap-2 bg-violet-600 hover:bg-violet-500 text-white border border-violet-400/30"
+                >
+                  {triggerHandoff.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />Queuing...</>
+                  ) : (
+                    <><PhoneCall className="h-4 w-4" />Queue SMIRK Call</>
+                  )}
+                </Button>
+              )}
               {lead.status === 'pending' && (
                 <Button
                   onClick={() => startAudit.mutate({ leadId: lead.id })}
@@ -433,6 +461,66 @@ export default function LeadDetail() {
                   <p className="text-sm">{new Date(audit.createdAt).toLocaleString()}</p>
                 </div>
               </div>
+            </Card>
+          )}
+
+          {/* SMIRK Outcome Panel */}
+          {(lead.status === 'smirk_queued' || lead.status === 'smirk_contacted' || (lead as any).smirkCallOutcome) && (
+            <Card className="p-6 border-violet-500/20 bg-violet-500/5">
+              <div className="flex items-center gap-3 mb-4">
+                <PhoneCall className="h-5 w-5 text-violet-400" />
+                <h2 className="text-xl font-serif italic text-violet-300">SMIRK Call Intelligence</h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <h3 className="text-xs font-mono text-muted-foreground mb-1">STATUS</h3>
+                  <span className={`text-sm font-mono px-2 py-0.5 rounded-sm ${
+                    lead.status === 'smirk_queued' ? 'bg-violet-500/20 text-violet-300' :
+                    lead.status === 'smirk_contacted' ? 'bg-indigo-500/20 text-indigo-300' :
+                    'bg-white/10 text-white/60'
+                  }`}>
+                    {lead.status === 'smirk_queued' ? 'Queued' :
+                     lead.status === 'smirk_contacted' ? 'Contacted' : lead.status}
+                  </span>
+                </div>
+                {(lead as any).smirkCallOutcome && (
+                  <div>
+                    <h3 className="text-xs font-mono text-muted-foreground mb-1">OUTCOME</h3>
+                    <div className="flex items-center gap-1.5">
+                      {(lead as any).smirkCallOutcome === 'interested' ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-400" />
+                      ) : (lead as any).smirkCallOutcome === 'not_interested' ? (
+                        <XCircle className="h-4 w-4 text-red-400" />
+                      ) : (lead as any).smirkCallOutcome === 'no_answer' ? (
+                        <PhoneMissed className="h-4 w-4 text-amber-400" />
+                      ) : (
+                        <PhoneCall className="h-4 w-4 text-blue-400" />
+                      )}
+                      <span className="text-sm font-mono capitalize">
+                        {((lead as any).smirkCallOutcome as string).replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {(lead as any).smirkHandoffAt && (
+                  <div>
+                    <h3 className="text-xs font-mono text-muted-foreground mb-1">QUEUED AT</h3>
+                    <p className="text-sm font-mono">{new Date((lead as any).smirkHandoffAt).toLocaleString()}</p>
+                  </div>
+                )}
+                {(lead as any).smirkWorkspaceId && (
+                  <div>
+                    <h3 className="text-xs font-mono text-muted-foreground mb-1">WORKSPACE</h3>
+                    <p className="text-sm font-mono text-muted-foreground">{(lead as any).smirkWorkspaceId}</p>
+                  </div>
+                )}
+              </div>
+              {(lead as any).smirkCallSummary && (
+                <div className="border-t border-violet-500/20 pt-4">
+                  <h3 className="text-xs font-mono text-muted-foreground mb-2">CALL SUMMARY</h3>
+                  <p className="text-sm leading-relaxed">{(lead as any).smirkCallSummary}</p>
+                </div>
+              )}
             </Card>
           )}
 

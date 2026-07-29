@@ -1038,3 +1038,13 @@
 - [ ] Write integration tests for handoff and outcome endpoints
 - [ ] Run full test suite (pnpm test)
 - [ ] Save checkpoint
+
+## UI Coherence Pass
+- [ ] Replace landing page with minimal auth gate (name + one line + login button)
+- [ ] Root / redirects to /command-center when authenticated, to login gate when not
+- [ ] Remove all "$5K paychecks" / SaaS marketing copy from codebase
+- [ ] Add SMIRK status badges to lead list (smirk_queued, smirk_contacted with outcome chip)
+- [ ] Add SMIRK Call Intelligence panel to LeadDetail page
+- [ ] Add "Queue SMIRK Call" button to LeadDetail (visible when lead is audited + has phone)
+- [ ] Add leads.triggerHandoff tRPC mutation (calls queueSmirkCall, returns result)
+- [ ] Status color map updated to include smirk_queued (purple) and smirk_contacted (indigo)
