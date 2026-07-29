@@ -1027,7 +1027,7 @@
 
 ## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
 
-- [ ] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
+- [x] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
 - [x] Add a review-only handoff:write scope; defer outcome callbacks until SMIRK implements and verifies that contract
 - [x] Create server/lib/smirkHandoff.ts (review brief builder + fail-closed handoff client)
 - [x] Add GET /api/v1/leads/ready endpoint to apiRouter.ts

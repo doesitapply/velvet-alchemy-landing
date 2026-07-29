@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { audits, leads } from "../drizzle/schema";
 import { getDb } from "./db";
 import {
+  buildAuditEvidenceOpeningLine,
   buildCallBrief,
   createSmirkHandoff,
   sendSyntheticTestHandoff,
@@ -65,7 +66,10 @@ async function ensureTestLeads() {
 afterAll(async () => {
   const db = await getDb();
   if (!db) return;
-  if (testLeadId) await db.delete(leads).where(eq(leads.id, testLeadId));
+  if (testLeadId) {
+    await db.delete(audits).where(eq(audits.leadId, testLeadId));
+    await db.delete(leads).where(eq(leads.id, testLeadId));
+  }
   if (testLeadNoPhoneId) await db.delete(leads).where(eq(leads.id, testLeadNoPhoneId));
 });
 
@@ -80,14 +84,65 @@ describe.skipIf(!process.env.DATABASE_URL)("buildCallBrief", () => {
     expect(await buildCallBrief(testLeadId!, TEST_USER_ID + 1)).toBeNull();
   });
 
-  it("builds neutral review-only copy without unsupported loss claims", async () => {
+  it("builds evidence-derived review-only copy without unsupported loss claims", async () => {
     await ensureTestLeads();
     const brief = await buildCallBrief(testLeadId!, TEST_USER_ID);
     expect(brief).not.toBeNull();
     expect(brief!.businessName).toBe("Test HVAC Co");
     expect(brief!.phoneNumber).toBe("+17755550001");
-    expect(brief!.openingLine).toContain("possible mobile booking issue");
+    expect(brief!.openingLine).toContain("mobile contact path");
     expect(brief!.openingLine).not.toMatch(/costing you|losing money|lost revenue/i);
+  });
+});
+
+describe("audit-grounded opening copy", () => {
+  it("derives the opening from a structured audit issue", () => {
+    const openingLine = buildAuditEvidenceOpeningLine("Example Plumbing", {
+      summary: "The website needs review.",
+      visualDebtData: JSON.stringify({
+        visualDebt: [{
+          category: "ux",
+          severity: "high",
+          issue: "The primary contact action is difficult to locate",
+          recommendation: "Make the contact action persistent",
+        }],
+      }),
+    });
+
+    expect(openingLine).toBe(
+      "The latest audit for Example Plumbing flagged this for human review: " +
+      "The primary contact action is difficult to locate.",
+    );
+  });
+
+  it("uses a non-assertive fallback when the audit failed", () => {
+    const openingLine = buildAuditEvidenceOpeningLine("Example Plumbing", {
+      summary: "Audit failed for Example Plumbing. Error: upstream timeout",
+      visualDebtData: JSON.stringify({
+        visualDebt: [{
+          category: "technical",
+          severity: "high",
+          issue: "Automated audit failed",
+          recommendation: "Manual review required",
+        }],
+      }),
+    });
+
+    expect(openingLine).toBe(
+      "Complete a human review for Example Plumbing before deciding whether any manual outreach is appropriate.",
+    );
+    expect(openingLine).not.toMatch(/mobile|booking|defect|friction/i);
+  });
+
+  it("uses the audit summary when no structured issue is available", () => {
+    const openingLine = buildAuditEvidenceOpeningLine("Example Plumbing", {
+      summary: "The main navigation lacks a visible contact path",
+      visualDebtData: "{not-json",
+    });
+
+    expect(openingLine).toContain(
+      "The main navigation lacks a visible contact path",
+    );
   });
 });
 

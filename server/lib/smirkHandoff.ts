@@ -90,6 +90,71 @@ function readRemoteError(body: unknown): { code?: string; error?: string } {
   };
 }
 
+type AuditEvidence = {
+  summary?: string | null;
+  visualDebtData?: string | null;
+};
+
+const FAILED_AUDIT_EVIDENCE =
+  /\b(?:audit failed|automated audit failed|audit system error|unable to analyze)\b/i;
+
+function normalizeEvidenceText(value: unknown, maxLength = 240): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+  if (!normalized || FAILED_AUDIT_EVIDENCE.test(normalized)) return null;
+  return normalized;
+}
+
+function readAuditIssue(visualDebtData: string | null | undefined): string | null {
+  if (!visualDebtData) return null;
+
+  try {
+    const parsed = JSON.parse(visualDebtData) as unknown;
+    const record = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+    const candidates = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(record?.visualDebt)
+        ? record.visualDebt
+        : Array.isArray(record?.issues)
+          ? record.issues
+          : [];
+
+    for (const candidate of candidates) {
+      const issue = candidate && typeof candidate === "object"
+        ? (candidate as Record<string, unknown>).issue
+        : candidate;
+      const normalized = normalizeEvidenceText(issue);
+      if (normalized) return normalized;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function buildAuditEvidenceOpeningLine(
+  companyName: string,
+  audit?: AuditEvidence | null,
+): string {
+  const businessName = normalizeEvidenceText(companyName, 120) || "this business";
+  const issue = readAuditIssue(audit?.visualDebtData);
+  if (issue) {
+    const punctuation = /[.!?]$/.test(issue) ? "" : ".";
+    return `The latest audit for ${businessName} flagged this for human review: ${issue}${punctuation}`;
+  }
+
+  const summary = normalizeEvidenceText(audit?.summary);
+  if (summary && !/^no audit available[.!]?$/i.test(summary)) {
+    const punctuation = /[.!?]$/.test(summary) ? "" : ".";
+    return `The latest audit summary for ${businessName} is ready for human review: ${summary}${punctuation}`;
+  }
+
+  return `Complete a human review for ${businessName} before deciding whether any manual outreach is appropriate.`;
+}
+
 function readPersistedConfirmation(
   body: unknown,
   expectedState: "RECEIVED" | "DUPLICATE",
@@ -257,7 +322,7 @@ export async function buildCallBrief(leadId: number, userId: number): Promise<Ca
     ownerName: null,
     websiteUrl: lead.websiteUrl,
     signals,
-    openingLine: `I noticed a possible mobile booking issue for ${lead.companyName} that may be creating friction.`,
+    openingLine: buildAuditEvidenceOpeningLine(lead.companyName, audit),
     auditSummary: audit?.summary ?? "No audit available.",
     prestigeScore: audit?.prestigeScore ?? lead.prestigeScore ?? 0,
   };

@@ -16,7 +16,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
-import { eq, desc, and, isNotNull, isNull } from "drizzle-orm";
+import { eq, desc, and, inArray, isNotNull, isNull } from "drizzle-orm";
 import * as db from "./db";
 import { getDb } from "./db";
 import { apiKeys, leads, audits } from "../drizzle/schema";
@@ -25,7 +25,7 @@ import { storagePut } from "./storage";
 import { analyzeVisualDebt } from "./visualAudit";
 import { nanoid } from "nanoid";
 import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
-import { createSmirkHandoff } from "./lib/smirkHandoff";
+import { buildAuditEvidenceOpeningLine, createSmirkHandoff } from "./lib/smirkHandoff";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -385,10 +385,33 @@ export function createApiRouter(): Router {
         .orderBy(desc(leads.priorityScore), desc(leads.reviewCount))
         .limit(limit);
 
+      const leadIds = readyLeads.map(lead => lead.id);
+      const auditRows = leadIds.length
+        ? await orm
+            .select({
+              leadId: audits.leadId,
+              summary: audits.summary,
+              visualDebtData: audits.visualDebtData,
+              createdAt: audits.createdAt,
+            })
+            .from(audits)
+            .where(inArray(audits.leadId, leadIds))
+            .orderBy(desc(audits.createdAt))
+        : [];
+      const latestAuditByLead = new Map<number, typeof auditRows[number]>();
+      for (const audit of auditRows) {
+        if (!latestAuditByLead.has(audit.leadId)) {
+          latestAuditByLead.set(audit.leadId, audit);
+        }
+      }
+
       const withBriefs = readyLeads.map(lead => ({
         ...lead,
         callBrief: {
-          openingLine: `I noticed a possible mobile booking issue for ${lead.companyName} that may be creating friction.`,
+          openingLine: buildAuditEvidenceOpeningLine(
+            lead.companyName,
+            latestAuditByLead.get(lead.id),
+          ),
           signals: [
             lead.reviewCount && lead.reviewCount > 30 ? `${lead.reviewCount} public reviews` : null,
             lead.googleRating ? `${lead.googleRating} public rating` : null,
