@@ -1038,3 +1038,13 @@
 - [x] Write mocked contract tests plus an explicit opt-in live idempotency test
 - [ ] Run full test suite with database, storage proxy, and AI test credentials
 - [x] Save hardening checkpoint on a dedicated branch
+
+## UI Coherence Pass
+- [x] Replace landing page with minimal auth gate (name + one line + login button)
+- [x] Root / redirects to /command-center when authenticated, to login gate when not
+- [x] Remove all "$5K paychecks" / SaaS marketing copy from codebase
+- [x] Add historical SMIRK status badges to lead list
+- [x] Add SMIRK review-handoff panel to LeadDetail
+- [x] Add review-handoff button to LeadDetail for audited leads with phone numbers
+- [x] Add leads.triggerHandoff tRPC mutation using the review-only handoff client
+- [x] Status color map updated to include historical SMIRK statuses

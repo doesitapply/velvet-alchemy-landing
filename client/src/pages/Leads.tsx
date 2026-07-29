@@ -279,6 +279,12 @@ export default function Leads() {
         return "bg-blue-500/20 text-blue-400 border-blue-500/30";
       case "closed":
         return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+      case "paid":
+        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+      case "smirk_queued":
+        return "bg-violet-500/20 text-violet-400 border-violet-500/30";
+      case "smirk_contacted":
+        return "bg-indigo-500/20 text-indigo-400 border-indigo-500/30";
       default:
         return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
     }
@@ -528,8 +534,18 @@ export default function Leads() {
                           {lead.companyName}
                         </h3>
                         <Badge className={getStatusColor(lead.status)}>
-                          {lead.status}
+                          {lead.status.replace('smirk_', '⚡ ')}
                         </Badge>
+                        {(lead as any).smirkCallOutcome && (
+                          <Badge className={`text-xs font-mono ${
+                            (lead as any).smirkCallOutcome === 'interested' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
+                            (lead as any).smirkCallOutcome === 'not_interested' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                            (lead as any).smirkCallOutcome === 'callback' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                            'bg-white/10 text-white/50 border-white/10'
+                          }`}>
+                            {(lead as any).smirkCallOutcome.replace('_', ' ')}
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">

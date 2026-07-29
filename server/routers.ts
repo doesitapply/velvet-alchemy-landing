@@ -310,6 +310,37 @@ export const appRouter = router({
 
         return { success: true };
       }),
+
+    triggerHandoff: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const lead = await getLeadById(input.id);
+        if (!lead) throw new Error('Lead not found');
+        if (lead.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+          throw new Error('Unauthorized');
+        }
+        if (!lead.phone) throw new Error('Lead has no phone number');
+        if (!['audited', 'contacted'].includes(lead.status)) {
+          throw new Error('Lead must be audited before creating a review handoff');
+        }
+        const { createSmirkHandoff } = await import('./lib/smirkHandoff');
+        const result = await createSmirkHandoff(lead.id, lead.userId);
+        if (!result.success) throw new Error(result.error || 'SMIRK handoff failed');
+        await logAudit({
+          userId: ctx.user.id,
+          action: 'smirk_handoff',
+          resource: 'leads',
+          resourceId: input.id,
+          details: `Created SMIRK review handoff for ${lead.companyName} — state: ${result.state}`,
+          status: 'success',
+        });
+        return {
+          success: true,
+          state: result.state,
+          handoffId: result.handoffId,
+          taskId: result.taskId ?? null,
+        };
+      }),
   }),
 });
 
