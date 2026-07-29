@@ -16,16 +16,16 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
-import { eq, desc, and, isNotNull } from "drizzle-orm";
+import { eq, desc, and, isNotNull, isNull } from "drizzle-orm";
 import * as db from "./db";
 import { getDb } from "./db";
-import { apiKeys, leads, audits, auditLog } from "../drizzle/schema";
+import { apiKeys, leads, audits } from "../drizzle/schema";
 import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
 import { analyzeVisualDebt } from "./visualAudit";
 import { nanoid } from "nanoid";
 import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
-import { queueSmirkCall } from "./lib/smirkHandoff";
+import { createSmirkHandoff } from "./lib/smirkHandoff";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -135,7 +135,7 @@ export function createApiRouter(): Router {
   });
 
   // ── GET /api/v1/leads/:id ───────────────────────────────────────────────────
-  r.get("/leads/:id", requireScope("leads:read"), async (req: AuthedRequest, res: Response) => {
+  r.get("/leads/:id(\\d+)", requireScope("leads:read"), async (req: AuthedRequest, res: Response) => {
     try {
       const orm = await getDb();
       if (!orm) return res.status(503).json({ error: "Database unavailable" });
@@ -348,7 +348,10 @@ export function createApiRouter(): Router {
   // Scope: leads:read
   r.get("/leads/ready", requireScope("leads:read"), async (req: AuthedRequest, res: Response) => {
     try {
-      const limit = Math.min(parseInt(String(req.query.limit ?? "20")), 100);
+      const requestedLimit = Number(req.query.limit ?? 20);
+      const limit = Number.isSafeInteger(requestedLimit)
+        ? Math.min(Math.max(requestedLimit, 1), 100)
+        : 20;
       const orm = await getDb();
       if (!orm) return res.status(503).json({ error: "Database unavailable" });
 
@@ -375,7 +378,8 @@ export function createApiRouter(): Router {
           and(
             eq(leads.userId, req.apiKey!.userId),
             eq(leads.status, "audited"),
-            isNotNull(leads.phone)
+            isNotNull(leads.phone),
+            isNull(leads.smirkHandoffAt)
           )
         )
         .orderBy(desc(leads.priorityScore), desc(leads.reviewCount))
@@ -384,13 +388,11 @@ export function createApiRouter(): Router {
       const withBriefs = readyLeads.map(lead => ({
         ...lead,
         callBrief: {
-          openingLine: lead.reviewCount && lead.reviewCount > 30
-            ? `Hi, I'm calling about ${lead.companyName}. You have ${lead.reviewCount} Google reviews — clearly people love you. I wanted to share something specific about your call handling that I think is costing you jobs. Do you have 90 seconds?`
-            : `Hi, I'm calling about ${lead.companyName}. We ran a quick analysis on your business and found something specific about your phone coverage I think is worth 2 minutes of your time.`,
+          openingLine: `I noticed a possible mobile booking issue for ${lead.companyName} that may be creating friction.`,
           signals: [
-            lead.reviewCount && lead.reviewCount > 30 ? `${lead.reviewCount} Google reviews` : null,
-            lead.googleRating ? `${lead.googleRating}\u2605 rating` : null,
-            lead.prestigeScore && lead.prestigeScore < 60 ? `Website score ${lead.prestigeScore}/100` : null,
+            lead.reviewCount && lead.reviewCount > 30 ? `${lead.reviewCount} public reviews` : null,
+            lead.googleRating ? `${lead.googleRating} public rating` : null,
+            lead.prestigeScore && lead.prestigeScore < 60 ? `Internal website review score ${lead.prestigeScore}/100` : null,
           ].filter(Boolean),
         },
         handoffUrl: `/api/v1/leads/${lead.id}/handoff`,
@@ -403,12 +405,14 @@ export function createApiRouter(): Router {
   });
 
   // ── POST /api/v1/leads/:id/handoff ─────────────────────────────────────────
-  // Queue a SMIRK outbound call for a qualified lead.
+  // Create an operator-review handoff in SMIRK. This does not place a call.
   // Scope: handoff:write
   r.post("/leads/:id/handoff", requireScope("handoff:write"), async (req: AuthedRequest, res: Response) => {
     try {
       const leadId = parseInt(req.params.id);
-      const { scheduledAt, maxAttempts } = req.body ?? {};
+      if (!Number.isSafeInteger(leadId) || leadId <= 0) {
+        return res.status(400).json({ error: "Invalid lead ID" });
+      }
 
       const orm = await getDb();
       if (!orm) return res.status(503).json({ error: "Database unavailable" });
@@ -416,70 +420,23 @@ export function createApiRouter(): Router {
       const leadRows = await orm.select().from(leads)
         .where(and(eq(leads.id, leadId), eq(leads.userId, req.apiKey!.userId))).limit(1);
       if (!leadRows[0]) return res.status(404).json({ error: "Lead not found" });
-      if (!leadRows[0].phone) return res.status(422).json({ error: "Lead has no phone number — cannot queue call" });
+      if (!leadRows[0].phone) return res.status(422).json({ error: "Lead has no phone number" });
 
-      const result = await queueSmirkCall(leadId, { scheduledAt, maxAttempts });
+      const result = await createSmirkHandoff(leadId, req.apiKey!.userId);
 
       if (!result.success) {
-        return res.status(502).json({ error: result.error });
+        const status = result.httpStatus === 409 ? 409 : result.retryable ? 503 : 502;
+        return res.status(status).json({ error: result.error, code: result.code });
       }
 
-      res.json({ success: true, jobId: result.jobId, leadId, status: "smirk_queued" });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // ── POST /api/v1/leads/:id/outcome ─────────────────────────────────────────
-  // Receive a call outcome from SMIRK after a call completes.
-  // SMIRK fires this webhook using a VA API key with outcome:write scope.
-  // Scope: outcome:write
-  r.post("/leads/:id/outcome", requireScope("outcome:write"), async (req: AuthedRequest, res: Response) => {
-    try {
-      const leadId = parseInt(req.params.id);
-      const {
-        outcome,       // "interested" | "not_interested" | "callback" | "booked" | "no_answer" | "voicemail"
-        summary,       // SMIRK post-call AI summary
-        workspaceId,   // Which SMIRK workspace handled the call
-        callDuration,  // Seconds
-        calledAt,      // ISO 8601
-      } = req.body ?? {};
-
-      if (!outcome) return res.status(400).json({ error: "outcome is required" });
-
-      const orm = await getDb();
-      if (!orm) return res.status(503).json({ error: "Database unavailable" });
-
-      // Map SMIRK outcome tag to Velvet Alchemy lead status
-      const statusMap: Record<string, "smirk_contacted" | "closed" | "smirk_queued"> = {
-        interested:     "smirk_contacted",
-        booked:         "closed",
-        not_interested: "closed",
-        callback:       "smirk_contacted",
-        no_answer:      "smirk_queued",
-        voicemail:      "smirk_queued",
-      };
-      const newStatus = statusMap[outcome] ?? "smirk_contacted";
-
-      await orm.update(leads).set({
-        status: newStatus,
-        smirkCallOutcome: outcome,
-        smirkCallSummary: summary ?? null,
-        smirkWorkspaceId: workspaceId ?? null,
-        updatedAt: new Date(),
-      }).where(eq(leads.id, leadId));
-
-      // Log to audit log for compliance
-      await orm.insert(auditLog).values({
-        userId: req.apiKey!.userId,
-        action: "smirk_call_outcome",
-        resource: "lead",
-        resourceId: leadId,
-        details: JSON.stringify({ outcome, callDuration, calledAt, workspaceId }),
-        status: "success",
+      res.json({
+        success: true,
+        state: result.state,
+        handoffId: result.handoffId,
+        taskId: result.taskId ?? null,
+        leadId,
+        status: "handoff_created",
       });
-
-      res.json({ success: true, leadId, status: newStatus });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

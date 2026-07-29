@@ -1,32 +1,31 @@
-/**
- * SMIRK Handoff Integration Tests
- *
- * Validates:
- *   1. buildCallBrief — correct brief construction from lead + audit data
- *   2. queueSmirkCall — correct error handling for leads without phones
- *   3. SMIRK connectivity — correct endpoint, auth, and idempotency contract
- *   4. Synthetic test handoff — 201 RECEIVED on first POST, 200 DUPLICATE on replay
- *
- * Strict assertions — 404 is a failure. No weakened assertions.
- */
-
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { buildCallBrief, queueSmirkCall, sendSyntheticTestHandoff } from "./lib/smirkHandoff";
+import { audits, leads } from "../drizzle/schema";
 import { getDb } from "./db";
-import { leads, audits } from "../drizzle/schema";
+import {
+  buildCallBrief,
+  createSmirkHandoff,
+  sendSyntheticTestHandoff,
+} from "./lib/smirkHandoff";
 
-// ─── Test data ────────────────────────────────────────────────────────────────
+const TEST_USER_ID = 1;
+const configuredEnv = {
+  NODE_ENV: "production",
+  SMIRK_BASE_URL: "https://smirkcalls.com",
+  SMIRK_API_KEY: "dedicated-velvet-test-token",
+  SMIRK_WORKSPACE_ID: "1",
+};
 
 let testLeadId: number | null = null;
 let testLeadNoPhoneId: number | null = null;
 
-beforeAll(async () => {
+async function ensureTestLeads() {
+  if (testLeadId && testLeadNoPhoneId) return;
   const db = await getDb();
-  if (!db) return;
+  if (!db) throw new Error("DATABASE_URL is required for DB-backed SMIRK tests");
 
   const [withPhone] = await db.insert(leads).values({
-    userId: 1,
+    userId: TEST_USER_ID,
     companyName: "Test HVAC Co",
     websiteUrl: "https://testhvac.example.com",
     phone: "+17755550001",
@@ -42,7 +41,7 @@ beforeAll(async () => {
   testLeadId = withPhone?.id ?? null;
 
   const [noPhone] = await db.insert(leads).values({
-    userId: 1,
+    userId: TEST_USER_ID,
     companyName: "No Phone Plumbing",
     websiteUrl: "https://nophone.example.com",
     status: "audited",
@@ -53,12 +52,15 @@ beforeAll(async () => {
   if (testLeadId) {
     await db.insert(audits).values({
       leadId: testLeadId,
-      summary: "Website has no mobile optimization, broken contact form, and no clear CTA above the fold.",
+      summary: "The mobile contact path may be creating friction.",
       prestigeScore: 45,
-      visualDebtData: JSON.stringify({ issues: ["no mobile", "broken form"] }),
+      visualDebtData: JSON.stringify({ issues: ["mobile contact path"] }),
     });
   }
-});
+  if (!testLeadId || !testLeadNoPhoneId) {
+    throw new Error("Failed to create DB-backed SMIRK test leads");
+  }
+}
 
 afterAll(async () => {
   const db = await getDb();
@@ -67,114 +69,266 @@ afterAll(async () => {
   if (testLeadNoPhoneId) await db.delete(leads).where(eq(leads.id, testLeadNoPhoneId));
 });
 
-// ─── buildCallBrief ───────────────────────────────────────────────────────────
-
-describe("buildCallBrief", () => {
+describe.skipIf(!process.env.DATABASE_URL)("buildCallBrief", () => {
   it("returns null for a lead with no phone number", async () => {
-    if (!testLeadNoPhoneId) return;
-    const brief = await buildCallBrief(testLeadNoPhoneId);
-    expect(brief).toBeNull();
+    await ensureTestLeads();
+    expect(await buildCallBrief(testLeadNoPhoneId!, TEST_USER_ID)).toBeNull();
   });
 
-  it("returns null for a non-existent lead ID", async () => {
-    const brief = await buildCallBrief(999999999);
-    expect(brief).toBeNull();
+  it("does not return another user's lead", async () => {
+    await ensureTestLeads();
+    expect(await buildCallBrief(testLeadId!, TEST_USER_ID + 1)).toBeNull();
   });
 
-  it("builds a valid call brief for a lead with phone and audit", async () => {
-    if (!testLeadId) return;
-    const brief = await buildCallBrief(testLeadId);
+  it("builds neutral review-only copy without unsupported loss claims", async () => {
+    await ensureTestLeads();
+    const brief = await buildCallBrief(testLeadId!, TEST_USER_ID);
     expect(brief).not.toBeNull();
-    expect(brief!.velvetLeadId).toBe(testLeadId);
     expect(brief!.businessName).toBe("Test HVAC Co");
     expect(brief!.phoneNumber).toBe("+17755550001");
-    expect(brief!.signals.length).toBeGreaterThan(0);
-    expect(brief!.openingLine).toContain("Test HVAC Co");
-    expect(brief!.auditSummary).toContain("contact form");
-    expect(brief!.prestigeScore).toBe(45);
-    expect(brief!.outcomeWebhookUrl).toContain(`/api/v1/leads/${testLeadId}/outcome`);
-  });
-
-  it("includes review count signal when reviewCount > 30", async () => {
-    if (!testLeadId) return;
-    const brief = await buildCallBrief(testLeadId);
-    expect(brief!.signals.some(s => s.includes("87 Google reviews"))).toBe(true);
-  });
-
-  it("includes prestige score signal when score < 60", async () => {
-    if (!testLeadId) return;
-    const brief = await buildCallBrief(testLeadId);
-    expect(brief!.signals.some(s => s.includes("45/100"))).toBe(true);
+    expect(brief!.openingLine).toContain("possible mobile booking issue");
+    expect(brief!.openingLine).not.toMatch(/costing you|losing money|lost revenue/i);
   });
 });
 
-// ─── queueSmirkCall error paths ───────────────────────────────────────────────
-
-describe("queueSmirkCall", () => {
-  it("returns error for lead with no phone", async () => {
-    if (!testLeadNoPhoneId) return;
-    const result = await queueSmirkCall(testLeadNoPhoneId);
+describe.skipIf(!process.env.DATABASE_URL)("createSmirkHandoff", () => {
+  it("does not call SMIRK for a missing or unowned lead", async () => {
+    await ensureTestLeads();
+    const fetchImpl = vi.fn();
+    const result = await createSmirkHandoff(testLeadId!, TEST_USER_ID + 1, {
+      env: configuredEnv,
+      fetchImpl,
+    });
     expect(result.success).toBe(false);
-    expect(result.error).toMatch(/phone/i);
+    expect(result.code).toBe("SMIRK_HANDOFF_LEAD_NOT_READY");
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("returns error for non-existent lead", async () => {
-    const result = await queueSmirkCall(999999999);
-    expect(result.success).toBe(false);
+  it("uses a stable external ID and preserves SMIRK record identifiers", async () => {
+    await ensureTestLeads();
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        state: "RECEIVED",
+        handoffId: 51,
+        taskId: 61,
+      }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        state: "DUPLICATE",
+        handoffId: 51,
+        taskId: 61,
+      }), { status: 200 }));
+
+    const first = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
+      env: configuredEnv,
+      fetchImpl,
+    });
+    const replay = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
+      env: configuredEnv,
+      fetchImpl,
+    });
+
+    expect(first).toMatchObject({
+      success: true,
+      state: "RECEIVED",
+      handoffId: 51,
+      taskId: 61,
+    });
+    expect(replay).toMatchObject({
+      success: true,
+      state: "DUPLICATE",
+      handoffId: 51,
+      taskId: 61,
+    });
+
+    const firstBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    const replayBody = JSON.parse(fetchImpl.mock.calls[1][1].body);
+    expect(firstBody.externalId).toBe(`velvet-lead-${testLeadId}`);
+    expect(replayBody.externalId).toBe(firstBody.externalId);
+    expect(firstBody.recommendedAction).toContain("Human review only");
   });
 });
 
-// ─── SMIRK live connectivity + idempotency contract ──────────────────────────
+describe("SMIRK receiver contract", () => {
+  it("maps a persisted RECEIVED response with its handoff and task IDs", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      state: "RECEIVED",
+      handoffId: 71,
+      taskId: 81,
+    }), { status: 201 }));
 
-describe("SMIRK live integration", () => {
-  const syntheticSuffix = `test-${Date.now()}`;
+    const result = await sendSyntheticTestHandoff("unit-received", {
+      env: configuredEnv,
+      fetchImpl,
+    });
 
-  it(
-    "synthetic handoff: first POST returns 201 RECEIVED",
+    expect(result).toEqual({
+      success: true,
+      state: "RECEIVED",
+      httpStatus: 201,
+      handoffId: 71,
+      taskId: 81,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0][0]).toBe(
+      "https://smirkcalls.com/api/integrations/velvet/handoffs",
+    );
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(body.workspaceId).toBe(1);
+    expect(body.externalId).toBe("velvet-manus-fake-unit-received");
+    expect(body.caller.phone).toBe("+12025550124");
+  });
+
+  it("maps an exact replay only when SMIRK confirms durable IDs", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      state: "DUPLICATE",
+      handoffId: 71,
+      taskId: 81,
+    }), { status: 200 }));
+
+    const result = await sendSyntheticTestHandoff("unit-duplicate", {
+      env: configuredEnv,
+      fetchImpl,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      state: "DUPLICATE",
+      handoffId: 71,
+      taskId: 81,
+    });
+  });
+
+  it("fails closed when a success-shaped response lacks a persisted handoff ID", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      state: "RECEIVED",
+    }), { status: 201 }));
+
+    const result = await sendSyntheticTestHandoff("unit-missing-id", {
+      env: configuredEnv,
+      fetchImpl,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("SMIRK_HANDOFF_REJECTED");
+  });
+
+  it("accepts a conflict only with SMIRK's exact idempotency code", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: "This external handoff ID was already used for a different payload.",
+      code: "VELVET_ALCHEMY_IDEMPOTENCY_CONFLICT",
+    }), { status: 409 }));
+
+    const result = await sendSyntheticTestHandoff("unit-conflict", {
+      env: configuredEnv,
+      fetchImpl,
+      reason: "Changed synthetic payload used to verify conflict handling.",
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      httpStatus: 409,
+      code: "VELVET_ALCHEMY_IDEMPOTENCY_CONFLICT",
+      retryable: false,
+    });
+  });
+
+  it("keeps 404 and forged-key failures closed", async () => {
+    for (const [status, code] of [
+      [404, "API_NOT_FOUND"],
+      [401, "VELVET_ALCHEMY_HANDOFF_UNAUTHORIZED"],
+    ] as const) {
+      const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        error: "Rejected",
+        code,
+      }), { status }));
+      const result = await sendSyntheticTestHandoff(`unit-${status}`, {
+        env: configuredEnv,
+        fetchImpl,
+      });
+      expect(result.success).toBe(false);
+      expect(result.httpStatus).toBe(status);
+    }
+  });
+
+  it("does not make a request when the integration is not configured", async () => {
+    const fetchImpl = vi.fn();
+    const result = await sendSyntheticTestHandoff("unit-unconfigured", {
+      env: {},
+      fetchImpl,
+    });
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("SMIRK_HANDOFF_NOT_CONFIGURED");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects an HTTP origin in production before making a request", async () => {
+    const fetchImpl = vi.fn();
+    const result = await sendSyntheticTestHandoff("unit-http-origin", {
+      env: {
+        ...configuredEnv,
+        SMIRK_BASE_URL: "http://127.0.0.1:3000",
+      },
+      fetchImpl,
+    });
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("SMIRK_HANDOFF_NOT_CONFIGURED");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects string-shaped persisted IDs", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      state: "RECEIVED",
+      handoffId: "71",
+      taskId: "81",
+    }), { status: 201 }));
+    const result = await sendSyntheticTestHandoff("unit-string-ids", {
+      env: configuredEnv,
+      fetchImpl,
+    });
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("SMIRK_HANDOFF_REJECTED");
+  });
+
+  it("rejects malformed synthetic IDs before making a request", async () => {
+    const fetchImpl = vi.fn();
+    const result = await sendSyntheticTestHandoff("../unsafe", {
+      env: configuredEnv,
+      fetchImpl,
+    });
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("SMIRK_HANDOFF_INVALID_SYNTHETIC_ID");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+const liveTest = process.env.RUN_SMIRK_LIVE_HANDOFF_TEST === "1" ? it : it.skip;
+
+describe("SMIRK live integration (explicit opt-in only)", () => {
+  liveTest(
+    "creates once and replays the exact owner-approved synthetic external ID",
     async () => {
-      const smirkBaseUrl = process.env.SMIRK_BASE_URL;
-      if (!smirkBaseUrl) {
-        console.warn("SMIRK_BASE_URL not set — skipping live test");
-        return;
-      }
+      const externalId = String(process.env.SMIRK_LIVE_TEST_EXTERNAL_ID || "");
+      expect(externalId).toMatch(/^velvet-manus-fake-[A-Za-z0-9:_-]+$/);
+      const suffix = externalId.replace(/^velvet-manus-fake-/, "");
 
-      const result = await sendSyntheticTestHandoff(syntheticSuffix);
+      const first = await sendSyntheticTestHandoff(suffix);
+      const replay = await sendSyntheticTestHandoff(suffix);
 
-      console.log(`Synthetic handoff result: HTTP ${result.httpStatus} state=${result.state} jobId=${result.jobId}`);
-
-      // 404 is a hard failure — endpoint must be deployed
-      expect(result.httpStatus).not.toBe(404);
-      // 401 is a hard failure — key must be accepted
-      expect(result.httpStatus).not.toBe(401);
-
-      expect(result.success).toBe(true);
-      expect(result.state).toBe("RECEIVED");
-      expect(result.httpStatus).toBe(201);
+      expect(first).toMatchObject({ success: true, state: "RECEIVED", httpStatus: 201 });
+      expect(replay).toMatchObject({
+        success: true,
+        state: "DUPLICATE",
+        httpStatus: 200,
+        handoffId: first.handoffId,
+        taskId: first.taskId,
+      });
     },
-    20_000
-  );
-
-  it(
-    "synthetic handoff: exact replay returns 200 DUPLICATE",
-    async () => {
-      const smirkBaseUrl = process.env.SMIRK_BASE_URL;
-      if (!smirkBaseUrl) {
-        console.warn("SMIRK_BASE_URL not set — skipping live test");
-        return;
-      }
-
-      // Replay the exact same suffix — must be DUPLICATE
-      const result = await sendSyntheticTestHandoff(syntheticSuffix);
-
-      console.log(`Duplicate handoff result: HTTP ${result.httpStatus} state=${result.state}`);
-
-      expect(result.httpStatus).not.toBe(404);
-      expect(result.httpStatus).not.toBe(401);
-
-      expect(result.success).toBe(true);
-      expect(result.state).toBe("DUPLICATE");
-      expect(result.httpStatus).toBe(200);
-    },
-    20_000
+    20_000,
   );
 });

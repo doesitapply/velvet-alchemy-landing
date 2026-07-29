@@ -1028,13 +1028,13 @@
 ## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
 
 - [ ] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
-- [ ] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
-- [ ] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
-- [ ] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/outcome endpoint to apiRouter.ts
-- [ ] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
-- [ ] Request SMIRK secrets via webdev_request_secrets
-- [ ] Write integration tests for handoff and outcome endpoints
-- [ ] Run full test suite (pnpm test)
-- [ ] Save checkpoint
+- [x] Add a review-only handoff:write scope; defer outcome callbacks until SMIRK implements and verifies that contract
+- [x] Create server/lib/smirkHandoff.ts (review brief builder + fail-closed handoff client)
+- [x] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
+- [x] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
+- [ ] Add POST /api/v1/leads/:id/outcome endpoint (deferred until SMIRK implements and verifies the callback contract)
+- [x] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
+- [x] Save SMIRK secrets in the Manus deployment environment
+- [x] Write mocked contract tests plus an explicit opt-in live idempotency test
+- [ ] Run full test suite with database, storage proxy, and AI test credentials
+- [x] Save hardening checkpoint on a dedicated branch

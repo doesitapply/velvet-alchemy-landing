@@ -17,6 +17,7 @@ const SCOPE_OPTIONS = [
   { value: "scrape", label: "Scrape", description: "POST /scrape — search businesses" },
   { value: "audit", label: "Audit", description: "POST /leads/:id/audit" },
   { value: "pipeline", label: "Pipeline", description: "POST /pipeline — scrape + create + audit" },
+  { value: "handoff:write", label: "SMIRK Handoff", description: "Create review-only handoffs; does not place calls" },
   { value: "*", label: "Full Access", description: "All current and future scopes" },
 ];
 
@@ -177,6 +178,8 @@ export default function ApiKeys() {
               { method: "POST", path: "/leads", desc: "Create lead" },
               { method: "POST", path: "/scrape", desc: "Search businesses" },
               { method: "POST", path: "/leads/:id/audit", desc: "Run AI audit" },
+              { method: "GET", path: "/leads/ready", desc: "List review-ready leads" },
+              { method: "POST", path: "/leads/:id/handoff", desc: "Create review handoff" },
               { method: "POST", path: "/pipeline", desc: "Scrape + create + audit" },
             ].map(ep => (
               <div key={ep.path} className="flex items-center gap-2 p-2 bg-muted/40 rounded">
