@@ -10,4 +10,8 @@ export const ENV = {
   openAiApiKey: process.env.OPENAI_API_KEY ?? "",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   googleAiApiKey: process.env.GOOGLE_AI_API_KEY ?? "",
+  // SMIRK integration
+  smirkBaseUrl: process.env.SMIRK_BASE_URL ?? "",
+  smirkApiKey: process.env.SMIRK_API_KEY ?? "",
+  smirkWorkspaceId: process.env.SMIRK_WORKSPACE_ID ?? "",
 };

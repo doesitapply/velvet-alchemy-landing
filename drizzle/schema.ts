@@ -46,7 +46,7 @@ export const leads = mysqlTable("leads", {
   websiteUrl: varchar("websiteUrl", { length: 512 }).notNull(),
   screenshotUrl: varchar("screenshotUrl", { length: 512 }),
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for deletion
-  status: mysqlEnum("status", ["pending", "audited", "contacted", "closed", "paid"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "audited", "contacted", "closed", "paid", "smirk_queued", "smirk_contacted"]).default("pending").notNull(),
   prestigeScore: int("prestigeScore"), // 0-100, copied from audit for quick access
   priorityScore: int("priorityScore"), // 0-100, pre-screening score for lead value (domain age, SSL, mobile, etc.)
   hasAssets: boolean("hasAssets").default(false).notNull(), // True if Visionary generated assets
@@ -63,6 +63,11 @@ export const leads = mysqlTable("leads", {
   // Outreach routing fields (set by enrichment pipeline)
   outreachChannel: mysqlEnum("outreachChannel", ["email", "sms", "none"]).default("none").notNull(),
   verifiedOwnerEmail: varchar("verifiedOwnerEmail", { length: 320 }), // Hunter.io/Snov.io verified email
+  // SMIRK handoff tracking
+  smirkHandoffAt: timestamp("smirkHandoffAt"),
+  smirkCallOutcome: varchar("smirkCallOutcome", { length: 64 }),
+  smirkCallSummary: text("smirkCallSummary"),
+  smirkWorkspaceId: varchar("smirkWorkspaceId", { length: 128 }),
   // Google Maps enrichment fields
   phone: varchar("phone", { length: 32 }),
   address: varchar("address", { length: 512 }),

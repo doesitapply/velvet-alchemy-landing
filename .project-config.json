@@ -7,15 +7,17 @@
   ],
   "dev_command": "pnpm run dev",
   "env_vars": {
-    "DATABASE_URL": "mysql://2N1WTErRdSjheBh.3ef00cf48eaf:A3gDgA4dU2fR97wDUMC2@gateway02.us-east-1.prod.aws.tidbcloud.com:4000/HG4Skpf2ZVYBMNGsfofSrc?ssl={\"rejectUnauthorized\":true}"
+    "DATABASE_URL": "mysql://2N1WTErRdSjheBh.3ef00cf48eaf:A3gDgA4dU2fR97wDUMC2@gateway02.us-east-1.prod.aws.tidbcloud.com:4000/HG4Skpf2ZVYBMNGsfofSrc?ssl={\"rejectUnauthorized\":true}",
+    "DRIZZLE_DATABASE_URL": "mysql://2N1WTErRdSjheBh.3ef00cf48eaf:A3gDgA4dU2fR97wDUMC2@gateway02.us-east-1.prod.aws.tidbcloud.com:4000/HG4Skpf2ZVYBMNGsfofSrc?ssl={\"rejectUnauthorized\":true}",
+    "MANUS_WEBDEV_PROJECT_ID": "HG4Skpf2ZVYBMNGsfofSrc"
   },
   "experiments": null,
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/91847194/HG4Skpf2ZVYBMNGsfofSrc",
-    "access_key_id": "ASIAZV3A2ECZAIJXKUCN",
-    "secret_access_key": "mpVMKLiv/Bc953wbINzmpszNpOWtD5ZiVNdCpmsK",
-    "session_token": "IQoJb3JpZ2luX2VjEK7//////////wEaCXVzLWVhc3QtMSJHMEUCIQDZ5mj+JuyrqXuoWLtwNbS12BvIJ2MPZeeVzsYntYZ02gIgAajnqHm27UiCAJASAF0gr55d4sF2WAgkulUQX0R/X9Yq4gMIdxAEGgw2NjUzODYwOTg4NjYiDJ7GAkH2XBxoqT/M9iq/Ax7Up51PeuGph3cRQCeC3nhvzZC1rFyfo5hLwCvbUuCQpGSlia3dDc5WJ7olUGXfql9X7nzRchQiSxRRSMCPD+wbfa7FyMRBjMvPu058KyF+wGPIH8NSg2oizPsOOrJOjw1hcQr3T97nkNiY7cYW3EM65ZbjDaCI87OV1a4JD4Nn0h3j3Qf8nk5H397TVWgZgTCBztgEYyryqVTezh7Gn5EOrtINNEm8onnlbur7j1SoXI9TsTYv0hiW8pyfO+3LVZNkipcRc7js/reMy9y3UBnpJs2Bd7w3RAkrH2WYyoxynTQvWKJFPEVmeI9Sazn4kqIDys8DvVJydIgRjChuOoiNECLQLHIXKCXeJFs+XqkG0rSGwS7oqU2mTpXm4mJAN9psRFXZjNGgTvfcrnxXmjt1Y9jNXTuvsnfiakclY6Q8iYDt6LiUw5evPUmbv11QI/8kuTFiDREVaLvHLOAMmB//C/gSm6Oo6FcrHKYWL7iXCUHOJ8iFPWy6Lf6zxRyivVmx1QbwTo81LS1rf7xGWnLcSllQnZY3uF8BFLUDL4MUj7Hj4NLdbAn+CCd4dpEBAAk9MYPplEgzcShsoi3LHjCHv/3RBjqdAQO+FYuuZRkFp1dZcu3gfqZ6JzhYqPQKnAxfxYMDDvVrF7sxUJeHznqhec/o87QDiCB+4kZDcFpuAQ8zi+krZSxvDM4C6m3RxMglxw8hZP+OFogFHY2PnPImWcA5YSlHNGwjamdiwZ4nFS6juY8erj5BVhaAgABRkszL+kjK2coK/8rPWqGF/spCgIZnkCPbbf6x5RK4UUDe5Z5Emr0=",
-    "expiration": "2026-06-27T17:28:39.000Z",
+    "access_key_id": "ASIAZV3A2ECZFZGGYCYG",
+    "secret_access_key": "n6drppC1wNwnAXG8EzqwHQQo6qgH1163goc4CX1g",
+    "session_token": "IQoJb3JpZ2luX2VjEKn//////////wEaCXVzLWVhc3QtMSJIMEYCIQDHNRoL0HIGGf6mfu+fTW4eI8+FjRfrlHF0OVs0VjZALwIhAIK1znWdpVSYyXOfIeVFAdXnGRQOVEzf81lTBvYH6Sj/KuIDCHIQBBoMNjY1Mzg2MDk4ODY2IgzhA3Dy7YcWHie5AgEqvwPM81MIRq1RuS0d4ZvJElT655KGG1aLZadOsUDUO+5LPsXlebk88i5XsOdan+cKlSOqEYI5qvbag/rlitCAkQW/h1fRcnepqiYarCgqdEXn7oNnXS6lV52XTz1K7kVmWR6MVaAem5COzFFKoL0aSui8yV7kf1iC1gBPpAQeO4XOYGx9yun9Nrkmi7aPMZ8j3KubUMVtoPcocibgi8xmJGT0VF2QywwosrHJv5+DY1bPiwWy9DnYqUqX7p6y5/nQ/d4WJ9/HG1RcrALxDnqdGuD9KfkSi59V4c3VVzgn3mBWTeMATjodD4ISSCde0Q17CYdiwWrQYtOHj33Iyi5mBtVZG3h5/l7pso7RSrjAqsKszfNdudS/E3t+vLg+XgMl0k0IApq4PSjeiE7U2I9W6Y+vgYJZdQmPBulvmicMhgGsY2LW2xceLzAgtZiVLv8LXilsnuc3lq2q/uCF/dIw2OowhmCeq1os/rnI7UqJw7mFrJTjoaAnLkaDmMJrvg6+kkbJbu9+HbaiWGw/QDGU1jYB8hX+6KFg6H2lcTVyt+iHP6ZQHO9VNc1QueG+xuXKsROXCe7cjyrH6d1Mqp6WhSAwspKl0wY6nAHK4ue+9teCysQBkogNmyCAYrLRZHumajgtiX+Ljd8N9BCMonQ+nASIrIEUxPRaH1+se7DrQSe5TO2Tp95GJKXtKxGAvibmsXW2WTtEy9hHvqgNNd7moCDC1R2Db+x7XmG4fICqgEp18UalEBY1dfDincN6y8XKDlspiAQl/VJQLPK9cx+T92PEDpkbtJbjorkz7lc7+MvPktl18pI=",
+    "expiration": "2026-07-29T12:28:34.000Z",
     "backend": "GIT_BACKEND_S3"
   },
   "name": "velvet-alchemy-landing",
@@ -30,6 +32,9 @@
     "OPENAI_API_KEY": "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",
     "OWNER_NAME": "Cameron Church",
     "OWNER_OPEN_ID": "iPc4QUSCieFT4idu8ghQZq",
+    "SMIRK_API_KEY": "PFFRJSyiV8oIorB-dg66j2xAi_ZBLnWjelKKO1GZ0jA",
+    "SMIRK_BASE_URL": "https://smirkcalls.com",
+    "SMIRK_WORKSPACE_ID": "1",
     "STRIPE_SECRET_KEY": "sk_test_51StYbPBivdKg5sw53I5ImiafkVA3kquK6sk8V8SdWLy28BMI2TMYAkEGNBpq8bP8mGvdFj4c2y7gNGjAVhLTpst000RhsgW43z",
     "STRIPE_WEBHOOK_SECRET": "whsec_dqQWpNAlW4gE2UmDsiK78yKqc1KzUJbb",
     "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",

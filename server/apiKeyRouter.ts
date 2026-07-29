@@ -12,7 +12,16 @@ import { getDb } from "./db";
 import { apiKeys } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
-const VALID_SCOPES = ["leads:read", "leads:write", "scrape", "audit", "pipeline", "*"] as const;
+const VALID_SCOPES = [
+  "leads:read",
+  "leads:write",
+  "scrape",
+  "audit",
+  "pipeline",
+  "handoff:write",   // Queue a SMIRK outbound call for a lead
+  "outcome:write",   // Post a SMIRK call outcome back to Velvet Alchemy
+  "*",
+] as const;
 
 function generateApiKey(): { raw: string; hash: string; prefix: string } {
   const raw = "va_live_" + crypto.randomBytes(24).toString("hex");

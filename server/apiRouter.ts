@@ -16,15 +16,16 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNotNull } from "drizzle-orm";
 import * as db from "./db";
 import { getDb } from "./db";
-import { apiKeys, leads, audits } from "../drizzle/schema";
+import { apiKeys, leads, audits, auditLog } from "../drizzle/schema";
 import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
 import { analyzeVisualDebt } from "./visualAudit";
 import { nanoid } from "nanoid";
 import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
+import { queueSmirkCall } from "./lib/smirkHandoff";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -336,6 +337,149 @@ export function createApiRouter(): Router {
       }
 
       res.json({ leads: created, count: created.length, query: searchQuery });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── GET /api/v1/leads/ready ────────────────────────────────────────────────
+  // Returns audited leads with phone numbers that haven't been handed off to SMIRK yet.
+  // Sorted by priorityScore desc, then reviewCount desc.
+  // Scope: leads:read
+  r.get("/leads/ready", requireScope("leads:read"), async (req: AuthedRequest, res: Response) => {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit ?? "20")), 100);
+      const orm = await getDb();
+      if (!orm) return res.status(503).json({ error: "Database unavailable" });
+
+      const readyLeads = await orm
+        .select({
+          id: leads.id,
+          companyName: leads.companyName,
+          phone: leads.phone,
+          websiteUrl: leads.websiteUrl,
+          category: leads.category,
+          city: leads.city,
+          state: leads.state,
+          googleRating: leads.googleRating,
+          reviewCount: leads.reviewCount,
+          prestigeScore: leads.prestigeScore,
+          priorityScore: leads.priorityScore,
+          outreachChannel: leads.outreachChannel,
+          verifiedOwnerEmail: leads.verifiedOwnerEmail,
+          status: leads.status,
+          createdAt: leads.createdAt,
+        })
+        .from(leads)
+        .where(
+          and(
+            eq(leads.userId, req.apiKey!.userId),
+            eq(leads.status, "audited"),
+            isNotNull(leads.phone)
+          )
+        )
+        .orderBy(desc(leads.priorityScore), desc(leads.reviewCount))
+        .limit(limit);
+
+      const withBriefs = readyLeads.map(lead => ({
+        ...lead,
+        callBrief: {
+          openingLine: lead.reviewCount && lead.reviewCount > 30
+            ? `Hi, I'm calling about ${lead.companyName}. You have ${lead.reviewCount} Google reviews — clearly people love you. I wanted to share something specific about your call handling that I think is costing you jobs. Do you have 90 seconds?`
+            : `Hi, I'm calling about ${lead.companyName}. We ran a quick analysis on your business and found something specific about your phone coverage I think is worth 2 minutes of your time.`,
+          signals: [
+            lead.reviewCount && lead.reviewCount > 30 ? `${lead.reviewCount} Google reviews` : null,
+            lead.googleRating ? `${lead.googleRating}\u2605 rating` : null,
+            lead.prestigeScore && lead.prestigeScore < 60 ? `Website score ${lead.prestigeScore}/100` : null,
+          ].filter(Boolean),
+        },
+        handoffUrl: `/api/v1/leads/${lead.id}/handoff`,
+      }));
+
+      res.json({ leads: withBriefs, count: withBriefs.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── POST /api/v1/leads/:id/handoff ─────────────────────────────────────────
+  // Queue a SMIRK outbound call for a qualified lead.
+  // Scope: handoff:write
+  r.post("/leads/:id/handoff", requireScope("handoff:write"), async (req: AuthedRequest, res: Response) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      const { scheduledAt, maxAttempts } = req.body ?? {};
+
+      const orm = await getDb();
+      if (!orm) return res.status(503).json({ error: "Database unavailable" });
+
+      const leadRows = await orm.select().from(leads)
+        .where(and(eq(leads.id, leadId), eq(leads.userId, req.apiKey!.userId))).limit(1);
+      if (!leadRows[0]) return res.status(404).json({ error: "Lead not found" });
+      if (!leadRows[0].phone) return res.status(422).json({ error: "Lead has no phone number — cannot queue call" });
+
+      const result = await queueSmirkCall(leadId, { scheduledAt, maxAttempts });
+
+      if (!result.success) {
+        return res.status(502).json({ error: result.error });
+      }
+
+      res.json({ success: true, jobId: result.jobId, leadId, status: "smirk_queued" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── POST /api/v1/leads/:id/outcome ─────────────────────────────────────────
+  // Receive a call outcome from SMIRK after a call completes.
+  // SMIRK fires this webhook using a VA API key with outcome:write scope.
+  // Scope: outcome:write
+  r.post("/leads/:id/outcome", requireScope("outcome:write"), async (req: AuthedRequest, res: Response) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      const {
+        outcome,       // "interested" | "not_interested" | "callback" | "booked" | "no_answer" | "voicemail"
+        summary,       // SMIRK post-call AI summary
+        workspaceId,   // Which SMIRK workspace handled the call
+        callDuration,  // Seconds
+        calledAt,      // ISO 8601
+      } = req.body ?? {};
+
+      if (!outcome) return res.status(400).json({ error: "outcome is required" });
+
+      const orm = await getDb();
+      if (!orm) return res.status(503).json({ error: "Database unavailable" });
+
+      // Map SMIRK outcome tag to Velvet Alchemy lead status
+      const statusMap: Record<string, "smirk_contacted" | "closed" | "smirk_queued"> = {
+        interested:     "smirk_contacted",
+        booked:         "closed",
+        not_interested: "closed",
+        callback:       "smirk_contacted",
+        no_answer:      "smirk_queued",
+        voicemail:      "smirk_queued",
+      };
+      const newStatus = statusMap[outcome] ?? "smirk_contacted";
+
+      await orm.update(leads).set({
+        status: newStatus,
+        smirkCallOutcome: outcome,
+        smirkCallSummary: summary ?? null,
+        smirkWorkspaceId: workspaceId ?? null,
+        updatedAt: new Date(),
+      }).where(eq(leads.id, leadId));
+
+      // Log to audit log for compliance
+      await orm.insert(auditLog).values({
+        userId: req.apiKey!.userId,
+        action: "smirk_call_outcome",
+        resource: "lead",
+        resourceId: leadId,
+        details: JSON.stringify({ outcome, callDuration, calledAt, workspaceId }),
+        status: "success",
+      });
+
+      res.json({ success: true, leadId, status: newStatus });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

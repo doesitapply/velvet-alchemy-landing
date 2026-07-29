@@ -1024,3 +1024,17 @@
 - [x] Block charmer.sendDraft if status != 'approved' (already enforced in charmerRouter)
 - [ ] Add cost threshold display to Governor dashboard (deferred)
 - [ ] Write tests for cost kill-switch trigger (deferred)
+
+## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
+
+- [ ] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
+- [ ] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
+- [ ] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
+- [ ] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
+- [ ] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
+- [ ] Add POST /api/v1/leads/:id/outcome endpoint to apiRouter.ts
+- [ ] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
+- [ ] Request SMIRK secrets via webdev_request_secrets
+- [ ] Write integration tests for handoff and outcome endpoints
+- [ ] Run full test suite (pnpm test)
+- [ ] Save checkpoint
