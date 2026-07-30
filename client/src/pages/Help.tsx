@@ -94,10 +94,10 @@ export default function Help() {
                 4
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Create Outreach Draft</h4>
+                <h4 className="font-semibold mb-1">Export Reviewed Evidence</h4>
                 <p className="text-sm text-muted-foreground">
-                  Click <strong>Generate Outreach</strong> to create a
-                  personalized email referencing their visual debt
+                  From Lead Detail, use the admin-only SMIRK research export
+                  after the lead and its public evidence have been reviewed.
                 </p>
               </div>
             </div>
@@ -107,11 +107,11 @@ export default function Help() {
                 5
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Review & Approve</h4>
+                <h4 className="font-semibold mb-1">Draft & Approve in SMIRK</h4>
                 <p className="text-sm text-muted-foreground">
-                  Go to <strong>Charmer</strong>, review one draft, then approve
-                  or copy it for separate manual handling. Velvet does not send
-                  it.
+                  SMIRK owns deterministic QC, one-recipient approval, and the
+                  separate execution confirmation. Velvet cannot draft,
+                  approve, send, or dial.
                 </p>
               </div>
             </div>
@@ -172,16 +172,15 @@ export default function Help() {
               </div>
               <div>
                 <h4 className="font-semibold text-green-400 mb-1">
-                  The Charmer
+                  Legacy Charmer Archive
                 </h4>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Creates AI-powered outreach copy based on visual audit
-                  findings and generated assets. Saves to approval queue for
-                  review before sending. Personalizes messaging to reference
-                  specific visual debt issues.
+                  Preserves historical draft records for audit and cleanup.
+                  New drafting and approval routes fail closed because SMIRK
+                  is the sole outreach authority.
                 </p>
                 <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                  ~20-30 seconds per draft
+                  Read/reject only
                 </Badge>
               </div>
             </div>
@@ -243,13 +242,12 @@ export default function Help() {
 
               <AccordionItem value="item-3" className="border-white/10">
                 <AccordionTrigger className="text-foreground hover:text-gold">
-                  Can I edit the outreach drafts before sending?
+                  Where do I review new outreach drafts?
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground">
-                  Yes! All outreach drafts go to the Charmer dashboard for
-                  review. You can edit the subject line, body text, and
-                  recipient email before approving. You can also reject drafts
-                  and regenerate them.
+                  In SMIRK. Velvet exports reviewed evidence but cannot create,
+                  approve, or send new outreach. The old Charmer route is a
+                  read/reject-only archive.
                 </AccordionContent>
               </AccordionItem>
 
@@ -270,10 +268,9 @@ export default function Help() {
                   How do I use the Orchestrator for bulk processing?
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground">
-                  The Orchestrator shows all leads with "pending" status. Click
-                  "Execute Pipeline" on any lead to run the complete workflow
-                  automatically: Curator → Visionary → Charmer. Perfect for
-                  processing multiple leads overnight.
+                  The Orchestrator can process one reviewed lead through
+                  research and audit stages. It does not create or send
+                  outreach, and bulk autonomous contact is not supported.
                 </AccordionContent>
               </AccordionItem>
 
@@ -292,12 +289,12 @@ export default function Help() {
 
               <AccordionItem value="item-7" className="border-white/10">
                 <AccordionTrigger className="text-foreground hover:text-gold">
-                  What email provider does the Charmer use?
+                  What email provider does Velvet use?
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground">
-                  The Charmer has no delivery provider. It prepares
-                  evidence-based drafts for review and copying; approval does
-                  not send email.
+                  None for outreach. Velvet cannot draft, approve, or deliver
+                  prospect email. SMIRK owns the guarded provider lane after a
+                  reviewed lead is imported.
                 </AccordionContent>
               </AccordionItem>
 
@@ -393,12 +390,12 @@ export default function Help() {
               <CheckCircle2 className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-semibold mb-1">
-                  Review drafts before sending
+                  Review evidence before export
                 </h4>
                 <p className="text-sm text-muted-foreground">
-                  Always review outreach drafts in the Charmer dashboard.
-                  Personalize the greeting and add context specific to your
-                  relationship with the lead.
+                  Confirm source quality, contact classification, and business
+                  fit before exporting one lead to SMIRK. No import authorizes
+                  contact.
                 </p>
               </div>
             </div>

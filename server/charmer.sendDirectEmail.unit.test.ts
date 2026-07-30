@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TrpcContext } from "./_core/context";
 import { appRouter } from "./routers";
+import { SMIRK_OUTREACH_AUTHORITY_MESSAGE } from "./lib/smirkOutreachBoundary";
 
 function createContext(): TrpcContext {
   return {
@@ -33,8 +34,7 @@ describe("charmer.sendDirectEmail", () => {
       })
     ).rejects.toMatchObject({
       code: "METHOD_NOT_SUPPORTED",
-      message:
-        "Direct send is disabled. Use the draft approval flow for review, then send manually outside Velvet.",
+      message: SMIRK_OUTREACH_AUTHORITY_MESSAGE,
     });
   });
 });

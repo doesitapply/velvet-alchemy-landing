@@ -7,7 +7,6 @@ import {
   Users,
   Search,
   Download,
-  Mail,
   Cog,
   Shield,
   HelpCircle,
@@ -44,7 +43,6 @@ export default function AppHeader() {
     tools: [
       { path: "/scraper", label: "Scraper", icon: Search },
       { path: "/orchestrator", label: "Orchestrator", icon: Cog },
-      { path: "/charmer", label: "Charmer", icon: Mail },
     ],
     system: [
       { path: "/export", label: "Export", icon: Download },

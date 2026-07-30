@@ -1,20 +1,16 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { leads, audits, voiceProfiles, emailQueue } from "../drizzle/schema";
+import { leads, voiceProfiles, emailQueue } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import {
   analyzeVoice,
-  generateEmailInVoice,
   type EmailSample,
 } from "./voiceAnalyzer";
 import { TRPCError } from "@trpc/server";
-import {
-  assertSafeExternalCopy,
-  externalActionBlock,
-} from "./lib/externalActionPolicy";
 import { checkKillSwitch, checkRateLimit, logAudit } from "./governor";
 import { requireCostAuthority } from "./lib/accessControl";
+import { throwSmirkOutreachAuthority } from "./lib/smirkOutreachBoundary";
 
 /**
  * Outreach Router
@@ -159,105 +155,8 @@ export const outreachRouter = router({
         leadId: z.number(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      requireCostAuthority(ctx.user);
-      await checkKillSwitch(ctx.user.id);
-      await checkRateLimit(ctx.user.id, "draft_generate");
-      const db = await getDb();
-      if (!db)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Database not available",
-        });
-
-      // Get voice profile
-      const profileResult = await db
-        .select()
-        .from(voiceProfiles)
-        .where(eq(voiceProfiles.userId, ctx.user.id))
-        .limit(1);
-      if (profileResult.length === 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "Voice profile not initialized. Please analyze your emails first.",
-        });
-      }
-
-      const profileRow = profileResult[0];
-      const voiceProfile = {
-        ...profileRow,
-        commonPhrases: JSON.parse(profileRow.commonPhrases),
-        industryJargon: JSON.parse(profileRow.industryJargon),
-        exampleEmails: JSON.parse(profileRow.exampleEmails),
-      };
-
-      // Get lead and audit
-      const leadResult = await db
-        .select()
-        .from(leads)
-        .where(and(eq(leads.id, input.leadId), eq(leads.userId, ctx.user.id)))
-        .limit(1);
-      if (leadResult.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
-      }
-      const lead = leadResult[0];
-
-      const auditResult = await db
-        .select()
-        .from(audits)
-        .where(eq(audits.leadId, input.leadId))
-        .limit(1);
-      if (auditResult.length === 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Lead must be audited first",
-        });
-      }
-      const audit = auditResult[0];
-
-      // Parse visual debt data
-      const visualDebt = audit.visualDebtData
-        ? JSON.parse(audit.visualDebtData)
-        : {};
-      const topIssues =
-        visualDebt.issues?.slice(0, 3).map((i: any) => i.title) || [];
-
-      // Generate email
-      const email = await generateEmailInVoice(voiceProfile, {
-        recipientName: lead.companyName, // TODO: Extract actual contact name
-        recipientCompany: lead.companyName,
-        recipientWebsite: lead.websiteUrl,
-        auditSummary: audit.summary || "Website audit completed",
-        prestigeScore: audit.prestigeScore || 0,
-        topIssues,
-      });
-      assertSafeExternalCopy(email.subject, email.body);
-
-      if (!lead.verifiedOwnerEmail) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "A verified public business email is required before preparing outreach.",
-        });
-      }
-
-      // Add to email queue with pending_approval status
-      const queueResult = await db.insert(emailQueue).values({
-        leadId: input.leadId,
-        recipientEmail: lead.verifiedOwnerEmail,
-        recipientName: lead.companyName,
-        subject: email.subject,
-        body: email.body,
-        status: "pending_approval",
-      });
-
-      return {
-        success: true,
-        emailId: queueResult[0].insertId,
-        subject: email.subject,
-        body: email.body,
-      };
+    .mutation(async () => {
+      throwSmirkOutreachAuthority();
     }),
 
   /**
@@ -310,87 +209,8 @@ export const outreachRouter = router({
         sendNow: z.boolean().default(false),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Database not available",
-        });
-
-      const emailResult = await db
-        .select({ email: emailQueue })
-        .from(emailQueue)
-        .leftJoin(leads, eq(emailQueue.leadId, leads.id))
-        .where(
-          and(
-            eq(emailQueue.id, input.emailId),
-            eq(emailQueue.status, "pending_approval"),
-            eq(leads.userId, ctx.user.id)
-          )
-        )
-        .limit(1);
-      if (emailResult.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Email not found" });
-      }
-      const email = emailResult[0].email;
-
-      // Update email with edits if provided
-      const updates: any = {
-        status: "approved",
-      };
-      if (input.subject) updates.subject = input.subject;
-      if (input.body) updates.body = input.body;
-      assertSafeExternalCopy(
-        input.subject || email.subject,
-        input.body || email.body
-      );
-
-      await db
-        .update(emailQueue)
-        .set(updates)
-        .where(
-          and(
-            eq(emailQueue.id, input.emailId),
-            eq(emailQueue.status, "pending_approval")
-          )
-        );
-
-      const approved = await db
-        .select({ status: emailQueue.status })
-        .from(emailQueue)
-        .leftJoin(leads, eq(emailQueue.leadId, leads.id))
-        .where(
-          and(
-            eq(emailQueue.id, input.emailId),
-            eq(emailQueue.status, "approved"),
-            eq(leads.userId, ctx.user.id)
-          )
-        )
-        .limit(1);
-      if (!approved[0]) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Email approval was not persisted.",
-        });
-      }
-      await logAudit({
-        userId: ctx.user.id,
-        action: "email_approved_for_manual_handling",
-        resource: "email_queue",
-        resourceId: input.emailId,
-        details: JSON.stringify({
-          edited: Boolean(input.subject || input.body),
-          deliveryAuthorized: false,
-        }),
-        status: "success",
-      });
-
-      return {
-        success: true,
-        willSend: false,
-        mode: "prepare_only" as const,
-      };
+    .mutation(async () => {
+      throwSmirkOutreachAuthority();
     }),
 
   /**
@@ -477,12 +297,6 @@ export const outreachRouter = router({
    * for manual handling; it does not authorize this process to send it.
    */
   sendApprovedEmails: protectedProcedure.mutation(async () => {
-    const block = externalActionBlock("email_send");
-    throw new TRPCError({
-      code: "METHOD_NOT_SUPPORTED",
-      message:
-        "Bulk send is disabled. Each approved draft must be handled manually outside Velvet.",
-      cause: block,
-    });
+    throwSmirkOutreachAuthority();
   }),
 });

@@ -6,7 +6,6 @@ import {
   Users, 
   Search, 
   FileDown, 
-  Mail, 
   Cog, 
   Shield,
   HelpCircle,
@@ -56,13 +55,6 @@ export function TopNav() {
             <Link href="/orchestrator">
               <Cog className="h-4 w-4 mr-2" />
               Orchestrator
-            </Link>
-          </Button>
-          
-          <Button variant="ghost" size="sm" className="text-white/80 hover:text-gold hover:bg-white/10" asChild>
-            <Link href="/charmer">
-              <Mail className="h-4 w-4 mr-2" />
-              Charmer
             </Link>
           </Button>
           

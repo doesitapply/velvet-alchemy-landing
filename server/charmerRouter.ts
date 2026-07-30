@@ -4,25 +4,15 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import {
   leads,
-  audits,
-  assets,
   campaigns,
   outreachDrafts,
 } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { generateOutreachCopy } from "./charmer";
-import { checkKillSwitch, checkRateLimit, logAudit } from "./governor";
-import { externalActionBlock } from "./lib/externalActionPolicy";
-import { requireCostAuthority } from "./lib/accessControl";
+import { logAudit } from "./governor";
+import { throwSmirkOutreachAuthority } from "./lib/smirkOutreachBoundary";
 
 function throwExternalEmailBlocked(): never {
-  const block = externalActionBlock("email_send");
-  throw new TRPCError({
-    code: "METHOD_NOT_SUPPORTED",
-    message:
-      "Direct send is disabled. Use the draft approval flow for review, then send manually outside Velvet.",
-    cause: block,
-  });
+  throwSmirkOutreachAuthority();
 }
 
 async function getOwnedDraft(
@@ -69,81 +59,8 @@ export const charmerRouter = router({
         leadId: z.number(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      requireCostAuthority(ctx.user);
-      await checkKillSwitch(ctx.user.id);
-      await checkRateLimit(ctx.user.id, "draft_generate");
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
-      // Fetch lead
-      const [lead] = await db
-        .select()
-        .from(leads)
-        .where(and(eq(leads.id, input.leadId), eq(leads.userId, ctx.user.id)))
-        .limit(1);
-      if (!lead) throw new Error("Lead not found");
-
-      // Fetch audit
-      const [audit] = await db
-        .select()
-        .from(audits)
-        .where(eq(audits.leadId, input.leadId))
-        .orderBy(desc(audits.createdAt))
-        .limit(1);
-
-      // Fetch assets
-      const leadAssets = await db
-        .select()
-        .from(assets)
-        .where(eq(assets.leadId, input.leadId));
-
-      // Generate outreach copy
-      const copy = await generateOutreachCopy(lead, audit || null, leadAssets);
-
-      // Create campaign
-      const [campaign] = await db
-        .insert(campaigns)
-        .values({
-          leadId: input.leadId,
-          userId: ctx.user.id,
-          name: `${lead.companyName} - Outreach`,
-          status: "draft",
-        })
-        .$returningId();
-
-      // Create draft
-      const [draft] = await db
-        .insert(outreachDrafts)
-        .values({
-          campaignId: campaign.id,
-          subject: copy.subject,
-          body: copy.body,
-          recipientEmail: copy.recipientEmail,
-          recipientName: copy.recipientName,
-          status: "pending_approval",
-        })
-        .$returningId();
-
-      // Log audit event
-      await logAudit({
-        userId: ctx.user.id,
-        action: "draft_generated",
-        resource: "outreach_draft",
-        resourceId: draft.id,
-        details: JSON.stringify({
-          leadId: input.leadId,
-          campaignId: campaign.id,
-        }),
-        status: "success",
-      });
-
-      return {
-        draftId: draft.id,
-        campaignId: campaign.id,
-        subject: copy.subject,
-        body: copy.body,
-      };
+    .mutation(async () => {
+      throwSmirkOutreachAuthority();
     }),
 
   /**
@@ -240,48 +157,8 @@ export const charmerRouter = router({
         draftId: z.number(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
-      const owned = await getOwnedDraft(db, input.draftId, ctx.user.id);
-      if (!owned?.draft) throw new Error("Draft not found");
-      if (owned.draft.status !== "pending_approval") {
-        throw new Error("Only a pending draft can be approved");
-      }
-
-      await db
-        .update(outreachDrafts)
-        .set({
-          status: "approved",
-          approvedBy: ctx.user.id,
-          approvedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(outreachDrafts.id, input.draftId),
-            eq(outreachDrafts.status, "pending_approval")
-          )
-        );
-
-      const verified = await getOwnedDraft(db, input.draftId, ctx.user.id);
-      if (
-        verified?.draft?.status !== "approved" ||
-        verified.draft.approvedBy !== ctx.user.id
-      ) {
-        throw new Error("Draft approval was not persisted");
-      }
-
-      // Log audit event
-      await logAudit({
-        userId: ctx.user.id,
-        action: "draft_approved",
-        resource: "outreach_draft",
-        resourceId: input.draftId,
-        status: "success",
-      });
-
-      return { success: true };
+    .mutation(async () => {
+      throwSmirkOutreachAuthority();
     }),
 
   /**

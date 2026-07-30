@@ -1,7 +1,7 @@
 # Velvet Alchemy
 
 Velvet Alchemy is a private operator workspace for finding public business
-signals, reviewing evidence, and preparing outreach drafts. It is not an
+signals, reviewing evidence, and exporting reviewed leads to SMIRK. It is not an
 autonomous sales system, and repository contents do not prove revenue,
 conversion impact, deployed parity, or current provider configuration.
 
@@ -11,14 +11,14 @@ claims are reverified against the current code.
 
 ## Current Safety Boundary
 
-- Email delivery is blocked.
+- Velvet email drafting, approval, and delivery are blocked. SMIRK is the sole
+  outreach authority after a reviewed lead is exported.
 - Cold SMS is blocked. No SMS draft or fallback path is active.
 - Bulk sending is blocked.
 - Automated prospect calls are blocked.
 - Real-prospect SMIRK handoff is blocked because the deployed receiver accepts
   a call-shaped `caller` artifact rather than a prospect or target.
-- Draft approval means approved for separate manual handling. It does not mean
-  sent.
+- Legacy Velvet draft records are read-only except for rejection/cleanup.
 - Payment-link creation does not send an invoice or contact a buyer.
 - Unsupported claims about lost jobs, lost revenue, guaranteed outcomes, or
   proven conversion impact are rejected from generated external copy.

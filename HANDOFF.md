@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
 
-**Current local proof:** TypeScript clean; 156/156 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; 158/158 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -10,9 +10,11 @@ This document is the authoritative reference for any operator, agent, or AI cont
 
 ## What This System Is
 
-Velvet Alchemy is a **private operator intelligence platform**. It finds businesses matching configurable signal predicates, runs audits on public digital surfaces, and prepares evidence-based outreach drafts for human review.
+Velvet Alchemy is a **private operator intelligence platform**. It finds businesses matching configurable signal predicates, runs audits on public digital surfaces, and exports reviewed evidence to SMIRK.
 
-Velvet does not send email or SMS and does not place or queue prospect calls. The deployed SMIRK handoff receiver accepts a call-shaped `caller` payload, so it remains restricted to explicitly enabled synthetic integration tests.
+Velvet does not generate or approve new outreach, send email or SMS, or place or queue prospect calls. `server/lib/smirkOutreachBoundary.ts` fail-closes every legacy draft, approval, and delivery compatibility route before database, model, or provider work. Existing Charmer and email-queue records remain visible only as a cleanup archive. SMIRK is the sole authority for deterministic copy generation, QC receipts, one-recipient approval, separate execution confirmation, manual-call records, and outcome learning.
+
+The deployed SMIRK handoff receiver accepts a call-shaped `caller` payload, so it remains restricted to explicitly enabled synthetic integration tests.
 
 The hardening branches now contain a separate research-only prospect intake. A privileged owner or administrator can explicitly move one audited lead into SMIRK's operator review queue. That path has a dedicated token, exact workspace lock, stable opaque ID, local audit receipt, 10-per-hour cap, and no contact semantics. It has passed a local HTTP and disposable-database proof, but is not deployed, production-configured, or live-tested.
 
@@ -44,9 +46,9 @@ The system is designed to be operated by a single person or a small team, with e
                                                            |
                                           [Verified public email lookup]
                                                            |
-                                          [Review-only draft generation]
+                                         [Reviewed evidence export]
                                                            |
-                                         [Human approve / reject / copy]
+                               [SMIRK QC -> approve -> confirm -> outcome]
 
 [Synthetic contract test only] -> POST /api/integrations/velvet/handoffs
 [SMIRK discovery request]       -> POST /api/v1/smirk/discovery-requests
@@ -102,7 +104,8 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/scraperRouter.ts`            | Google Maps scraping, business search                              |
 | `server/orchestratorRouter.ts`       | Full pipeline: scrape → screenshot → audit → enrich                |
 | `server/orchestrator.ts`             | Pipeline stage execution logic                                     |
-| `server/charmerRouter.ts`            | Outreach draft generation and approval                             |
+| `server/charmerRouter.ts`            | Read/reject legacy drafts; new generation, approval, and send are blocked |
+| `server/lib/smirkOutreachBoundary.ts` | Shared fail-closed boundary for every legacy outreach mutation      |
 | `server/paymentRouter.ts`            | Stripe checkout session creation                                   |
 | `server/apiRouter.ts`                | Public REST API (`/api/v1/*`)                                      |
 | `server/apiKeyRouter.ts`             | API key management (create/revoke/list)                            |
@@ -143,7 +146,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `client/src/pages/Leads.tsx`             | Lead list with SMIRK status badges                                  |
 | `client/src/pages/LeadDetail.tsx`        | Full lead view, historical outcomes, and admin-only research import |
 | `client/src/pages/BusinessScraper.tsx`   | Hunt engine UI                                                      |
-| `client/src/pages/Charmer.tsx`           | Outreach draft review and approval                                  |
+| `client/src/pages/Charmer.tsx`           | Read/reject-only archive for legacy draft records                    |
 | `client/src/pages/RevenueDashboard.tsx`  | Stripe payments and invoicing                                       |
 | `client/src/pages/GovernorDashboard.tsx` | Rate limits, kill-switch, cost monitoring                           |
 | `client/src/pages/ApiKeys.tsx`           | API key management UI                                               |
@@ -166,7 +169,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `api_keys`        | Bearer tokens for REST API access                            |
 | `api_calls`       | Per-call cost tracking for kill-switch                       |
 | `system_config`   | Key-value store for runtime config (kill-switch, budgets)    |
-| `outreach_drafts` | Charmer-generated email drafts pending approval              |
+| `outreach_drafts` | Historical Charmer drafts retained for audit/cleanup only     |
 | `smirk_outcome_events` | Signed, idempotent SMIRK feedback facts; no action trigger |
 | `acquisition_learning_candidates` | Human-reviewed trade/metro sourcing proposals |
 | `smirk_lead_batches` | Immutable SMIRK reviewed-lead export requests and responses |
@@ -509,9 +512,9 @@ The intended admin/owner loop is:
 2. **Audit** — scraped leads are not auto-enqueued. Review the stored results and approve metered audits separately. The legacy pipeline worker remains disabled unless `ENABLE_PIPELINE_WORKER=true`; enabling it does not create jobs by itself.
 3. **Review** — check Lead Detail for prestige score, strengths/weaknesses, verified email, outreach channel.
 4. **SMIRK research** - after the two deploys, migrations, dedicated credentials, and synthetic proof are approved, an admin may move one audited lead into SMIRK or SMIRK may pull one separately approved 1-20 record batch. Neither path authorizes contact.
-5. **Draft** - generate evidence-based email copy only when a verified public business email exists.
-6. **Approve** - approve, reject, edit, or copy one draft at a time. Approval does not send.
-7. **Contact** - any real outreach is a separate manual action outside Velvet and must follow the campaign guardrails. Cold SMS and automated calls are prohibited.
+5. **Draft and QC in SMIRK** - SMIRK generates registered evidence-bound copy only after import and persists a deterministic QC receipt. Velvet cannot draft or approve.
+6. **Approve in SMIRK** - review and approve one exact recipient payload at a time. Approval does not send.
+7. **Contact through SMIRK's guarded lane** - email requires a second exact execution confirmation. Prospect calls remain manual-dial-only. Cold SMS and automated prospect calls are prohibited.
 8. **Record** - SMIRK stores an idempotent outcome and prepares a signed callback in its disabled outbox. Real callback dispatch remains a separate activation gate.
 
 ---
@@ -569,7 +572,7 @@ Current gates:
 
 | Command                 | Boundary                                           | Result on 2026-07-30                      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 156 passed, 0 failed, 0 skipped           |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 158 passed, 0 failed, 0 skipped           |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 62 explicitly skipped |
 | `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence` | Discovery, outcome, and human-reviewed learning persistence | 3 passed, 0 failed, 0 skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |

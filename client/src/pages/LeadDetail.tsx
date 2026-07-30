@@ -16,8 +16,6 @@ import {
   ArrowLeft,
   ExternalLink,
   Sparkles,
-  Mail,
-  Send,
   Play,
   DollarSign,
   PhoneCall,
@@ -99,27 +97,6 @@ export default function LeadDetail() {
     },
   });
 
-  const generateDraft = trpc.charmer.generateDraft.useMutation({
-    onSuccess: () => {
-      toast.success("Draft generated! Check the Charmer page to review.");
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate draft: ${error.message}`);
-    },
-  });
-
-  const generateOutreach = trpc.outreach.generateOutreachEmail.useMutation({
-    onSuccess: () => {
-      toast.success(
-        "Outreach email generated! Check the Approval Queue to review."
-      );
-      window.location.href = "/outreach-approval";
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate outreach: ${error.message}`);
-    },
-  });
-
   const generateWebsite = trpc.websiteGenerator.generate.useMutation({
     onSuccess: data => {
       toast.success("Website generated! Opening editor...");
@@ -180,21 +157,6 @@ export default function LeadDetail() {
       toast.error(`Failed to create payment link: ${error.message}`);
     },
   });
-
-  // Generates review-only copy and places it on the clipboard. Velvet does not send it.
-  const handleGenerateEmail = async () => {
-    try {
-      const utils = trpc.useUtils();
-      const result = await utils.email.generateOutreach.fetch({
-        leadId: leadId!,
-      });
-      const emailText = `To: ${result.to}\nSubject: ${result.subject}\n\n${result.body}`;
-      await navigator.clipboard.writeText(emailText);
-      toast.success("Review-only email copied. Nothing was sent.");
-    } catch (error: any) {
-      toast.error(`Failed to generate email: ${error.message}`);
-    }
-  };
 
   const startAudit = trpc.orchestrator.executePipeline.useMutation({
     onSuccess: () => {
@@ -881,60 +843,6 @@ export default function LeadDetail() {
                 </p>
               </div>
             )}
-          </Card>
-
-          {/* Outreach Section */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-serif italic">Outreach</h2>
-              <div className="flex items-center gap-2">
-                {data.lead.status === "audited" && data.lead.detailedReport && (
-                  <Button onClick={handleGenerateEmail} variant="default">
-                    <Send className="mr-2 h-4 w-4" />
-                    Copy Email to Clipboard
-                  </Button>
-                )}
-                <Button
-                  onClick={() => generateDraft.mutate({ leadId: leadId! })}
-                  disabled={generateDraft.isPending}
-                  variant="outline"
-                >
-                  {generateDraft.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Draft...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Generate Draft (Old)
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={() => {
-                    generateOutreach.mutate({ leadId: leadId! });
-                  }}
-                  disabled={generateOutreach.isPending}
-                >
-                  {generateOutreach.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate AI Outreach
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Generate and review evidence-based copy. Velvet does not send
-              email, SMS, or place prospect calls.
-            </p>
           </Card>
 
           {/* Report Drawer */}
