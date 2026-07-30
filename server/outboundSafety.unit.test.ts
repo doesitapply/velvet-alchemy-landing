@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateRevenueLoss } from "./lib/enrichment";
+import {
+  buildNotMeasuredRevenueImpact,
+  findCompetitorGaps,
+  performTechnicalAudit,
+} from "./lib/enrichment";
 import { sendEmailViaGmail } from "./lib/emailOutreach";
 import { sendSmsOutreach } from "./lib/smsOutreach";
 
@@ -32,12 +36,33 @@ describe("outbound adapters", () => {
     });
   });
 
-  it("labels modeled value as an internal scenario, not measured loss", () => {
-    const scenario = calculateRevenueLoss(45, "plumber");
-    expect(scenario.monthlyLoss).toBeGreaterThan(0);
-    expect(scenario.explanation).toMatch(/illustrative scenario only/i);
-    expect(scenario.explanation).toMatch(
-      /not measured customer or revenue loss/i
-    );
+  it("does not manufacture modeled customer or revenue loss", () => {
+    expect(buildNotMeasuredRevenueImpact()).toEqual({
+      status: "not_measured",
+      annualLoss: null,
+      monthlyLoss: null,
+      explanation:
+        "Velvet did not measure customer loss or revenue impact. Modeled loss is excluded from prospect evidence and outreach.",
+    });
+  });
+
+  it("does not fabricate performance, mobile, or competitor evidence", async () => {
+    await expect(
+      performTechnicalAudit("https://example.com")
+    ).resolves.toMatchObject({
+      loadSpeed: null,
+      mobileFriendly: null,
+      httpsUrl: true,
+      sslEnabled: null,
+      measurementStatus: "not_measured",
+      issues: [],
+    });
+    await expect(
+      findCompetitorGaps("Synthetic Plumbing", "plumbing", "Reno, NV")
+    ).resolves.toEqual({
+      status: "not_measured",
+      competitorUrl: null,
+      gapFound: null,
+    });
   });
 });

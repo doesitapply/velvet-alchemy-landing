@@ -8,6 +8,7 @@ import {
 import { checkRateLimit, checkKillSwitch } from "./governor";
 import { requireCostAuthority, requireOwnedLead } from "./lib/accessControl";
 import { TRPCError } from "@trpc/server";
+import { selectBoundedBatch } from "./lib/batchSafety";
 
 export const orchestratorRouter = router({
   /**
@@ -130,6 +131,7 @@ export const orchestratorRouter = router({
             // Run enrichment to populate the report and verified review channel.
             const enrichmentResult = await enrichLead({
               id: lead.id,
+              userId: lead.userId,
               companyName: lead.companyName,
               websiteUrl: lead.websiteUrl,
               category: lead.category ?? "default",
@@ -183,7 +185,7 @@ export const orchestratorRouter = router({
     }),
 
   /**
-   * Batch audit all pending leads
+   * Audit a bounded slice of pending leads, sequentially.
    */
   batchAuditAll: protectedProcedure.mutation(async ({ ctx }) => {
     requireCostAuthority(ctx.user);
@@ -193,9 +195,10 @@ export const orchestratorRouter = router({
     // Get all pending leads
     const { getLeadsByUserId } = await import("./db");
     const pendingLeads = await getLeadsByUserId(ctx.user.id);
-    const leadsToAudit = pendingLeads.filter(
+    const pending = pendingLeads.filter(
       (lead: any) => lead.status === "pending"
     );
+    const { selected: leadsToAudit, deferred } = selectBoundedBatch(pending);
 
     if (leadsToAudit.length === 0) {
       return {
@@ -205,22 +208,26 @@ export const orchestratorRouter = router({
       };
     }
 
-    // Execute pipeline for each pending lead (non-blocking)
-    let processed = 0;
-    for (const lead of leadsToAudit) {
-      executePipeline(lead.id, ctx.user.id).catch(error => {
-        console.error(
-          `[Orchestrator] Batch audit failed for lead ${lead.id}:`,
-          error
-        );
-      });
-      processed++;
-    }
+    // Run the bounded batch sequentially so paid stages cannot burst locally.
+    void (async () => {
+      for (const lead of leadsToAudit) {
+        try {
+          await executePipeline(lead.id, ctx.user.id);
+        } catch (error) {
+          console.error(
+            `[Orchestrator] Batch audit failed for lead ${lead.id}:`,
+            error
+          );
+        }
+      }
+    })();
 
     return {
       success: true,
-      message: `Batch audit started for ${processed} leads`,
-      processed,
+      message: `Batch audit started for ${leadsToAudit.length} leads; ${deferred} remain deferred`,
+      processed: leadsToAudit.length,
+      deferred,
+      execution: "sequential" as const,
     };
   }),
 });

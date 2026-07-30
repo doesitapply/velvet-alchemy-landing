@@ -42,10 +42,12 @@ import { costRouter } from "./costRouter";
 import { outreachRouter } from "./outreachRouter";
 import { providerRouter } from "./providerRouter";
 import { apiKeyRouter } from "./apiKeyRouter";
+import { acquisitionLearningRouter } from "./acquisitionLearningRouter";
 import { externalActionBlock } from "./lib/externalActionPolicy";
 import {
   isPrivilegedUser,
   requireCostAuthority,
+  requireDirectLeadOwnership,
   requireOwnedLead,
   requirePrivilegedUser,
 } from "./lib/accessControl";
@@ -75,6 +77,7 @@ export const appRouter = router({
   outreach: outreachRouter,
   provider: providerRouter,
   apiKeys: apiKeyRouter,
+  acquisitionLearning: acquisitionLearningRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -397,6 +400,7 @@ export const appRouter = router({
         requirePrivilegedUser(ctx.user);
         await checkKillSwitch(ctx.user.id);
         const lead = await requireOwnedLead(input.id, ctx.user);
+        requireDirectLeadOwnership(lead, ctx.user);
         if (lead.status !== "audited") {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -420,7 +424,11 @@ export const appRouter = router({
             message: `SMIRK research is not configured: ${config.missing.join(", ")}`,
           });
         }
-        const payload = buildSmirkResearchPayload(lead, config.workspaceId);
+        const payload = buildSmirkResearchPayload(
+          lead,
+          config.workspaceId,
+          audit
+        );
         const payloadHash = buildSmirkResearchPayloadHash(payload);
         await checkRateLimit(ctx.user.id, "smirk_research_export");
         const db = await getDb();

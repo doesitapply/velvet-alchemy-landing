@@ -34,7 +34,7 @@ export async function analyzeVisualDebt(
       messages: [
         {
           role: "system",
-          content: `You are an expert web designer and local business consultant. Your task is to audit website screenshots for small businesses. Evaluate design quality, user experience, mobile-friendliness, trust signals, and conversion optimization. Focus on practical improvements that help local businesses compete online. Be critical but constructive.`,
+          content: `You are an expert web designer reviewing a single website screenshot for a small business. Describe only details visible in the supplied screenshot. You may assess visual hierarchy, readability, visible navigation, visible contact paths, and visible trust signals. Do not claim the screenshot proves page speed, responsive behavior, mobile compatibility, search ranking, conversions, customers, jobs, or revenue. Use cautious language for inferred usability concerns.`,
         },
         {
           role: "user",
@@ -44,10 +44,10 @@ export async function analyzeVisualDebt(
               text: `Analyze this screenshot of ${companyName}'s website (${websiteUrl}). Provide a detailed visual audit focusing on:
 
 1. **Design Quality**: Typography readability, color contrast, spacing, visual hierarchy
-2. **User Experience**: Navigation clarity, mobile-friendliness, contact info visibility
+2. **User Experience**: Visible navigation clarity and contact info visibility
 3. **Trust Signals**: Professional appearance, credibility indicators, social proof
 4. **Content**: Clear value proposition, call-to-action effectiveness, local keywords
-5. **Technical**: Page speed indicators, responsive design, visual polish
+5. **Visual Polish**: Obvious clipping, overlap, unreadable text, or inconsistent styling visible in this screenshot
 
 Return your analysis in the following JSON format:
 {
@@ -62,10 +62,10 @@ Return your analysis in the following JSON format:
   "prestigeScore": 0-100 (integer, where 100 = perfect small business website execution),
   "summary": "2-3 sentence overall assessment",
   "strengths": ["List of 2-3 positive aspects"],
-  "weaknesses": ["List of 2-3 critical issues that hurt conversions or rankings"]
+  "weaknesses": ["List of 2-3 visible issues that may create usability or contact friction"]
 }
 
-Be honest and specific. Focus on issues that directly impact local search rankings and customer trust. A score of 70+ should be reserved for truly exceptional execution.`,
+Be honest and specific about what is visible. Do not infer business outcomes. A score of 70+ should be reserved for truly exceptional visual execution.`,
             },
             {
               type: "image_url",

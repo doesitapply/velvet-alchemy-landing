@@ -1,4 +1,14 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, decimal } from "drizzle-orm/mysql-core";
+import {
+  boolean,
+  decimal,
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -62,7 +72,7 @@ export const leads = mysqlTable("leads", {
   trafficDataFetchedAt: timestamp("trafficDataFetchedAt"), // When traffic data was last fetched
   // Outreach routing fields (set by enrichment pipeline)
   outreachChannel: mysqlEnum("outreachChannel", ["email", "sms", "none"]).default("none").notNull(),
-  verifiedOwnerEmail: varchar("verifiedOwnerEmail", { length: 320 }), // Hunter.io/Snov.io verified email
+  verifiedOwnerEmail: varchar("verifiedOwnerEmail", { length: 320 }), // Verified owner email from the enabled enrichment adapter
   // SMIRK handoff tracking
   smirkHandoffAt: timestamp("smirkHandoffAt"),
   smirkCallOutcome: varchar("smirkCallOutcome", { length: 64 }),
@@ -150,6 +160,81 @@ export const auditLog = mysqlTable("audit_log", {
 
 export type AuditLog = typeof auditLog.$inferSelect;
 export type InsertAuditLog = typeof auditLog.$inferInsert;
+
+/**
+ * Idempotent, signed outcome events received from SMIRK.
+ * These are feedback facts for evaluation; they never auto-send or auto-promote policy.
+ */
+export const smirkOutcomeEvents = mysqlTable("smirk_outcome_events", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  leadId: int("leadId").notNull(),
+  workspaceId: int("workspaceId").notNull(),
+  externalProspectId: varchar("externalProspectId", { length: 160 }).notNull(),
+  externalEventId: varchar("externalEventId", { length: 160 })
+    .notNull()
+    .unique(),
+  outreachApprovalId: varchar("outreachApprovalId", { length: 64 }).notNull(),
+  channel: mysqlEnum("channel", ["email", "call"]).notNull(),
+  outcome: mysqlEnum("outcome", [
+    "delivered",
+    "bounced",
+    "replied",
+    "qualified",
+    "demo_booked",
+    "converted",
+    "not_interested",
+    "dnc",
+    "call_connected",
+    "voicemail",
+    "no_answer",
+    "failed",
+  ]).notNull(),
+  evidenceHash: varchar("evidenceHash", { length: 64 }).notNull(),
+  outreachPayloadHash: varchar("outreachPayloadHash", {
+    length: 64,
+  }).notNull(),
+  eventPayloadHash: varchar("eventPayloadHash", { length: 64 }).notNull(),
+  notes: text("notes"),
+  occurredAt: timestamp("occurredAt").notNull(),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+});
+
+export type SmirkOutcomeEvent = typeof smirkOutcomeEvents.$inferSelect;
+export type InsertSmirkOutcomeEvent = typeof smirkOutcomeEvents.$inferInsert;
+
+/**
+ * Human-review proposals derived from outcome-linked sourcing segments.
+ * Decisions are evidence records only and never trigger scraping or outreach.
+ */
+export const acquisitionLearningCandidates = mysqlTable(
+  "acquisition_learning_candidates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    candidateKey: varchar("candidateKey", { length: 180 }).notNull(),
+    version: int("version").notNull(),
+    state: mysqlEnum("state", ["CANDIDATE", "APPROVED", "REJECTED"])
+      .default("CANDIDATE")
+      .notNull(),
+    proposal: text("proposal").notNull(),
+    evidence: text("evidence").notNull(),
+    sampleSize: int("sampleSize").notNull(),
+    generatedAt: timestamp("generatedAt").defaultNow().notNull(),
+    decidedBy: int("decidedBy"),
+    decidedAt: timestamp("decidedAt"),
+  },
+  table => ({
+    candidateVersionUnique: uniqueIndex(
+      "acquisition_learning_candidates_user_key_version_unique"
+    ).on(table.userId, table.candidateKey, table.version),
+  })
+);
+
+export type AcquisitionLearningCandidate =
+  typeof acquisitionLearningCandidates.$inferSelect;
+export type InsertAcquisitionLearningCandidate =
+  typeof acquisitionLearningCandidates.$inferInsert;
 
 /**
  * Assets table for The Visionary

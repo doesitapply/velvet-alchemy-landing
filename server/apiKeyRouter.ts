@@ -21,7 +21,7 @@ const VALID_SCOPES = [
   "audit",
   "pipeline",
   "handoff:write", // Reserved compatibility scope; prospect handoffs are blocked
-  "outcome:write", // Reserved compatibility scope; callbacks are blocked
+  "outcome:write", // Signed feedback-only callbacks; cannot trigger contact
   "*",
 ] as const;
 

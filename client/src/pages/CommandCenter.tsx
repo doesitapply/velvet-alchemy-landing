@@ -2,7 +2,20 @@ import AppHeader from "@/components/AppHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Loader2, TrendingUp, Users, CheckCircle2, Zap, Search, Play, Activity } from "lucide-react";
+import {
+  Activity,
+  Check,
+  CheckCircle2,
+  Loader2,
+  Play,
+  Search,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -19,8 +32,21 @@ export default function CommandCenter() {
   const pipelineQuery = trpc.dashboard.getPipelineStats.useQuery();
   const activityQuery = trpc.dashboard.getRecentActivity.useQuery();
   const scoreDistQuery = trpc.dashboard.getScoreDistribution.useQuery();
+  const categoryLearningQuery =
+    trpc.acquisitionLearning.scorecard.useQuery({
+      dimension: "category",
+    });
+  const metroLearningQuery = trpc.acquisitionLearning.scorecard.useQuery({
+    dimension: "metro",
+  });
+  const learningCandidatesQuery =
+    trpc.acquisitionLearning.candidates.useQuery();
   const batchAuditMutation = trpc.orchestrator.batchAuditAll.useMutation();
   const prescreenAllMutation = trpc.prescreener.prescreenAll.useMutation();
+  const createLearningCandidateMutation =
+    trpc.acquisitionLearning.createCandidate.useMutation();
+  const decideLearningCandidateMutation =
+    trpc.acquisitionLearning.decideCandidate.useMutation();
 
   const metrics = metricsQuery.data;
   const pipeline = pipelineQuery.data;
@@ -28,6 +54,40 @@ export default function CommandCenter() {
   const scoreDist = scoreDistQuery.data;
 
   const isLoading = metricsQuery.isLoading || pipelineQuery.isLoading;
+
+  const createLearningCandidate = async (
+    dimension: "category" | "metro",
+    value: string
+  ) => {
+    try {
+      await createLearningCandidateMutation.mutateAsync({ dimension, value });
+      toast.success("Sourcing candidate recorded for human review.");
+      learningCandidatesQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "The sourcing candidate is not ready."
+      );
+    }
+  };
+
+  const decideLearningCandidate = async (
+    id: number,
+    decision: "APPROVED" | "REJECTED"
+  ) => {
+    try {
+      await decideLearningCandidateMutation.mutateAsync({ id, decision });
+      toast.success(
+        `${decision === "APPROVED" ? "Approval" : "Rejection"} recorded. Hunt policy is unchanged.`
+      );
+      learningCandidatesQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to record decision."
+      );
+    }
+  };
 
   const handlePreScreenAll = async () => {
     if (!metrics?.pendingAudits) return;
@@ -85,6 +145,186 @@ export default function CommandCenter() {
 
           {/* Operator Wizard */}
           <OperatorWizard />
+
+          <Card className="bg-black/50 border-white/10">
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-gold">
+                    <Target className="h-5 w-5" />
+                    Outcome-linked sourcing
+                  </CardTitle>
+                  <CardDescription>
+                    Signed SMIRK outcomes can propose a bounded next research
+                    segment. No hunt, spend, or contact starts here.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                  <ShieldCheck className="h-4 w-4" />
+                  Policy unchanged
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 lg:grid-cols-2">
+                {[
+                  ["Trade", "category", categoryLearningQuery] as const,
+                  ["Metro", "metro", metroLearningQuery] as const,
+                ].map(([label, dimension, query]) => (
+                  <div
+                    key={dimension}
+                    className="rounded-lg border border-white/10 bg-black/30 p-4"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">{label} signals</p>
+                        <p className="text-xs text-muted-foreground">
+                          {query.data?.sampleSize || 0} linked outcomes
+                        </p>
+                      </div>
+                    </div>
+                    {query.isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : query.error ? (
+                      <p className="text-xs text-red-300">
+                        Outcome scorecard unavailable.
+                      </p>
+                    ) : !query.data?.segments.length ? (
+                      <p className="text-xs text-muted-foreground">
+                        No scored segments yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {query.data.segments.slice(0, 4).map(segment => (
+                          <div
+                            key={segment.value}
+                            className="flex items-center justify-between gap-3 rounded-md border border-white/5 px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {segment.value}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {segment.positive}/{segment.sampleSize} positive
+                                · {(segment.positiveRate * 100).toFixed(1)}%
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={
+                                segment.sampleSize < 10 ||
+                                createLearningCandidateMutation.isPending
+                              }
+                              onClick={() =>
+                                createLearningCandidate(
+                                  dimension,
+                                  segment.value
+                                )
+                              }
+                            >
+                              Propose
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Review candidates</p>
+                    <p className="text-xs text-muted-foreground">
+                      Decisions are audit facts, not runtime targeting changes.
+                    </p>
+                  </div>
+                </div>
+                {learningCandidatesQuery.isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : learningCandidatesQuery.error ? (
+                  <p className="text-xs text-red-300">
+                    Candidate ledger unavailable.
+                  </p>
+                ) : !learningCandidatesQuery.data?.candidates.length ? (
+                  <p className="text-xs text-muted-foreground">
+                    No sourcing candidates recorded.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {learningCandidatesQuery.data.candidates
+                      .slice(0, 5)
+                      .map(candidate => {
+                        const proposal = candidate.proposal as {
+                          dimension?: string;
+                          value?: string;
+                          maximumNextBatchSize?: number;
+                        };
+                        return (
+                          <div
+                            key={candidate.id}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 p-3"
+                          >
+                            <div>
+                              <p className="text-sm font-medium">
+                                {proposal.dimension}: {proposal.value}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Max next batch{" "}
+                                {proposal.maximumNextBatchSize || 20} ·{" "}
+                                {candidate.sampleSize} outcomes · v
+                                {candidate.version}
+                              </p>
+                            </div>
+                            {candidate.state === "CANDIDATE" ? (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  title="Reject sourcing candidate"
+                                  disabled={
+                                    decideLearningCandidateMutation.isPending
+                                  }
+                                  onClick={() =>
+                                    decideLearningCandidate(
+                                      candidate.id,
+                                      "REJECTED"
+                                    )
+                                  }
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  title="Approve sourcing candidate record"
+                                  disabled={
+                                    decideLearningCandidateMutation.isPending
+                                  }
+                                  onClick={() =>
+                                    decideLearningCandidate(
+                                      candidate.id,
+                                      "APPROVED"
+                                    )
+                                  }
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="rounded border border-white/10 px-2 py-1 text-xs text-muted-foreground">
+                                {candidate.state}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Loading State */}
           {isLoading && (

@@ -19,7 +19,14 @@ import crypto from "crypto";
 import { eq, desc, and, isNotNull } from "drizzle-orm";
 import * as db from "./db";
 import { getDb } from "./db";
-import { apiKeys, leads, audits, users } from "../drizzle/schema";
+import {
+  apiKeys,
+  leads,
+  audits,
+  auditLog,
+  users,
+  smirkOutcomeEvents,
+} from "../drizzle/schema";
 import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
 import { analyzeVisualDebt } from "./visualAudit";
@@ -36,6 +43,13 @@ import {
 import { checkKillSwitch, checkRateLimit } from "./governor";
 import { isPrivilegedUser } from "./lib/accessControl";
 import { apiScopeMaySpend } from "./lib/apiScopePolicy";
+import {
+  hashSmirkOutcomePayload,
+  isDuplicateOutcomeStorageError,
+  smirkOutcomePayloadSchema,
+  validateSmirkOutcomeResearchReceipt,
+  verifySmirkOutcomeSignature,
+} from "./lib/smirkOutcome";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -609,18 +623,285 @@ export function createApiRouter(): Router {
   );
 
   // ── POST /api/v1/leads/:id/outcome ─────────────────────────────────────────
-  // Compatibility route. No deployed SMIRK callback contract is active.
+  // Signed, idempotent feedback only. This route cannot trigger outreach.
   // Scope: outcome:write
   r.post(
     "/leads/:id(\\d+)/outcome",
     requireScope("outcome:write"),
-    (_req: AuthedRequest, res: Response) => {
-      res.status(409).json({
-        success: false,
-        code: "SMIRK_OUTCOME_CALLBACK_NOT_CONFIGURED",
-        error:
-          "Outcome callbacks are disabled until SMIRK signs an idempotent event contract and Velvet verifies the expected owned lead update.",
+    async (req: AuthedRequest, res: Response) => {
+      const parsed = smirkOutcomePayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          success: false,
+          code: "SMIRK_OUTCOME_INVALID_PAYLOAD",
+          error: "Invalid SMIRK outcome payload.",
+        });
+      }
+      const signatureResult = verifySmirkOutcomeSignature({
+        payload: parsed.data,
+        timestamp:
+          typeof req.headers["x-smirk-timestamp"] === "string"
+            ? req.headers["x-smirk-timestamp"]
+            : undefined,
+        signature:
+          typeof req.headers["x-smirk-signature"] === "string"
+            ? req.headers["x-smirk-signature"]
+            : undefined,
+        secret: String(process.env.SMIRK_OUTCOME_SIGNING_SECRET || "").trim(),
       });
+      if (!signatureResult.ok) {
+        const unavailable =
+          signatureResult.code === "SMIRK_OUTCOME_NOT_CONFIGURED";
+        return res.status(unavailable ? 503 : 401).json({
+          success: false,
+          code: signatureResult.code,
+          error: unavailable
+            ? "SMIRK outcome verification is not configured."
+            : "SMIRK outcome signature verification failed.",
+        });
+      }
+
+      const leadId = Number(req.params.id);
+      const userId = req.apiKey!.userId;
+      const expectedExternalProspectId = `velvet-owner-${userId}-lead-${leadId}`;
+      if (parsed.data.externalProspectId !== expectedExternalProspectId) {
+        return res.status(403).json({
+          success: false,
+          code: "SMIRK_OUTCOME_LEAD_MISMATCH",
+          error: "The outcome does not match the API key owner's lead.",
+        });
+      }
+
+      const eventPayloadHash = hashSmirkOutcomePayload(parsed.data);
+      try {
+        const orm = await getDb();
+        if (!orm) {
+          return res.status(503).json({
+            success: false,
+            code: "SMIRK_OUTCOME_STORAGE_REQUIRED",
+            error: "Database unavailable.",
+          });
+        }
+
+        const result = await orm.transaction(async (tx) => {
+          const existingRows = await tx
+            .select({
+              id: smirkOutcomeEvents.id,
+              userId: smirkOutcomeEvents.userId,
+              eventPayloadHash: smirkOutcomeEvents.eventPayloadHash,
+            })
+            .from(smirkOutcomeEvents)
+            .where(
+              eq(
+                smirkOutcomeEvents.externalEventId,
+                parsed.data.externalEventId
+              )
+            )
+            .limit(1);
+          const existing = existingRows[0];
+          if (existing) {
+            if (
+              existing.userId !== userId ||
+              existing.eventPayloadHash !== eventPayloadHash
+            ) {
+              return { state: "CONFLICT" as const };
+            }
+            return {
+              state: "DUPLICATE" as const,
+              eventId: existing.id,
+            };
+          }
+
+          const leadRows = await tx
+            .select({ id: leads.id })
+            .from(leads)
+            .where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
+            .limit(1);
+          if (!leadRows[0]) return { state: "NOT_FOUND" as const };
+
+          const receiptRows = await tx
+            .select({ details: auditLog.details })
+            .from(auditLog)
+            .where(
+              and(
+                eq(auditLog.userId, userId),
+                eq(auditLog.action, "smirk_research_export_success"),
+                eq(auditLog.resource, "lead"),
+                eq(auditLog.resourceId, leadId)
+              )
+            )
+            .orderBy(desc(auditLog.createdAt))
+            .limit(1);
+          const receiptResult = validateSmirkOutcomeResearchReceipt(
+            receiptRows[0]?.details,
+            parsed.data
+          );
+          if (
+            !receiptResult.ok &&
+            receiptResult.code === "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED"
+          ) {
+            return { state: "NOT_REGISTERED" as const };
+          }
+          if (!receiptResult.ok) {
+            return { state: "RECEIPT_MISMATCH" as const };
+          }
+
+          await tx.insert(smirkOutcomeEvents).values({
+            userId,
+            leadId,
+            workspaceId: parsed.data.workspaceId,
+            externalProspectId: parsed.data.externalProspectId,
+            externalEventId: parsed.data.externalEventId,
+            outreachApprovalId: parsed.data.outreachApprovalId,
+            channel: parsed.data.channel,
+            outcome: parsed.data.outcome,
+            evidenceHash: parsed.data.evidenceHash,
+            outreachPayloadHash: parsed.data.outreachPayloadHash,
+            eventPayloadHash,
+            notes: parsed.data.notes,
+            occurredAt: new Date(parsed.data.occurredAt),
+          });
+          const leadUpdate = await tx
+            .update(leads)
+            .set({
+              smirkCallOutcome: parsed.data.outcome,
+              smirkCallSummary:
+                parsed.data.notes ||
+                `Signed SMIRK ${parsed.data.channel} outcome recorded.`,
+              smirkWorkspaceId: String(parsed.data.workspaceId),
+            })
+            .where(and(eq(leads.id, leadId), eq(leads.userId, userId)));
+          if (Number(leadUpdate[0]?.affectedRows ?? 0) !== 1) {
+            throw new Error(
+              "Expected owned Velvet lead row was not updated."
+            );
+          }
+
+          const storedRows = await tx
+            .select({
+              id: smirkOutcomeEvents.id,
+              eventPayloadHash: smirkOutcomeEvents.eventPayloadHash,
+            })
+            .from(smirkOutcomeEvents)
+            .where(
+              and(
+                eq(smirkOutcomeEvents.userId, userId),
+                eq(
+                  smirkOutcomeEvents.externalEventId,
+                  parsed.data.externalEventId
+                )
+              )
+            )
+            .limit(1);
+          if (
+            !storedRows[0] ||
+            storedRows[0].eventPayloadHash !== eventPayloadHash
+          ) {
+            throw new Error(
+              "Expected SMIRK outcome row was not durably verified."
+            );
+          }
+          return {
+            state: "RECORDED" as const,
+            eventId: storedRows[0].id,
+          };
+        });
+
+        if (result.state === "CONFLICT") {
+          return res.status(409).json({
+            success: false,
+            state: result.state,
+            code: "SMIRK_OUTCOME_IDEMPOTENCY_CONFLICT",
+            error: "The event ID was already used for different outcome data.",
+          });
+        }
+        if (result.state === "NOT_FOUND") {
+          return res.status(404).json({
+            success: false,
+            state: result.state,
+            code: "SMIRK_OUTCOME_LEAD_NOT_FOUND",
+            error: "Lead not found.",
+          });
+        }
+        if (
+          result.state === "NOT_REGISTERED" ||
+          result.state === "RECEIPT_MISMATCH"
+        ) {
+          return res.status(409).json({
+            success: false,
+            state: result.state,
+            code:
+              result.state === "NOT_REGISTERED"
+                ? "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED"
+                : "SMIRK_OUTCOME_RESEARCH_RECEIPT_MISMATCH",
+            error:
+              "The outcome does not match a successful Velvet-to-SMIRK research registration.",
+          });
+        }
+        return res
+          .status(result.state === "RECORDED" ? 201 : 200)
+          .json({
+            success: true,
+            state: result.state,
+            eventId: result.eventId,
+            externalAction: "none",
+          });
+      } catch (error) {
+        if (isDuplicateOutcomeStorageError(error)) {
+          try {
+            const orm = await getDb();
+            const existingRows = orm
+              ? await orm
+                  .select({
+                    id: smirkOutcomeEvents.id,
+                    userId: smirkOutcomeEvents.userId,
+                    eventPayloadHash: smirkOutcomeEvents.eventPayloadHash,
+                  })
+                  .from(smirkOutcomeEvents)
+                  .where(
+                    eq(
+                      smirkOutcomeEvents.externalEventId,
+                      parsed.data.externalEventId
+                    )
+                  )
+                  .limit(1)
+              : [];
+            const existing = existingRows[0];
+            if (
+              existing &&
+              existing.userId === userId &&
+              existing.eventPayloadHash === eventPayloadHash
+            ) {
+              return res.status(200).json({
+                success: true,
+                state: "DUPLICATE",
+                eventId: existing.id,
+                externalAction: "none",
+              });
+            }
+            if (existing) {
+              return res.status(409).json({
+                success: false,
+                state: "CONFLICT",
+                code: "SMIRK_OUTCOME_IDEMPOTENCY_CONFLICT",
+                error:
+                  "The event ID was already used for different outcome data.",
+              });
+            }
+          } catch (duplicateReadError) {
+            console.error(
+              "[SMIRK Outcome] Duplicate reconciliation failed:",
+              duplicateReadError
+            );
+          }
+        }
+        console.error("[SMIRK Outcome] Persistence failed:", error);
+        return res.status(503).json({
+          success: false,
+          code: "SMIRK_OUTCOME_STORAGE_UNAVAILABLE",
+          error: "SMIRK outcome storage is temporarily unavailable.",
+        });
+      }
     }
   );
 

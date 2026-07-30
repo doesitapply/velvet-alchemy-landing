@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildSmirkResearchPayload,
   buildSmirkResearchPayloadHash,
+  buildResearchEvidence,
   normalizeResearchPhone,
   parseSmirkResearchResponse,
   readSmirkResearchConfig,
@@ -28,6 +29,26 @@ const syntheticLead = {
   address: "100 Example Way",
   city: "Reno",
   state: "NV",
+  screenshotUrl: "https://example.com/synthetic-plumbing-screenshot.png",
+  googleRating: "4.7",
+  reviewCount: 38,
+  googlePlaceId: "synthetic-place-id",
+  updatedAt: new Date("2026-07-29T18:00:00.000Z"),
+};
+
+const syntheticAudit = {
+  summary: "The primary contact action appears below the opening content.",
+  visualDebtData: JSON.stringify({
+    visualDebt: [
+      {
+        issue: "The phone number has low visual contrast.",
+      },
+      {
+        issue: "This is costing the business lost revenue and customers.",
+      },
+    ],
+  }),
+  updatedAt: new Date("2026-07-29T18:05:00.000Z"),
 };
 
 describe("SMIRK research configuration", () => {
@@ -64,8 +85,13 @@ describe("SMIRK research configuration", () => {
 
 describe("SMIRK research payload", () => {
   it("builds a stable prospect-shaped record without call semantics", () => {
-    const payload = buildSmirkResearchPayload(syntheticLead, 1);
+    const payload = buildSmirkResearchPayload(
+      syntheticLead,
+      1,
+      syntheticAudit
+    );
     expect(payload).toMatchObject({
+      contractVersion: "velvet-smirk.prospect.v1",
       workspaceId: 1,
       externalId: "velvet-owner-7-lead-42",
       batch: {
@@ -76,13 +102,54 @@ describe("SMIRK research payload", () => {
       prospect: {
         companyName: "Synthetic Plumbing Test",
         phone: "+17755550142",
+        phoneContactMode: "operator_review_only",
         email: "owner@example.com",
+        emailVerification: "verified_owner_email",
         website: "https://example.com/synthetic-plumbing",
       },
     });
     expect(payload).not.toHaveProperty("caller");
     expect(payload.prospect.notes).toMatch(/No outreach, SMS, call, handoff/i);
+    expect(payload.prospect.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "website",
+          basis: "observed",
+          confidence: "high",
+        }),
+        expect.objectContaining({
+          kind: "visual_usability",
+          basis: "inferred",
+          confidence: "medium",
+        }),
+        expect.objectContaining({
+          kind: "public_reputation",
+          basis: "observed",
+          confidence: "high",
+        }),
+      ])
+    );
     expect(buildSmirkResearchPayloadHash(payload)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("omits unsupported business-outcome claims from exported evidence", () => {
+    const evidence = buildResearchEvidence(syntheticLead, syntheticAudit);
+    const exportedText = evidence
+      .map((entry) => entry.observation)
+      .join(" ");
+    expect(exportedText).toMatch(/low visual contrast/i);
+    expect(exportedText).not.toMatch(
+      /costing|lost revenue|customers|page speed|mobile-friendly/i
+    );
+    expect(
+      evidence.every(
+        (entry) =>
+          Boolean(entry.observedAt) &&
+          Boolean(entry.kind) &&
+          Boolean(entry.basis) &&
+          Boolean(entry.confidence)
+      )
+    ).toBe(true);
   });
 
   it("normalizes only unambiguous North American numbers", () => {
@@ -242,6 +309,7 @@ describe("SMIRK research route contract", () => {
     expect(routers).toContain("addToSmirkResearch: protectedProcedure");
     expect(routers).toContain("requirePrivilegedUser(ctx.user)");
     expect(routers).toContain("requireOwnedLead(input.id, ctx.user)");
+    expect(routers).toContain("requireDirectLeadOwnership(lead, ctx.user)");
     expect(routers).toContain('lead.status !== "audited"');
     expect(routers).toContain(
       'checkRateLimit(ctx.user.id, "smirk_research_export")'

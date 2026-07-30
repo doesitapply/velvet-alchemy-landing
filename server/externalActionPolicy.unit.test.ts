@@ -25,6 +25,9 @@ describe("external action policy", () => {
     expect(findUnsupportedExternalClaim("This is costing you jobs.")).toBe(
       "costing you jobs"
     );
+    expect(findUnsupportedExternalClaim("Those are lost emergency jobs.")).toBe(
+      "lost emergency jobs"
+    );
     expect(() =>
       assertSafeExternalCopy(
         "Guaranteed revenue",

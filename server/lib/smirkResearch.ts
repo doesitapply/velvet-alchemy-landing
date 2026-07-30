@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
-import type { Lead } from "../../drizzle/schema";
+import type { Audit, Lead } from "../../drizzle/schema";
 import { z } from "zod";
 
 const SMIRK_PRODUCTION_ORIGIN = "https://smirkcalls.com";
+export const SMIRK_RESEARCH_CONTRACT_VERSION =
+  "velvet-smirk.prospect.v1" as const;
 const MINIMUM_API_KEY_LENGTH = 32;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const E164_PHONE = /^\+[1-9]\d{7,14}$/;
@@ -10,6 +12,7 @@ const EXTERNAL_ID = /^[A-Za-z0-9:_-]+$/;
 
 const smirkResearchPayloadSchema = z
   .object({
+    contractVersion: z.literal(SMIRK_RESEARCH_CONTRACT_VERSION),
     workspaceId: z.number().int().positive(),
     externalId: z.string().min(12).max(160).regex(EXTERNAL_ID),
     batch: z
@@ -24,7 +27,9 @@ const smirkResearchPayloadSchema = z
       .object({
         companyName: z.string().min(2).max(240),
         phone: z.string().regex(E164_PHONE).optional(),
+        phoneContactMode: z.literal("operator_review_only").optional(),
         email: z.string().email().max(320).optional(),
+        emailVerification: z.literal("verified_owner_email").optional(),
         website: z.string().url().max(2_000),
         industry: z.string().min(2).max(120).optional(),
         address: z.string().min(2).max(500).optional(),
@@ -36,6 +41,17 @@ const smirkResearchPayloadSchema = z
               .object({
                 url: z.string().url().max(2_000),
                 observation: z.string().min(1).max(1_000),
+                observedAt: z.string().datetime({ offset: true }),
+                kind: z.enum([
+                  "website",
+                  "contact_path",
+                  "visual_usability",
+                  "performance",
+                  "public_reputation",
+                  "other",
+                ]),
+                basis: z.enum(["observed", "measured", "inferred"]),
+                confidence: z.enum(["high", "medium", "low"]),
               })
               .strict()
           )
@@ -43,7 +59,29 @@ const smirkResearchPayloadSchema = z
           .max(10),
         notes: z.string().min(1).max(2_000),
       })
-      .strict(),
+      .strict()
+      .superRefine((prospect, ctx) => {
+        if (
+          Boolean(prospect.email) !==
+          (prospect.emailVerification === "verified_owner_email")
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "A research email must be paired with verified_owner_email provenance.",
+          });
+        }
+        if (
+          Boolean(prospect.phone) !==
+          (prospect.phoneContactMode === "operator_review_only")
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "A research phone must remain operator_review_only.",
+          });
+        }
+      }),
   })
   .strict();
 
@@ -112,21 +150,139 @@ export function normalizeResearchPhone(
   return undefined;
 }
 
+type SmirkResearchLead = Pick<
+  Lead,
+  | "id"
+  | "userId"
+  | "companyName"
+  | "websiteUrl"
+  | "phone"
+  | "verifiedOwnerEmail"
+  | "category"
+  | "address"
+  | "city"
+  | "state"
+  | "screenshotUrl"
+  | "googleRating"
+  | "reviewCount"
+  | "googlePlaceId"
+  | "updatedAt"
+>;
+
+type SmirkResearchAudit = Pick<
+  Audit,
+  "summary" | "visualDebtData" | "updatedAt"
+>;
+
+type ResearchEvidence = SmirkResearchPayload["prospect"]["evidence"][number];
+
+const unsupportedOutcomeClaim =
+  /\b(lost|losing|costing|revenue|income|profit|customers?|jobs?|leads?|conversions?|ranking|rankings|page speed|load time|mobile[- ]friendly|responsive)\b/i;
+
+function safeVisualObservation(raw: unknown): string | undefined {
+  const value = String(raw || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!value || unsupportedOutcomeClaim.test(value)) return undefined;
+  return value.slice(0, 850);
+}
+
+function toObservedAt(value: Date | string): string {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(parsed.getTime())) {
+    throw new Error("Research evidence requires a valid observation time.");
+  }
+  return parsed.toISOString();
+}
+
+function googleMapsPlaceUrl(placeId: string): string {
+  return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}`;
+}
+
+export function buildResearchEvidence(
+  lead: SmirkResearchLead,
+  audit?: SmirkResearchAudit | null
+): ResearchEvidence[] {
+  const website = publicWebsiteUrl(lead.websiteUrl);
+  const leadObservedAt = toObservedAt(lead.updatedAt);
+  const evidence: ResearchEvidence[] = [
+    {
+      url: website,
+      observation: `Public business website recorded for operator review: ${lead.companyName.trim().slice(0, 200)}.`,
+      observedAt: leadObservedAt,
+      kind: "website",
+      basis: "observed",
+      confidence: "high",
+    },
+    {
+      url: website,
+      observation:
+        new URL(website).protocol === "https:"
+          ? "The recorded public website URL uses HTTPS."
+          : "The recorded public website URL uses HTTP. Certificate behavior was not independently tested.",
+      observedAt: leadObservedAt,
+      kind: "website",
+      basis: "observed",
+      confidence: "high",
+    },
+  ];
+
+  if (lead.googlePlaceId) {
+    const rating = Number(lead.googleRating);
+    const reviewCount = Number(lead.reviewCount);
+    if (
+      Number.isFinite(rating) &&
+      rating >= 0 &&
+      rating <= 5 &&
+      Number.isSafeInteger(reviewCount) &&
+      reviewCount >= 0
+    ) {
+      evidence.push({
+        url: googleMapsPlaceUrl(lead.googlePlaceId),
+        observation: `The stored Google Maps record reported a ${rating.toFixed(1)} rating from ${reviewCount} reviews.`,
+        observedAt: leadObservedAt,
+        kind: "public_reputation",
+        basis: "observed",
+        confidence: "high",
+      });
+    }
+  }
+
+  if (audit && lead.screenshotUrl) {
+    const auditObservedAt = toObservedAt(audit.updatedAt);
+    const observations: string[] = [];
+    const summary = safeVisualObservation(audit.summary);
+    if (summary) observations.push(summary);
+    try {
+      const parsed = JSON.parse(audit.visualDebtData || "{}");
+      if (Array.isArray(parsed.visualDebt)) {
+        for (const item of parsed.visualDebt) {
+          const observation = safeVisualObservation(item?.issue);
+          if (observation) observations.push(observation);
+        }
+      }
+    } catch {
+      // A malformed legacy audit is omitted rather than promoted as evidence.
+    }
+    for (const observation of Array.from(new Set(observations)).slice(0, 5)) {
+      evidence.push({
+        url: publicWebsiteUrl(lead.screenshotUrl),
+        observation: `Screenshot review inference: ${observation}`,
+        observedAt: auditObservedAt,
+        kind: "visual_usability",
+        basis: "inferred",
+        confidence: "medium",
+      });
+    }
+  }
+
+  return evidence.slice(0, 10);
+}
+
 export function buildSmirkResearchPayload(
-  lead: Pick<
-    Lead,
-    | "id"
-    | "userId"
-    | "companyName"
-    | "websiteUrl"
-    | "phone"
-    | "verifiedOwnerEmail"
-    | "category"
-    | "address"
-    | "city"
-    | "state"
-  >,
-  workspaceId: number
+  lead: SmirkResearchLead,
+  workspaceId: number,
+  audit?: SmirkResearchAudit | null
 ): SmirkResearchPayload {
   if (!Number.isSafeInteger(workspaceId) || workspaceId <= 0) {
     throw new Error("SMIRK research workspace must be a positive integer.");
@@ -137,6 +293,7 @@ export function buildSmirkResearchPayload(
   const email = optionalEmail(lead.verifiedOwnerEmail);
 
   return {
+    contractVersion: SMIRK_RESEARCH_CONTRACT_VERSION,
     workspaceId,
     externalId: `velvet-owner-${lead.userId}-lead-${lead.id}`,
     batch: {
@@ -148,20 +305,17 @@ export function buildSmirkResearchPayload(
     prospect: {
       companyName: lead.companyName.trim().slice(0, 240),
       phone,
+      phoneContactMode: phone ? "operator_review_only" : undefined,
       email,
+      emailVerification: email ? "verified_owner_email" : undefined,
       website,
       industry: optionalText(lead.category, 120),
       address: optionalText(lead.address, 500),
       city: optionalText(lead.city, 120),
       state: optionalText(lead.state, 80),
-      evidence: [
-        {
-          url: website,
-          observation: `Public business website recorded for operator review: ${lead.companyName.trim().slice(0, 200)}.`,
-        },
-      ],
+      evidence: buildResearchEvidence(lead, audit),
       notes:
-        "Research-only import from Velvet Alchemy. No outreach, SMS, call, handoff, or callback task is authorized.",
+        "Research-only import from Velvet Alchemy using versioned, source-classified evidence. No outreach, SMS, call, handoff, or callback task is authorized.",
     },
   };
 }

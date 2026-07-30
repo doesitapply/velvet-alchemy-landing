@@ -36,6 +36,19 @@ export function requireCostAuthority(user: AccessUser): void {
   }
 }
 
+export function requireDirectLeadOwnership(
+  lead: Pick<Lead, "userId">,
+  user: AccessUser
+): void {
+  if (lead.userId !== user.id) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Cross-system lead actions require the authenticated user to own the lead.",
+    });
+  }
+}
+
 export async function requireOwnedLead(
   leadId: number,
   user: AccessUser

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isPrivilegedUser, requireCostAuthority } from "./lib/accessControl";
+import {
+  isPrivilegedUser,
+  requireCostAuthority,
+  requireDirectLeadOwnership,
+} from "./lib/accessControl";
 import { getRateLimitPolicy } from "./governor";
 import { apiScopeMaySpend, canGrantApiScopes } from "./lib/apiScopePolicy";
 
@@ -20,6 +24,15 @@ describe("operator access policy", () => {
 
   it("allows an administrator to start a paid or metered action", () => {
     expect(() => requireCostAuthority({ id: 1, role: "admin" })).not.toThrow();
+  });
+
+  it("requires direct ownership for cross-system lead identity", () => {
+    expect(() =>
+      requireDirectLeadOwnership({ userId: 2 }, { id: 1, role: "admin" })
+    ).toThrow(/authenticated user to own the lead/i);
+    expect(() =>
+      requireDirectLeadOwnership({ userId: 1 }, { id: 1, role: "admin" })
+    ).not.toThrow();
   });
 });
 

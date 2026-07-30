@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `aea0743` | **Date:** 2026-07-29
 
-**Current local proof:** TypeScript clean; portable unit tests `96/96`. Credentialed, deployed, and live results are separate gates below.
+**Current local proof:** TypeScript clean; 113/113 portable unit tests pass; the production build completes with known analytics-placeholder and bundle-size warnings. Credentialed, deployed, and live results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -14,7 +14,9 @@ Velvet Alchemy is a **private operator intelligence platform**. It finds busines
 
 Velvet does not send email or SMS and does not place or queue prospect calls. The deployed SMIRK handoff receiver accepts a call-shaped `caller` payload, so it remains restricted to explicitly enabled synthetic integration tests.
 
-The hardening branches now contain a separate research-only prospect intake. A privileged owner or administrator can explicitly move one audited lead into SMIRK's operator review queue. That path has a dedicated token, exact workspace lock, stable opaque ID, local audit receipt, 10-per-hour cap, and no contact semantics. It is not deployed, configured, or live-tested yet. No deployed SMIRK-to-Velvet outcome callback has been verified.
+The hardening branches now contain a separate research-only prospect intake. A privileged owner or administrator can explicitly move one audited lead into SMIRK's operator review queue. That path has a dedicated token, exact workspace lock, stable opaque ID, local audit receipt, 10-per-hour cap, and no contact semantics. It is not deployed, configured, or live-tested yet.
+
+The branches also contain a signed, idempotent outcome contract. SMIRK writes callbacks to a durable outbox; dispatch remains disabled. Velvet verifies a dedicated API key, HMAC signature, fresh timestamp, owner/lead identity, exact payload hash, and idempotency key before writing an outcome event. No deployed callback has been verified.
 
 It is not a SaaS product. It has no public marketing page. The root URL shows a minimal auth gate and redirects authenticated operators to the Command Center.
 
@@ -36,6 +38,9 @@ The system is designed to be operated by a single person or a small team, with e
 [Synthetic contract test only] -> POST /api/integrations/velvet/handoffs
 [Admin-reviewed research]       -> POST /api/integrations/velvet/prospects
 [Prospect call handoff]         -> BLOCKED
+[Signed outcome receiver]       -> POST /api/v1/leads/:id/outcome
+[Trade + metro scorecard]       -> human-review sourcing candidate
+[SMIRK callback dispatch]       -> OUTBOX ONLY / BLOCKED
 [Email delivery]                -> BLOCKED
 [SMS delivery]                  -> BLOCKED
 ```
@@ -55,7 +60,7 @@ The system is designed to be operated by a single person or a small team, with e
 | Payments         | Stripe (test mode, sandbox claimed)                     |
 | Email            | Review-only generation; delivery adapter is fail-closed |
 | SMS              | Cold SMS is disabled; no Twilio delivery path is active |
-| Email Enrichment | Hunter.io primary, Snov.io fallback                     |
+| Email Enrichment | Explicit-enable, one-result Hunter.io owner lookup       |
 | Phone Agent      | SMIRK at `https://smirkcalls.com`                       |
 
 ---
@@ -84,12 +89,15 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/paymentRouter.ts`            | Stripe checkout session creation                                   |
 | `server/apiRouter.ts`                | Public REST API (`/api/v1/*`)                                      |
 | `server/apiKeyRouter.ts`             | API key management (create/revoke/list)                            |
+| `server/acquisitionLearningRouter.ts` | Human-reviewed trade/metro feedback candidates                    |
 | `server/governor.ts`                 | Rate limits, kill-switch, system config                            |
 | `server/worker.ts`                   | Opt-in FIFO worker (polls every 5 min, 1 job/batch)                |
 | `server/apiCostTracker.ts`           | Per-call cost tracking + daily kill-switch ($10/day)               |
 | `server/lib/smirkHandoff.ts`         | Review brief builder + synthetic-only SMIRK contract client        |
 | `server/lib/smirkResearch.ts`        | Research-only SMIRK client, payload validation, and response proof |
-| `server/lib/emailEnrichment.ts`      | Hunter.io / Snov.io verified email lookup                          |
+| `server/lib/smirkOutcome.ts`         | Signed callback verification and research-receipt binding          |
+| `server/lib/acquisitionLearning.ts`  | Outcome-linked sourcing scorecards and bounded proposals           |
+| `server/lib/emailEnrichment.ts`      | Budget-reserved Hunter.io verified-owner lookup                    |
 | `server/lib/smsOutreach.ts`          | Fail-closed cold-SMS compatibility adapter                         |
 | `server/lib/emailOutreach.ts`        | Review-only copy + fail-closed delivery adapter                    |
 | `server/lib/externalActionPolicy.ts` | Central prepare-only policy and unsupported-claim checks           |
@@ -119,7 +127,7 @@ The system is designed to be operated by a single person or a small team, with e
 
 | File                | Purpose                  |
 | ------------------- | ------------------------ |
-| `drizzle/schema.ts` | All 21 table definitions |
+| `drizzle/schema.ts` | All 23 table definitions |
 
 ---
 
@@ -134,23 +142,32 @@ The system is designed to be operated by a single person or a small team, with e
 | `api_calls`       | Per-call cost tracking for kill-switch                       |
 | `system_config`   | Key-value store for runtime config (kill-switch, budgets)    |
 | `outreach_drafts` | Charmer-generated email drafts pending approval              |
+| `smirk_outcome_events` | Signed, idempotent SMIRK feedback facts; no action trigger |
+| `acquisition_learning_candidates` | Human-reviewed trade/metro sourcing proposals |
 | `payments`        | Stripe checkout sessions and payment status                  |
 | `users`           | Authenticated operators (Manus OAuth)                        |
 
 ### SMIRK Fields on `leads` Table
 
-These columns were added via `ALTER TABLE` (not via drizzle migration — the migration journal is out of sync with the DB):
+These historical columns exist in the application schema, but their production
+provenance predates the current migration journal:
 
 ```sql
-smirk_handoff_at     DATETIME NULL
-smirk_call_outcome   VARCHAR(50) NULL   -- interested|not_interested|callback|no_answer|voicemail|booked
-smirk_call_summary   TEXT NULL
-smirk_workspace_id   VARCHAR(100) NULL
-outreach_channel     VARCHAR(20) NULL   -- email|sms|none
-verified_owner_email VARCHAR(255) NULL
+smirkHandoffAt     TIMESTAMP NULL
+smirkCallOutcome   VARCHAR(64) NULL
+smirkCallSummary   TEXT NULL
+smirkWorkspaceId   VARCHAR(128) NULL
+outreachChannel    ENUM('email','sms','none') NOT NULL DEFAULT 'none'
+verifiedOwnerEmail VARCHAR(320) NULL
 ```
 
-**Important:** `pnpm db:push` will fail due to migration journal drift. Apply schema changes directly via `webdev_execute_sql` or the Database panel in the Manus Management UI.
+**Important:** do not use `pnpm db:push` against production while the migration
+journal drift remains unresolved. The new outcome and sourcing-candidate tables are isolated in
+`drizzle/0022_smirk_outcome_events.sql`; review it against a current schema
+snapshot. That migration uses idempotent `ADD COLUMN IF NOT EXISTS` statements
+for the four historical SMIRK columns so an approved migration can reconcile
+either target shape. Back up the exact target and require explicit migration
+approval before applying it.
 
 ---
 
@@ -185,10 +202,13 @@ Repository contents do not prove whether a runtime secret is currently installed
 | `SMIRK_WORKSPACE_ID`          | Synthetic handoff target workspace                                                              |
 | `SMIRK_RESEARCH_API_KEY`      | Dedicated research-only bearer token; at least 32 characters and different from `SMIRK_API_KEY` |
 | `SMIRK_RESEARCH_WORKSPACE_ID` | Exact workspace allowed to receive reviewed research records                                    |
+| `SMIRK_OUTCOME_SIGNING_SECRET`| HMAC secret for verifying SMIRK outcome callbacks; at least 32 characters                         |
 | `STRIPE_SECRET_KEY`           | Credentialed Stripe integration tests and checkout                                              |
 | `STRIPE_WEBHOOK_SECRET`       | Stripe webhook verification                                                                     |
 | `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe client initialization                                                                    |
-| `HUNTER_API_KEY`              | Public business email enrichment                                                                |
+| `ENABLE_HUNTER_OWNER_ENRICHMENT` | Must equal `true` before any Hunter request can start                                        |
+| `HUNTER_API_KEY`              | Hunter owner-email enrichment                                                                    |
+| `HUNTER_COST_CENTS_PER_CREDIT`| Owner-supplied cost used for the pre-request daily-budget reservation                            |
 | `GOOGLE_AI_API_KEY`           | Optional LLM fallback                                                                           |
 | `ENABLE_PIPELINE_WORKER`      | Must equal `true` to start the cost-bearing background worker; disabled by default              |
 
@@ -211,11 +231,15 @@ Content-Type: application/json
 ```
 
 The Lead Detail action is visible only to a privileged owner or administrator. The server also requires an owned, audited lead, a clear global/user kill-switch, the dedicated token and workspace, and the `smirk_research_export` rate-limit gate. Every attempt records an intent plus a success/failure receipt in `audit_log`.
+Cross-system identity is stricter than ordinary administrator review: the
+authenticated user must directly own the exported lead so the stable ID,
+receipt, and callback API-key owner remain the same tenant.
 
 Request shape:
 
 ```typescript
 {
+  contractVersion: "velvet-smirk.prospect.v1",
   workspaceId: number,          // Number(SMIRK_RESEARCH_WORKSPACE_ID)
   externalId: string,           // stable opaque Velvet owner + lead reference
   batch: {
@@ -227,17 +251,49 @@ Request shape:
   prospect: {
     companyName: string,
     phone?: string,             // research data only; never dialed
+    phoneContactMode?: "operator_review_only",
     email?: string,             // research data only; never sent
+    emailVerification?: "verified_owner_email",
     website: string,
     industry?: string,
     address?: string,
     city?: string,
     state?: string,
-    evidence: Array<{ url: string; observation: string }>,
+    evidence: Array<{
+      url: string,
+      observation: string,
+      observedAt: string,       // ISO-8601
+      kind: "website" | "contact_path" | "visual_usability" |
+            "performance" | "public_reputation" | "other",
+      basis: "observed" | "measured" | "inferred",
+      confidence: "high" | "medium" | "low",
+    }>,
     notes: string,
   }
 }
 ```
+
+Velvet exports only classified evidence. Screenshot judgments are marked
+`inferred`; public URL and Google Maps values are marked `observed`; a
+`measured` claim requires an actual measurement. Placeholder load speed,
+randomized mobile status, placeholder competitors, and modeled revenue loss
+are not part of the external report or SMIRK payload.
+
+Only `verifiedOwnerEmail` is exported as an email, and it is paired with
+`emailVerification: "verified_owner_email"`. Hunter candidates must be valid,
+personal, decision-maker records with an explicit owner/founder-level title;
+the request is limited to one result and its owner-configured credit cost is
+reserved against Velvet's daily budget before the request starts. There is no
+generic or non-owner fallback. The prior Snov synchronous fallback is disabled
+because Snov's current API is an asynchronous, multi-request flow that needs a
+separate costed adapter. A public business phone is paired with
+`phoneContactMode: "operator_review_only"`. SMIRK rejects contact details
+without those exact provenance markers. This does not bypass suppression,
+commercial-email, do-not-call, calling-window, or per-recipient approval gates.
+
+The "audit all pending" control selects at most five leads and executes their
+pipelines sequentially. It reports the remaining count as deferred instead of
+launching an unbounded burst of paid work.
 
 Success requires positive persisted `campaignId` and `prospectId` values plus `externalAction: "none"`.
 
@@ -265,7 +321,25 @@ The existing `/api/integrations/velvet/handoffs` contract is synthetic-test only
 
 ### Outcome Callback
 
-Not active. The compatibility route returns `409 SMIRK_OUTCOME_CALLBACK_NOT_CONFIGURED`. Activation requires an authenticated, idempotent event contract, owner-scoped updates, and a receipt proving the expected row changed.
+Implemented on the hardening branch but not deployed, configured, or live-tested.
+
+`POST /api/v1/leads/:id/outcome` requires a dedicated Velvet API key with
+`outcome:write`, `X-SMIRK-Timestamp`, and `X-SMIRK-Signature`. The body contract
+is `smirk-velvet.outcome.v1`. Velvet verifies a five-minute timestamp window,
+the exact API-key-owned lead identity, required outreach approval and payload
+hashes, a prior successful research receipt for the same SMIRK workspace,
+payload hash, and idempotency key.
+
+New events return `201 RECORDED`; exact replays return `200 DUPLICATE`; changed
+data under the same event ID returns `409`. The receiver writes feedback only.
+It cannot draft, approve, send, call, or promote a policy.
+
+`acquisitionLearning.scorecard` aggregates linked outcomes by trade or metro.
+`createCandidate` requires at least 10 outcomes in the proposed segment, 10 in
+its comparison group, and at least five percentage points of positive lift.
+The only proposal is a maximum 20-row next research batch.
+`decideCandidate` records `APPROVED` or `REJECTED` but always returns
+`policyChanged: false`; it cannot start scraping or contact.
 
 ---
 
@@ -284,7 +358,7 @@ All endpoints require `Authorization: Bearer <api_key>`.
 | POST   | `/api/v1/pipeline`          | `pipeline`      | Scrape, create leads, and optionally audit                   |
 | GET    | `/api/v1/leads/ready`       | `leads:read`    | Get audited leads for human review; no contact authorization |
 | POST   | `/api/v1/leads/:id/handoff` | `handoff:write` | Compatibility route; returns a policy block                  |
-| POST   | `/api/v1/leads/:id/outcome` | `outcome:write` | Compatibility route; returns a configuration block           |
+| POST   | `/api/v1/leads/:id/outcome` | `outcome:write` | Signed, owner-scoped, idempotent feedback event               |
 
 ---
 
@@ -301,7 +375,7 @@ The intended admin/owner loop is:
 5. **Draft** - generate evidence-based email copy only when a verified public business email exists.
 6. **Approve** - approve, reject, edit, or copy one draft at a time. Approval does not send.
 7. **Contact** - any real outreach is a separate manual action outside Velvet and must follow the campaign guardrails. Cold SMS and automated calls are prohibited.
-8. **Record** - manually record replies, demos, checkout, and activation evidence until an idempotent outcome contract is implemented.
+8. **Record** - SMIRK stores an idempotent outcome and prepares a signed callback in its disabled outbox. Real callback dispatch remains a separate activation gate.
 
 ---
 
@@ -315,7 +389,7 @@ The intended admin/owner loop is:
 | `audit`         | Trigger audits                                          |
 | `pipeline`      | Run full pipeline                                       |
 | `handoff:write` | Reserved compatibility scope; real handoffs are blocked |
-| `outcome:write` | Reserved compatibility scope; callbacks are blocked     |
+| `outcome:write` | Write signed, owner-scoped, idempotent SMIRK outcomes   |
 | `*`             | All scopes                                              |
 
 Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` authority. Both key creation and REST request handling enforce that restriction, including for older keys.
@@ -328,11 +402,11 @@ Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` auth
 
 | Issue                                                     | Impact                                          | Fix                                                                                                     |
 | --------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `pnpm db:push` fails (migration journal drift)            | Medium — schema changes must be applied via SQL | Apply via `webdev_execute_sql` or DB panel                                                              |
+| Outcome/learning migration is generated but not applied   | Callback and sourcing-learning storage are not live | Review `drizzle/0022_smirk_outcome_events.sql`, back up the target DB, then approve the exact migration |
 | Google AI key (`AQ.*`) is a short-lived OAuth token       | High — Gemini fallback will die                 | Get permanent `AIzaSy*` key from aistudio.google.com/apikey                                             |
 | Builder JSX-location plugin expects Vite 4/5, not Vite 7  | Low — install warning; current build passes     | Upgrade or remove the development-only plugin before the next Vite upgrade                              |
 | Research receiver/client exist only on hardening branches | Real prospect registration is not active        | Approve exact commits, deploy both sides, configure dedicated credentials, then run one synthetic proof |
-| No SMIRK-to-Velvet outcome sender is verified             | No automatic closed loop                        | Add signed, idempotent events and owner-scoped update receipts                                          |
+| SMIRK outcome sender is outbox-only and unverified live    | Closed-loop dispatch is inactive                | Deploy both exact commits, configure dedicated secrets, then run one synthetic callback and replay      |
 
 ### Deferred Features
 
@@ -355,9 +429,9 @@ Historical checkpoint `e9f88818` reported `88/88` in the Manus runtime with inje
 
 Current gates:
 
-| Command                 | Boundary                                           | Credential-free result on 2026-07-29      |
+| Command                 | Boundary                                           | Credential-free result on 2026-07-30      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 96 passed, 0 failed, 0 skipped            |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 113 passed, 0 failed, 0 skipped            |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 59 explicitly skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
 | `pnpm audit --prod --audit-level high` | Production dependency advisories       | 0 known vulnerabilities                   |
@@ -380,9 +454,9 @@ The project deploys via the Manus Management UI Publish button. No manual deploy
 
 ## For External Agents (Hermes / OpenClaw)
 
-External agents may read owned leads, generate internal evidence, and prepare drafts. They must not treat `leads/ready` or a SMIRK research import as contact authorization. The handoff and outcome compatibility routes intentionally return policy blocks.
+External agents may read owned leads, generate internal evidence, and prepare drafts. They must not treat `leads/ready`, a SMIRK research import, an outcome receipt, or a learning candidate as contact authorization.
 
-The synthetic handoff client remains restricted to fake fixtures. The research client is an admin-only UI action and is not exposed through the public REST API. Automatic prospect registration and automatic outcomes are not implemented.
+The synthetic handoff client remains restricted to fake fixtures. The research client is an admin-only UI action and is not exposed through the public REST API. The outcome receiver exists, but SMIRK dispatch remains disabled and unverified live.
 
 ---
 
@@ -399,4 +473,4 @@ The synthetic handoff client remains restricted to fake fixtures. The research c
 
 ---
 
-_Last updated: 2026-07-29 by Codex. Hardening baseline `aea0743`; research bridge remains un-deployed._
+_Last updated: 2026-07-30 by Codex. Research and outcome bridges remain un-deployed._

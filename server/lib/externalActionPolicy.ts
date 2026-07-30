@@ -25,7 +25,9 @@ export function externalActionBlock(
     action,
     mode: EXTERNAL_ACTION_MODE,
     message:
-      "External contact is disabled. Prepare and review the action, then use a separately approved manual send.",
+      action === "sms_send"
+        ? "Cold SMS is disabled and cannot be prepared or sent."
+        : "External contact is disabled. Prepare and review the action, then use a separately approved manual send or manual dial.",
   };
 }
 
@@ -39,7 +41,7 @@ export function externalActionError(action: ExternalAction): Error {
 const UNSUPPORTED_EXTERNAL_CLAIMS = [
   /\bcosting you (?:jobs|customers|money|revenue|leads)\b/i,
   /\byou(?:'re| are) losing (?:jobs|customers|money|revenue|leads)\b/i,
-  /\blost revenue\b/i,
+  /\blost (?:emergency |service |potential )?(?:jobs?|customers?|money|revenue|income|profit|leads?)\b/i,
   /\bcritical leaks?\b/i,
   /\bguarantee(?:d|s)?\b/i,
   /\brecover (?:this|the|your) (?:lost )?revenue\b/i,
