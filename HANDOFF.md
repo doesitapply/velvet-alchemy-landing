@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
 
-**Current local proof:** TypeScript clean; 156/156 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; 156/156 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -126,6 +126,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/lib/emailOutreach.ts`        | Review-only copy + fail-closed delivery adapter                    |
 | `server/lib/externalActionPolicy.ts` | Central prepare-only policy and unsupported-claim checks           |
 | `server/lib/enrichment.ts`           | Audit enrichment; phones remain research-only                      |
+| `server/testSupport/smirkCrossSystemFixtureServer.ts` | Disposable loopback fixture for the paired MySQL/Postgres HTTP proof |
 | `server/visualAudit.ts`              | AI screenshot analysis, prestige score (0-100)                     |
 | `server/screenshot.ts`               | Headless browser screenshot capture → S3                           |
 | `server/products.ts`                 | Stripe package definitions ($3K/$5K/$8K)                           |
@@ -592,6 +593,25 @@ Maps response and uses synthetic leads and outcomes. It proves:
 
 It does not prove a production migration, provider response, email, SMS, call,
 prospect interaction, conversion, or revenue.
+
+The paired SMIRK repository also owns the full disposable cross-database HTTP
+gate:
+
+```bash
+cd /path/to/ai-phone-agent-from-gemini
+VELVET_REPO_PATH=/path/to/velvet-alchemy-landing \
+  npm run -s check:velvet-smirk:persistence
+```
+
+It creates fresh loopback MySQL and Postgres databases, applies this
+repository's tracked migrations, runs the real Velvet discovery/export/outcome
+API and SMIRK source/QC/approval/outcome routes, verifies exact replay and
+workspace denial, then drops both databases. Maps results and the manual-call
+receipt are synthetic. All production-bound HTTP is trapped and rewritten to
+the loopback fixture; any unexpected path fails. The passing local run
+observed zero email, SMS, phone, paid-provider, production-network, and
+production-write actions. This remains local integration evidence, not deploy
+or commercial proof.
 
 The paired SMIRK branch provides a credential-free cross-repository contract
 gate:
