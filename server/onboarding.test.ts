@@ -5,7 +5,12 @@ import { getDb } from "./db";
 import { leads, payments, userOnboarding } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
-describe("Onboarding & Cost Tracking", () => {
+const hasDatabase =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  process.env.RUN_DB_WRITE_TESTS === "1" &&
+  Boolean(process.env.DATABASE_URL);
+
+describe.skipIf(!hasDatabase)("Onboarding & Cost Tracking", () => {
   const testUserId = 999999;
   const testUser = {
     id: testUserId,
@@ -26,9 +31,14 @@ describe("Onboarding & Cost Tracking", () => {
   async function cleanup() {
     const db = await getDb();
     if (!db) return;
-    await db.delete(userOnboarding).where(eq(userOnboarding.userId, testUserId));
+    await db
+      .delete(userOnboarding)
+      .where(eq(userOnboarding.userId, testUserId));
     // Get test lead ids first
-    const testLeads = await db.select().from(leads).where(eq(leads.userId, testUserId));
+    const testLeads = await db
+      .select()
+      .from(leads)
+      .where(eq(leads.userId, testUserId));
     for (const lead of testLeads) {
       await db.delete(payments).where(eq(payments.lead_id, lead.id));
     }

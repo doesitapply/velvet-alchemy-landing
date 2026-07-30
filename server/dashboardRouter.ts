@@ -1,55 +1,60 @@
 import { router, protectedProcedure } from "./_core/trpc";
 import { getDb } from "./db";
 import { leads, payments } from "../drizzle/schema";
-import { eq, sql, and, gte } from "drizzle-orm";
+import { eq, sql, and, gte, isNotNull } from "drizzle-orm";
+import { isPrivilegedUser } from "./lib/accessControl";
 
 export const dashboardRouter = router({
   /**
    * Get overall dashboard metrics
    */
-  getMetrics: protectedProcedure.query(async () => {
+  getMetrics: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
+    const scope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(leads.userId, ctx.user.id);
 
     // Total leads
     const totalLeadsResult = await db
       .select({ count: sql<number>`count(*)` })
-      .from(leads);
+      .from(leads)
+      .where(scope);
     const totalLeads = Number(totalLeadsResult[0]?.count || 0);
 
     // Pending audits (status = 'pending')
     const pendingAuditsResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(eq(leads.status, "pending"));
+      .where(and(scope, eq(leads.status, "pending")));
     const pendingAudits = Number(pendingAuditsResult[0]?.count || 0);
 
     // Completed audits (status = 'completed')
     const completedAuditsResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(eq(leads.status, "audited"));
+      .where(and(scope, eq(leads.status, "audited")));
     const completedAudits = Number(completedAuditsResult[0]?.count || 0);
 
     // Leads with assets generated (hasAssets = true)
     const withAssetsResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(eq(leads.hasAssets, true));
+      .where(and(scope, eq(leads.hasAssets, true)));
     const withAssets = Number(withAssetsResult[0]?.count || 0);
 
     // Leads with outreach sent (hasOutreach = true)
     const withOutreachResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(eq(leads.hasOutreach, true));
+      .where(and(scope, eq(leads.hasOutreach, true)));
     const withOutreach = Number(withOutreachResult[0]?.count || 0);
 
     // Average prestige score
     const avgScoreResult = await db
       .select({ avg: sql<number>`avg(${leads.prestigeScore})` })
       .from(leads)
-      .where(sql`${leads.prestigeScore} IS NOT NULL`);
+      .where(and(scope, isNotNull(leads.prestigeScore)));
     const avgPrestigeScore = Math.round(Number(avgScoreResult[0]?.avg || 0));
 
     // Leads created today
@@ -58,7 +63,7 @@ export const dashboardRouter = router({
     const todayLeadsResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(gte(leads.createdAt, today));
+      .where(and(scope, gte(leads.createdAt, today)));
     const leadsToday = Number(todayLeadsResult[0]?.count || 0);
 
     return {
@@ -69,38 +74,43 @@ export const dashboardRouter = router({
       withOutreach,
       avgPrestigeScore,
       leadsToday,
-      conversionRate: totalLeads > 0 ? Math.round((withOutreach / totalLeads) * 100) : 0,
+      conversionRate:
+        totalLeads > 0 ? Math.round((withOutreach / totalLeads) * 100) : 0,
     };
   }),
 
   /**
    * Get lead pipeline stats (funnel view)
    */
-  getPipelineStats: protectedProcedure.query(async () => {
+  getPipelineStats: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
+    const scope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(leads.userId, ctx.user.id);
 
     const totalLeadsResult = await db
       .select({ count: sql<number>`count(*)` })
-      .from(leads);
+      .from(leads)
+      .where(scope);
     const total = Number(totalLeadsResult[0]?.count || 0);
 
     const auditedResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(eq(leads.status, "audited"));
+      .where(and(scope, eq(leads.status, "audited")));
     const audited = Number(auditedResult[0]?.count || 0);
 
     const withAssetsResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(eq(leads.hasAssets, true));
+      .where(and(scope, eq(leads.hasAssets, true)));
     const withAssets = Number(withAssetsResult[0]?.count || 0);
 
     const withOutreachResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
-      .where(eq(leads.hasOutreach, true));
+      .where(and(scope, eq(leads.hasOutreach, true)));
     const withOutreach = Number(withOutreachResult[0]?.count || 0);
 
     return {
@@ -114,9 +124,12 @@ export const dashboardRouter = router({
   /**
    * Get recent activity (last 10 lead updates)
    */
-  getRecentActivity: protectedProcedure.query(async () => {
+  getRecentActivity: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
+    const scope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(leads.userId, ctx.user.id);
 
     const recentLeads = await db
       .select({
@@ -130,6 +143,7 @@ export const dashboardRouter = router({
         updatedAt: leads.updatedAt,
       })
       .from(leads)
+      .where(scope)
       .orderBy(sql`${leads.updatedAt} DESC`)
       .limit(10);
 
@@ -157,9 +171,12 @@ export const dashboardRouter = router({
   /**
    * Get unified activity feed (leads, audits, payments)
    */
-  getActivityFeed: protectedProcedure.query(async () => {
+  getActivityFeed: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
+    const scope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(leads.userId, ctx.user.id);
 
     // Get recent leads (last 20)
     const recentLeads = await db
@@ -172,6 +189,7 @@ export const dashboardRouter = router({
         prestigeScore: leads.prestigeScore,
       })
       .from(leads)
+      .where(scope)
       .orderBy(sql`${leads.createdAt} DESC`)
       .limit(20);
 
@@ -186,6 +204,8 @@ export const dashboardRouter = router({
         createdAt: payments.created_at,
       })
       .from(payments)
+      .innerJoin(leads, eq(payments.lead_id, leads.id))
+      .where(scope)
       .orderBy(sql`${payments.created_at} DESC`)
       .limit(20);
 
@@ -196,8 +216,15 @@ export const dashboardRouter = router({
       const leadsForPayments = await db
         .select({ id: leads.id, companyName: leads.companyName })
         .from(leads)
-        .where(sql`${leads.id} IN (${sql.join(leadIds.map(id => sql`${id}`), sql`, `)})`)
-    ;
+        .where(
+          and(
+            scope,
+            sql`${leads.id} IN (${sql.join(
+              leadIds.map(id => sql`${id}`),
+              sql`, `
+            )})`
+          )
+        );
       leadsForPayments.forEach(lead => {
         leadNames[lead.id] = lead.companyName;
       });
@@ -206,7 +233,11 @@ export const dashboardRouter = router({
     // Combine and format activities
     const activities: Array<{
       id: string;
-      type: 'lead_created' | 'audit_completed' | 'payment_received' | 'outreach_sent';
+      type:
+        | "lead_created"
+        | "audit_completed"
+        | "payment_received"
+        | "outreach_sent";
       title: string;
       description: string;
       timestamp: Date;
@@ -215,10 +246,10 @@ export const dashboardRouter = router({
 
     // Add lead activities
     recentLeads.forEach(lead => {
-      if (lead.status === 'audited' && lead.prestigeScore !== null) {
+      if (lead.status === "audited" && lead.prestigeScore !== null) {
         activities.push({
           id: `audit-${lead.id}`,
-          type: 'audit_completed',
+          type: "audit_completed",
           title: `Audit completed for ${lead.companyName}`,
           description: `Prestige score: ${lead.prestigeScore}/100`,
           timestamp: lead.updatedAt,
@@ -227,7 +258,7 @@ export const dashboardRouter = router({
       } else {
         activities.push({
           id: `lead-${lead.id}`,
-          type: 'lead_created',
+          type: "lead_created",
           title: `New lead: ${lead.companyName}`,
           description: `Status: ${lead.status}`,
           timestamp: lead.createdAt,
@@ -238,15 +269,19 @@ export const dashboardRouter = router({
 
     // Add payment activities
     recentPayments.forEach(payment => {
-      if (payment.status === 'completed') {
-        const companyName = leadNames[payment.leadId] || 'Unknown Company';
+      if (payment.status === "completed") {
+        const companyName = leadNames[payment.leadId] || "Unknown Company";
         activities.push({
           id: `payment-${payment.id}`,
-          type: 'payment_received',
+          type: "payment_received",
           title: `Payment received from ${companyName}`,
           description: `$${payment.amount.toLocaleString()} (${payment.packageType} package)`,
           timestamp: payment.createdAt,
-          metadata: { paymentId: payment.id, leadId: payment.leadId, amount: payment.amount },
+          metadata: {
+            paymentId: payment.id,
+            leadId: payment.leadId,
+            amount: payment.amount,
+          },
         });
       }
     });
@@ -260,14 +295,17 @@ export const dashboardRouter = router({
   /**
    * Get prestige score distribution
    */
-  getScoreDistribution: protectedProcedure.query(async () => {
+  getScoreDistribution: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
+    const scope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(leads.userId, ctx.user.id);
 
     const allScores = await db
       .select({ score: leads.prestigeScore })
       .from(leads)
-      .where(sql`${leads.prestigeScore} IS NOT NULL`);
+      .where(and(scope, isNotNull(leads.prestigeScore)));
 
     const distribution = {
       excellent: 0, // 80-100

@@ -2,13 +2,21 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Circle, ArrowRight, DollarSign, Search, FileText, Send } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  ArrowRight,
+  DollarSign,
+  Search,
+  FileText,
+  Send,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
 
 /**
  * Onboarding Wizard - Guides new users through first revenue
- * 
+ *
  * Steps:
  * 1. Run scraper to find leads
  * 2. Review AI audit results
@@ -28,17 +36,21 @@ interface OnboardingStep {
 
 export function OnboardingWizard() {
   const [isExpanded, setIsExpanded] = useState(true);
-  
+
   // Fetch onboarding progress
-  const { data: progress, isLoading } = trpc.onboarding.getProgress.useQuery(undefined, {
-    refetchInterval: 10000, // Refresh every 10 seconds
-  });
+  const { data: progress, isLoading } = trpc.onboarding.getProgress.useQuery(
+    undefined,
+    {
+      refetchInterval: 10000, // Refresh every 10 seconds
+    }
+  );
 
   const steps: OnboardingStep[] = [
     {
       id: "scraper",
       title: "Find Your First Leads",
-      description: "Use the Business Scraper to find local businesses with websites",
+      description:
+        "Use the Business Scraper to find local businesses with websites",
       icon: <Search className="h-5 w-5" />,
       completed: progress?.hasCompletedScraper || false,
       actionText: "Run Scraper",
@@ -55,11 +67,11 @@ export function OnboardingWizard() {
     },
     {
       id: "invoice",
-      title: "Send Your First Invoice",
-      description: "Choose a package and send payment link to a client",
+      title: "Create Your First Payment Link",
+      description: "Choose a package after a qualified buyer asks to pay",
       icon: <Send className="h-5 w-5" />,
       completed: progress?.hasSentInvoice || false,
-      actionText: "Send Invoice",
+      actionText: "Create Payment Link",
       actionLink: "/leads",
     },
     {
@@ -98,7 +110,9 @@ export function OnboardingWizard() {
         >
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-gold" />
-            <span className="font-mono text-sm text-gold">Onboarding Complete</span>
+            <span className="font-mono text-sm text-gold">
+              Onboarding Complete
+            </span>
           </div>
           <span className="text-xs text-muted-foreground">Click to expand</span>
         </button>
@@ -175,7 +189,9 @@ export function OnboardingWizard() {
                 )}
 
                 {step.completed && (
-                  <span className="text-xs text-gold font-mono">✓ Completed</span>
+                  <span className="text-xs text-gold font-mono">
+                    ✓ Completed
+                  </span>
                 )}
               </div>
             </div>
@@ -189,8 +205,8 @@ export function OnboardingWizard() {
             🎯 You've completed onboarding!
           </p>
           <p className="text-xs text-muted-foreground">
-            Now focus on scaling: run more scraper searches, review high-scoring audits,
-            and send invoices to close more deals.
+            Now focus on scaling: run more scraper searches, review high-scoring
+            audits, and send invoices to close more deals.
           </p>
         </div>
       )}

@@ -1,7 +1,24 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Check, Zap, DollarSign, TrendingUp, Clock, Shield, Sparkles, Target, BarChart3 } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Zap,
+  DollarSign,
+  TrendingUp,
+  Clock,
+  Shield,
+  Sparkles,
+  Target,
+  BarChart3,
+} from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
 import { useState } from "react";
@@ -15,23 +32,38 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black text-white">
-      
       {/* Navigation */}
       <header className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/80 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 bg-gradient-to-br from-gold to-yellow-600 rounded-sm"></div>
-            <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
+            <span className="font-serif text-xl italic tracking-wide text-gold">
+              Velvet Alchemy
+            </span>
           </div>
           <div className="flex items-center gap-4">
-            <a id="nav-link-pricing" href="#pricing" className="hidden md:inline text-sm hover:text-gold transition-colors">Pricing</a>
-            <a id="nav-link-how-it-works" href="#how-it-works" className="hidden md:inline text-sm hover:text-gold transition-colors">How It Works</a>
-            <Button 
+            <a
+              id="nav-link-pricing"
+              href="#pricing"
+              className="hidden md:inline text-sm hover:text-gold transition-colors"
+            >
+              Pricing
+            </a>
+            <a
+              id="nav-link-how-it-works"
+              href="#how-it-works"
+              className="hidden md:inline text-sm hover:text-gold transition-colors"
+            >
+              How It Works
+            </a>
+            <Button
               asChild
-              variant="outline" 
+              variant="outline"
               className="border-gold/30 text-gold hover:bg-gold/10"
             >
-              <a id="nav-button-login" href={getLoginUrl()}>Login</a>
+              <a id="nav-button-login" href={getLoginUrl()}>
+                Login
+              </a>
             </Button>
           </div>
         </div>
@@ -45,18 +77,23 @@ export default function Home() {
               <Sparkles className="h-4 w-4 mr-2 inline" />
               AI-Powered Revenue Engine
             </Badge>
-            
+
             <h1 className="text-5xl md:text-7xl font-bold leading-tight">
-              Turn Local Businesses<br />
-              Into <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-400 to-gold">$5K Paychecks</span>
+              Turn Local Businesses
+              <br />
+              Into{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold via-yellow-400 to-gold">
+                $5K Paychecks
+              </span>
             </h1>
-            
+
             <p className="text-xl md:text-2xl text-white/70 max-w-3xl mx-auto">
-              Find businesses with terrible websites, prove it with AI audits, and sell them new ones for $3k-$8k per deal. Everything automated.
+              Find businesses with terrible websites, prove it with AI audits,
+              and sell them new ones for $3k-$8k per deal. Everything automated.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button 
+              <Button
                 id="hero-button-start-audit"
                 size="lg"
                 onClick={() => setAuditDialogOpen(true)}
@@ -65,8 +102,8 @@ export default function Home() {
                 Start Free Audit
                 <ArrowRight className="ml-2 h-6 w-6" />
               </Button>
-              
-              <Button 
+
+              <Button
                 asChild
                 size="lg"
                 variant="outline"
@@ -82,11 +119,17 @@ export default function Home() {
             <div className="flex flex-wrap justify-center gap-8 pt-8 text-sm text-white/60">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-gold" />
-                <span>Avg. deal closes in <strong className="text-white">3 days</strong></span>
+                <span>
+                  Avg. deal closes in{" "}
+                  <strong className="text-white">3 days</strong>
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-gold" />
-                <span><strong className="text-white">87%</strong> of audited businesses respond</span>
+                <span>
+                  <strong className="text-white">87%</strong> of audited
+                  businesses respond
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-gold" />
@@ -102,8 +145,12 @@ export default function Home() {
         <div className="container mx-auto max-w-4xl">
           <Card className="bg-black/50 border-gold/30 backdrop-blur-sm">
             <CardHeader className="text-center">
-              <CardTitle className="text-3xl text-gold">Revenue Calculator</CardTitle>
-              <CardDescription className="text-lg">See how much you can make</CardDescription>
+              <CardTitle className="text-3xl text-gold">
+                Revenue Calculator
+              </CardTitle>
+              <CardDescription className="text-lg">
+                See how much you can make
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
@@ -116,34 +163,45 @@ export default function Home() {
                   min="5"
                   max="50"
                   value={leadsFound}
-                  onChange={(e) => setLeadsFound(parseInt(e.target.value))}
+                  onChange={e => setLeadsFound(parseInt(e.target.value))}
                   className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gold"
                   aria-label="Number of leads per week"
                 />
                 <div className="flex justify-between text-sm text-white/50 mt-2">
                   <span>5 leads</span>
-                  <span className="text-gold font-bold text-lg">{leadsFound} leads</span>
+                  <span className="text-gold font-bold text-lg">
+                    {leadsFound} leads
+                  </span>
                   <span>50 leads</span>
                 </div>
               </div>
 
               <div className="grid md:grid-cols-3 gap-4 pt-4">
                 <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
-                  <div className="text-3xl font-bold text-gold">{leadsFound}</div>
+                  <div className="text-3xl font-bold text-gold">
+                    {leadsFound}
+                  </div>
                   <div className="text-sm text-white/60">Leads Found</div>
                 </div>
                 <div className="text-center p-4 bg-white/5 rounded-lg border border-white/10">
-                  <div className="text-3xl font-bold text-green-400">{Math.round(leadsFound * 0.3)}</div>
-                  <div className="text-sm text-white/60">Deals Closed (30%)</div>
+                  <div className="text-3xl font-bold text-green-400">
+                    {Math.round(leadsFound * 0.3)}
+                  </div>
+                  <div className="text-sm text-white/60">
+                    Deals Closed (30%)
+                  </div>
                 </div>
                 <div className="text-center p-4 bg-gradient-to-br from-gold/20 to-yellow-600/20 rounded-lg border border-gold/30">
-                  <div className="text-3xl font-bold text-gold break-words">${(potentialRevenue * 0.3).toLocaleString()}</div>
+                  <div className="text-3xl font-bold text-gold break-words">
+                    ${(potentialRevenue * 0.3).toLocaleString()}
+                  </div>
                   <div className="text-sm text-white/80">Monthly Revenue</div>
                 </div>
               </div>
 
               <p className="text-center text-white/60 text-sm">
-                Based on industry average 30% close rate and $5k average deal size
+                Based on industry average 30% close rate and $5k average deal
+                size
               </p>
             </CardContent>
           </Card>
@@ -154,8 +212,12 @@ export default function Home() {
       <section id="how-it-works" className="py-20 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">How It Works</h2>
-            <p className="text-xl text-white/70">Four simple steps to your first $5k</p>
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              How It Works
+            </h2>
+            <p className="text-xl text-white/70">
+              Four simple steps to your first $5k
+            </p>
           </div>
 
           <div className="grid md:grid-cols-4 gap-8">
@@ -164,33 +226,42 @@ export default function Home() {
                 step: "1",
                 icon: <Target className="h-12 w-12" />,
                 title: "Find Targets",
-                description: "Search Google Maps for local businesses. Our scraper finds 50+ leads in 2 minutes."
+                description:
+                  "Search Google Maps for local businesses. Our scraper finds 50+ leads in 2 minutes.",
               },
               {
                 step: "2",
                 icon: <BarChart3 className="h-12 w-12" />,
                 title: "AI Audits",
-                description: "AI analyzes their website and generates a professional audit report with a 0-100 score."
+                description:
+                  "AI analyzes their website and generates a professional audit report with a 0-100 score.",
               },
               {
                 step: "3",
                 icon: <DollarSign className="h-12 w-12" />,
-                title: "Send Invoice",
-                description: "Click 'Send Invoice', choose package ($3k-$8k), and paste the Stripe payment link."
+                title: "Create Payment Link",
+                description:
+                  "After a buyer asks to pay, choose a package ($3k-$8k) and create a Stripe payment link.",
               },
               {
                 step: "4",
                 icon: <Zap className="h-12 w-12" />,
                 title: "Get Paid",
-                description: "Webhook automatically updates status when they pay. Track everything in your dashboard."
-              }
-            ].map((item) => (
-              <Card key={item.step} className="bg-gradient-to-b from-white/5 to-white/0 border-white/10 hover:border-gold/30 transition-all">
+                description:
+                  "Webhook automatically updates status when they pay. Track everything in your dashboard.",
+              },
+            ].map(item => (
+              <Card
+                key={item.step}
+                className="bg-gradient-to-b from-white/5 to-white/0 border-white/10 hover:border-gold/30 transition-all"
+              >
                 <CardContent className="pt-6 text-center space-y-4">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gold/20 text-gold">
                     {item.icon}
                   </div>
-                  <div className="text-sm font-mono text-gold">STEP {item.step}</div>
+                  <div className="text-sm font-mono text-gold">
+                    STEP {item.step}
+                  </div>
                   <h3 className="text-xl font-bold">{item.title}</h3>
                   <p className="text-white/60">{item.description}</p>
                 </CardContent>
@@ -201,11 +272,18 @@ export default function Home() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-20 px-4 bg-gradient-to-b from-black to-gray-900">
+      <section
+        id="pricing"
+        className="py-20 px-4 bg-gradient-to-b from-black to-gray-900"
+      >
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">Pricing Packages</h2>
-            <p className="text-xl text-white/70">Choose the right package for your clients</p>
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              Pricing Packages
+            </h2>
+            <p className="text-xl text-white/70">
+              Choose the right package for your clients
+            </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -220,9 +298,9 @@ export default function Home() {
                   "Basic SEO setup",
                   "Contact form",
                   "2-week delivery",
-                  "1 month support"
+                  "1 month support",
                 ],
-                badge: null
+                badge: null,
               },
               {
                 name: "Standard",
@@ -235,9 +313,9 @@ export default function Home() {
                   "Contact form + integrations",
                   "1-week delivery",
                   "3 months support",
-                  "Google Analytics setup"
+                  "Google Analytics setup",
                 ],
-                badge: "MOST POPULAR"
+                badge: "MOST POPULAR",
               },
               {
                 name: "Premium",
@@ -251,14 +329,14 @@ export default function Home() {
                   "3-day delivery",
                   "6 months support",
                   "Google Analytics + ads setup",
-                  "Social media integration"
+                  "Social media integration",
                 ],
-                badge: "BEST VALUE"
-              }
-            ].map((pkg) => (
-              <Card 
-                key={pkg.name} 
-                className={`relative ${pkg.badge ? 'border-gold/50 bg-gradient-to-b from-gold/10 to-black' : 'bg-white/5 border-white/10'}`}
+                badge: "BEST VALUE",
+              },
+            ].map(pkg => (
+              <Card
+                key={pkg.name}
+                className={`relative ${pkg.badge ? "border-gold/50 bg-gradient-to-b from-gold/10 to-black" : "bg-white/5 border-white/10"}`}
               >
                 {pkg.badge && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -269,7 +347,9 @@ export default function Home() {
                 )}
                 <CardHeader className="text-center pb-8 pt-8">
                   <CardTitle className="text-2xl mb-2">{pkg.name}</CardTitle>
-                  <div className="text-5xl font-bold text-gold mb-2">{pkg.price}</div>
+                  <div className="text-5xl font-bold text-gold mb-2">
+                    {pkg.price}
+                  </div>
                   <CardDescription>{pkg.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -287,7 +367,9 @@ export default function Home() {
           </div>
 
           <p className="text-center text-white/60 mt-12">
-            💡 <strong className="text-white">Pro tip:</strong> Start with Standard package for most clients. Upsell to Premium for established businesses with high traffic.
+            💡 <strong className="text-white">Pro tip:</strong> Start with
+            Standard package for most clients. Upsell to Premium for established
+            businesses with high traffic.
           </p>
         </div>
       </section>
@@ -301,10 +383,11 @@ export default function Home() {
                 Ready to Start Making Money?
               </h2>
               <p className="text-xl text-white/80 max-w-2xl mx-auto">
-                Get instant access to the dashboard. Run your first audit in 60 seconds.
+                Get instant access to the dashboard. Run your first audit in 60
+                seconds.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                <Button 
+                <Button
                   asChild
                   size="lg"
                   className="text-xl px-12 py-8 bg-gradient-to-r from-gold to-yellow-600 hover:from-yellow-600 hover:to-gold text-black font-bold"
@@ -316,7 +399,8 @@ export default function Home() {
                 </Button>
               </div>
               <p className="text-sm text-white/60">
-                ✨ First audit is FREE • No credit card required • Start earning today
+                ✨ First audit is FREE • No credit card required • Start earning
+                today
               </p>
             </CardContent>
           </Card>
@@ -329,7 +413,9 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 bg-gradient-to-br from-gold to-yellow-600 rounded-sm"></div>
-              <span className="font-serif text-xl italic tracking-wide text-gold">Velvet Alchemy</span>
+              <span className="font-serif text-xl italic tracking-wide text-gold">
+                Velvet Alchemy
+              </span>
             </div>
             <div className="text-white/60 text-sm">
               © 2026 Velvet Alchemy. Turn websites into revenue.
@@ -338,7 +424,10 @@ export default function Home() {
         </div>
       </footer>
 
-      <AuditRequestDialog open={auditDialogOpen} onOpenChange={setAuditDialogOpen} />
+      <AuditRequestDialog
+        open={auditDialogOpen}
+        onOpenChange={setAuditDialogOpen}
+      />
     </div>
   );
 }

@@ -1,15 +1,51 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { leads, audits, assets, campaigns, outreachDrafts } from "../drizzle/schema";
+import {
+  leads,
+  audits,
+  assets,
+  campaigns,
+  outreachDrafts,
+} from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { generateOutreachCopy } from "./charmer";
-import { sendEmail } from "./gmail";
-import { logAudit } from "./governor";
+import { checkKillSwitch, checkRateLimit, logAudit } from "./governor";
+import { externalActionBlock } from "./lib/externalActionPolicy";
+import { requireCostAuthority } from "./lib/accessControl";
+
+function throwExternalEmailBlocked(): never {
+  const block = externalActionBlock("email_send");
+  throw new TRPCError({
+    code: "METHOD_NOT_SUPPORTED",
+    message:
+      "Direct send is disabled. Use the draft approval flow for review, then send manually outside Velvet.",
+    cause: block,
+  });
+}
+
+async function getOwnedDraft(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  draftId: number,
+  userId: number
+) {
+  const [result] = await db
+    .select({
+      draft: outreachDrafts,
+      campaign: campaigns,
+    })
+    .from(outreachDrafts)
+    .leftJoin(campaigns, eq(outreachDrafts.campaignId, campaigns.id))
+    .where(and(eq(outreachDrafts.id, draftId), eq(campaigns.userId, userId)))
+    .limit(1);
+  return result;
+}
 
 export const charmerRouter = router({
   /**
-   * Send email directly from lead profile (bypasses draft system)
+   * Retained as a fail-closed compatibility route. Direct sends bypass the
+   * approval record and are never allowed.
    */
   sendDirectEmail: protectedProcedure
     .input(
@@ -20,49 +56,8 @@ export const charmerRouter = router({
         body: z.string().min(1),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
-      // Verify lead exists and belongs to user
-      const [lead] = await db.select().from(leads).where(eq(leads.id, input.leadId)).limit(1);
-      if (!lead) throw new Error("Lead not found");
-
-      // Send email via Gmail MCP
-      const result = await sendEmail({
-        to: input.to,
-        subject: input.subject,
-        body: input.body,
-      });
-
-      if (!result.success) {
-        // Log failure
-        await logAudit({
-          userId: ctx.user.id,
-          action: "direct_email_failed",
-          resource: "leads",
-          resourceId: input.leadId,
-          details: JSON.stringify({ error: result.error, to: input.to }),
-          status: "failure",
-        });
-
-        throw new Error(`Failed to send email: ${result.error}`);
-      }
-
-      // Log success
-      await logAudit({
-        userId: ctx.user.id,
-        action: "direct_email_sent",
-        resource: "leads",
-        resourceId: input.leadId,
-        details: JSON.stringify({ to: input.to, subject: input.subject, messageId: result.messageId }),
-        status: "success",
-      });
-
-      return {
-        success: true,
-        messageId: result.messageId,
-      };
+    .mutation(async () => {
+      throwExternalEmailBlocked();
     }),
 
   /**
@@ -75,11 +70,18 @@ export const charmerRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "draft_generate");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
       // Fetch lead
-      const [lead] = await db.select().from(leads).where(eq(leads.id, input.leadId)).limit(1);
+      const [lead] = await db
+        .select()
+        .from(leads)
+        .where(and(eq(leads.id, input.leadId), eq(leads.userId, ctx.user.id)))
+        .limit(1);
       if (!lead) throw new Error("Lead not found");
 
       // Fetch audit
@@ -91,7 +93,10 @@ export const charmerRouter = router({
         .limit(1);
 
       // Fetch assets
-      const leadAssets = await db.select().from(assets).where(eq(assets.leadId, input.leadId));
+      const leadAssets = await db
+        .select()
+        .from(assets)
+        .where(eq(assets.leadId, input.leadId));
 
       // Generate outreach copy
       const copy = await generateOutreachCopy(lead, audit || null, leadAssets);
@@ -126,7 +131,10 @@ export const charmerRouter = router({
         action: "draft_generated",
         resource: "outreach_draft",
         resourceId: draft.id,
-        details: JSON.stringify({ leadId: input.leadId, campaignId: campaign.id }),
+        details: JSON.stringify({
+          leadId: input.leadId,
+          campaignId: campaign.id,
+        }),
         status: "success",
       });
 
@@ -145,7 +153,9 @@ export const charmerRouter = router({
     .input(
       z
         .object({
-          status: z.enum(["draft", "pending_approval", "approved", "rejected", "sent"]).optional(),
+          status: z
+            .enum(["draft", "pending_approval", "approved", "rejected", "sent"])
+            .optional(),
         })
         .optional()
     )
@@ -165,7 +175,10 @@ export const charmerRouter = router({
           .leftJoin(campaigns, eq(outreachDrafts.campaignId, campaigns.id))
           .leftJoin(leads, eq(campaigns.leadId, leads.id))
           .where(
-            and(eq(campaigns.userId, ctx.user.id), eq(outreachDrafts.status, input.status))
+            and(
+              eq(campaigns.userId, ctx.user.id),
+              eq(outreachDrafts.status, input.status)
+            )
           )
           .orderBy(desc(outreachDrafts.createdAt));
       } else {
@@ -207,7 +220,10 @@ export const charmerRouter = router({
         .leftJoin(campaigns, eq(outreachDrafts.campaignId, campaigns.id))
         .leftJoin(leads, eq(campaigns.leadId, leads.id))
         .where(
-          and(eq(outreachDrafts.id, input.draftId), eq(campaigns.userId, ctx.user.id))
+          and(
+            eq(outreachDrafts.id, input.draftId),
+            eq(campaigns.userId, ctx.user.id)
+          )
         )
         .limit(1);
 
@@ -228,6 +244,12 @@ export const charmerRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
+      const owned = await getOwnedDraft(db, input.draftId, ctx.user.id);
+      if (!owned?.draft) throw new Error("Draft not found");
+      if (owned.draft.status !== "pending_approval") {
+        throw new Error("Only a pending draft can be approved");
+      }
+
       await db
         .update(outreachDrafts)
         .set({
@@ -235,7 +257,20 @@ export const charmerRouter = router({
           approvedBy: ctx.user.id,
           approvedAt: new Date(),
         })
-        .where(eq(outreachDrafts.id, input.draftId));
+        .where(
+          and(
+            eq(outreachDrafts.id, input.draftId),
+            eq(outreachDrafts.status, "pending_approval")
+          )
+        );
+
+      const verified = await getOwnedDraft(db, input.draftId, ctx.user.id);
+      if (
+        verified?.draft?.status !== "approved" ||
+        verified.draft.approvedBy !== ctx.user.id
+      ) {
+        throw new Error("Draft approval was not persisted");
+      }
 
       // Log audit event
       await logAudit({
@@ -263,13 +298,29 @@ export const charmerRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
+      const owned = await getOwnedDraft(db, input.draftId, ctx.user.id);
+      if (!owned?.draft) throw new Error("Draft not found");
+      if (!["pending_approval", "approved"].includes(owned.draft.status)) {
+        throw new Error("Only a pending or approved draft can be rejected");
+      }
+
       await db
         .update(outreachDrafts)
         .set({
           status: "rejected",
           rejectionReason: input.reason,
         })
-        .where(eq(outreachDrafts.id, input.draftId));
+        .where(
+          and(
+            eq(outreachDrafts.id, input.draftId),
+            eq(outreachDrafts.status, owned.draft.status)
+          )
+        );
+
+      const verified = await getOwnedDraft(db, input.draftId, ctx.user.id);
+      if (verified?.draft?.status !== "rejected") {
+        throw new Error("Draft rejection was not persisted");
+      }
 
       // Log audit event
       await logAudit({
@@ -285,7 +336,8 @@ export const charmerRouter = router({
     }),
 
   /**
-   * Send approved draft via Gmail
+   * Sending remains disabled until single-use, idempotent approval and delivery
+   * receipts are implemented.
    */
   sendDraft: protectedProcedure
     .input(
@@ -293,83 +345,7 @@ export const charmerRouter = router({
         draftId: z.number(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
-      // Fetch draft
-      const [draft] = await db
-        .select()
-        .from(outreachDrafts)
-        .where(eq(outreachDrafts.id, input.draftId))
-        .limit(1);
-
-      if (!draft) throw new Error("Draft not found");
-      if (draft.status !== "approved") {
-        throw new Error("Draft must be approved before sending");
-      }
-
-      // Send email via Gmail MCP
-      const result = await sendEmail({
-        to: draft.recipientEmail,
-        subject: draft.subject,
-        body: draft.body,
-      });
-
-      if (!result.success) {
-        // Log failure
-        await logAudit({
-          userId: ctx.user.id,
-          action: "draft_send_failed",
-          resource: "outreach_draft",
-          resourceId: input.draftId,
-          details: JSON.stringify({ error: result.error }),
-          status: "failure",
-        });
-
-        throw new Error(`Failed to send email: ${result.error}`);
-      }
-
-      // Update draft status
-      await db
-        .update(outreachDrafts)
-        .set({
-          status: "sent",
-          sentAt: new Date(),
-          gmailMessageId: result.messageId,
-        })
-        .where(eq(outreachDrafts.id, input.draftId));
-
-      // Update campaign status
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(eq(campaigns.id, draft.campaignId))
-        .limit(1);
-
-      if (campaign) {
-        await db
-          .update(campaigns)
-          .set({
-            status: "sent",
-            sentAt: new Date(),
-          })
-          .where(eq(campaigns.id, draft.campaignId));
-      }
-
-      // Log success
-      await logAudit({
-        userId: ctx.user.id,
-        action: "draft_sent",
-        resource: "outreach_draft",
-        resourceId: input.draftId,
-        details: JSON.stringify({ messageId: result.messageId }),
-        status: "success",
-      });
-
-      return {
-        success: true,
-        messageId: result.messageId,
-      };
+    .mutation(async () => {
+      throwExternalEmailBlocked();
     }),
 });

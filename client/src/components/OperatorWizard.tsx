@@ -2,7 +2,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Circle, Loader2, AlertCircle, ArrowRight, Undo2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Loader2,
+  AlertCircle,
+  ArrowRight,
+  Undo2,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -28,14 +35,15 @@ export function OperatorWizard() {
     {
       id: 2,
       title: "Review Audits",
-      description: "Check which businesses have the worst websites (high prestige scores)",
+      description:
+        "Check which businesses have the worst websites (high prestige scores)",
       action: "review",
       completed: false,
     },
     {
       id: 3,
-      title: "Send Invoices",
-      description: "Send payment links to qualified leads",
+      title: "Create Payment Links",
+      description: "Create a Stripe link after a qualified buyer asks to pay",
       action: "invoice",
       completed: false,
     },
@@ -53,15 +61,17 @@ export function OperatorWizard() {
   // Sync with backend onboarding progress
   useEffect(() => {
     if (onboardingData) {
-      setSteps(prev => prev.map(step => ({
-        ...step,
-        completed: 
-          (step.id === 1 && onboardingData.hasCompletedScraper) ||
-          (step.id === 2 && onboardingData.hasReviewedAudit) ||
-          (step.id === 3 && onboardingData.hasSentInvoice) ||
-          (step.id === 4 && onboardingData.hasReceivedPayment) ||
-          step.completed
-      })));
+      setSteps(prev =>
+        prev.map(step => ({
+          ...step,
+          completed:
+            (step.id === 1 && onboardingData.hasCompletedScraper) ||
+            (step.id === 2 && onboardingData.hasReviewedAudit) ||
+            (step.id === 3 && onboardingData.hasSentInvoice) ||
+            (step.id === 4 && onboardingData.hasReceivedPayment) ||
+            step.completed,
+        }))
+      );
 
       // Auto-advance to next incomplete step
       const nextIncomplete = steps.findIndex(s => !s.completed);
@@ -76,19 +86,23 @@ export function OperatorWizard() {
       particleCount: 100,
       spread: 70,
       origin: { y: 0.6 },
-      colors: ['#FFD700', '#FFA500', '#FF6347'],
+      colors: ["#FFD700", "#FFA500", "#FF6347"],
     });
-    
+
     // Play success sound (optional)
-    const audio = new Audio('/sounds/success.mp3');
-    audio.play().catch(() => {/* Ignore if sound file missing */});
+    const audio = new Audio("/sounds/success.mp3");
+    audio.play().catch(() => {
+      /* Ignore if sound file missing */
+    });
   };
 
   const handleStepComplete = (stepId: number) => {
-    setSteps(prev => prev.map(step => 
-      step.id === stepId ? { ...step, completed: true } : step
-    ));
-    
+    setSteps(prev =>
+      prev.map(step =>
+        step.id === stepId ? { ...step, completed: true } : step
+      )
+    );
+
     celebrateSuccess();
     toast.success(`✅ Step ${stepId} Complete!`, {
       description: "Great job! Moving to next step...",
@@ -106,9 +120,11 @@ export function OperatorWizard() {
   const handleUndo = () => {
     if (currentStep > 1) {
       const prevStep = currentStep - 1;
-      setSteps(prev => prev.map(step => 
-        step.id === prevStep ? { ...step, completed: false } : step
-      ));
+      setSteps(prev =>
+        prev.map(step =>
+          step.id === prevStep ? { ...step, completed: false } : step
+        )
+      );
       setCurrentStep(prevStep);
       toast.info("⏪ Undid last step");
     }
@@ -123,10 +139,14 @@ export function OperatorWizard() {
 
   const getStepColor = (status: string) => {
     switch (status) {
-      case "completed": return "bg-green-500/20 border-green-500 text-green-400";
-      case "current": return "bg-cyan-500/20 border-cyan-500 text-cyan-400 animate-pulse";
-      case "pending": return "bg-white/5 border-white/20 text-white/40";
-      default: return "bg-white/5 border-white/20 text-white/40";
+      case "completed":
+        return "bg-green-500/20 border-green-500 text-green-400";
+      case "current":
+        return "bg-cyan-500/20 border-cyan-500 text-cyan-400 animate-pulse";
+      case "pending":
+        return "bg-white/5 border-white/20 text-white/40";
+      default:
+        return "bg-white/5 border-white/20 text-white/40";
     }
   };
 
@@ -137,10 +157,14 @@ export function OperatorWizard() {
       {/* Progress Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-serif italic text-gold mb-2">Operator Workflow</h2>
-          <p className="text-white/70">Follow these steps to close deals and make money</p>
+          <h2 className="text-3xl font-serif italic text-gold mb-2">
+            Operator Workflow
+          </h2>
+          <p className="text-white/70">
+            Follow these steps to close deals and make money
+          </p>
         </div>
-        
+
         {currentStep > 1 && (
           <Button
             onClick={handleUndo}
@@ -155,7 +179,7 @@ export function OperatorWizard() {
 
       {/* Step Progress Bar */}
       <div className="grid grid-cols-4 gap-4">
-        {steps.map((step) => {
+        {steps.map(step => {
           const status = getStepStatus(step);
           return (
             <Card
@@ -179,7 +203,7 @@ export function OperatorWizard() {
                     <div className="font-semibold">{step.title}</div>
                   </div>
                 </div>
-                
+
                 {status === "completed" && (
                   <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                     ✓ Done
@@ -202,13 +226,17 @@ export function OperatorWizard() {
           <CardContent className="p-8">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <div className="text-sm font-mono text-cyan-400 mb-2">CURRENT STEP</div>
+                <div className="text-sm font-mono text-cyan-400 mb-2">
+                  CURRENT STEP
+                </div>
                 <h3 className="text-4xl font-bold text-white mb-3">
                   {currentStepData.title}
                 </h3>
-                <p className="text-xl text-white/70">{currentStepData.description}</p>
+                <p className="text-xl text-white/70">
+                  {currentStepData.description}
+                </p>
               </div>
-              
+
               <div className="text-6xl font-bold text-cyan-400">
                 {currentStep}
               </div>
@@ -218,7 +246,7 @@ export function OperatorWizard() {
             <div className="flex gap-4">
               {currentStep === 1 && (
                 <Button
-                  onClick={() => window.location.href = "/command-center"}
+                  onClick={() => (window.location.href = "/command-center")}
                   size="lg"
                   className="text-2xl px-12 py-8 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold"
                 >
@@ -226,10 +254,10 @@ export function OperatorWizard() {
                   Go to Business Scraper
                 </Button>
               )}
-              
+
               {currentStep === 2 && (
                 <Button
-                  onClick={() => window.location.href = "/leads"}
+                  onClick={() => (window.location.href = "/leads")}
                   size="lg"
                   className="text-2xl px-12 py-8 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold"
                 >
@@ -237,21 +265,21 @@ export function OperatorWizard() {
                   Review Qualified Leads
                 </Button>
               )}
-              
+
               {currentStep === 3 && (
                 <Button
-                  onClick={() => window.location.href = "/leads"}
+                  onClick={() => (window.location.href = "/leads")}
                   size="lg"
                   className="text-2xl px-12 py-8 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-bold"
                 >
                   <ArrowRight className="h-8 w-8 mr-3" />
-                  Send Invoices to Leads
+                  Create a Payment Link
                 </Button>
               )}
-              
+
               {currentStep === 4 && (
                 <Button
-                  onClick={() => window.location.href = "/revenue"}
+                  onClick={() => (window.location.href = "/revenue")}
                   size="lg"
                   className="text-2xl px-12 py-8 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold"
                 >
@@ -266,12 +294,18 @@ export function OperatorWizard() {
               <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-cyan-400 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-white mb-1">What to do:</div>
+                  <div className="font-semibold text-white mb-1">
+                    What to do:
+                  </div>
                   <div className="text-white/70">
-                    {currentStep === 1 && "Click the button above to open the Business Scraper. Enter a city and business type (e.g., 'pizza restaurant Reno NV'), then click 'Start Scraping'. Wait for it to finish finding businesses."}
-                    {currentStep === 2 && "Click the button above to see all leads with bad websites (prestige score 60+). Review the audit reports and pick the best targets."}
-                    {currentStep === 3 && "Open a lead detail page, choose a package (Basic/Standard/Premium), and click 'Send Invoice'. The payment link will be copied automatically - paste it in your email or text."}
-                    {currentStep === 4 && "Check your revenue dashboard to see how much money you've made. Celebrate your wins!"}
+                    {currentStep === 1 &&
+                      "Click the button above to open the Business Scraper. Enter a city and business type (e.g., 'pizza restaurant Reno NV'), then click 'Start Scraping'. Wait for it to finish finding businesses."}
+                    {currentStep === 2 &&
+                      "Click the button above to see all leads with bad websites (prestige score 60+). Review the audit reports and pick the best targets."}
+                    {currentStep === 3 &&
+                      "After a qualified buyer asks to pay, open the lead detail page, choose a package, and create a Stripe payment link. Creating the link does not contact the buyer."}
+                    {currentStep === 4 &&
+                      "Check your revenue dashboard to see how much money you've made. Celebrate your wins!"}
                   </div>
                 </div>
               </div>

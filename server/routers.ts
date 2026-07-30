@@ -3,17 +3,31 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
-import { addToWaitlist, createLead, getLeadsByUserId, getLeadById, updateLead, createAudit, getAuditByLeadId } from "./db";
+import { TRPCError } from "@trpc/server";
+import {
+  addToWaitlist,
+  createLead,
+  getLeadsByUserId,
+  getLeadById,
+  updateLead,
+  createAudit,
+  getAuditByLeadId,
+} from "./db";
 import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { analyzeVisualDebt } from "./visualAudit";
-import { checkRateLimit, checkKillSwitch, logAudit, checkDomainReputation } from "./governor";
+import {
+  checkRateLimit,
+  checkKillSwitch,
+  logAudit,
+  checkDomainReputation,
+} from "./governor";
 import { governorRouter } from "./governorRouter";
 import { charmerRouter } from "./charmerRouter";
 import { orchestratorRouter } from "./orchestratorRouter";
-import { scraperRouter } from './scraperRouter';
-import { exportRouter } from './exportRouter';
+import { scraperRouter } from "./scraperRouter";
+import { exportRouter } from "./exportRouter";
 import { dashboardRouter } from "./dashboardRouter";
 import { visionaryRouter } from "./visionaryRouter";
 import { prescreenerRouter } from "./routers/prescreenerRouter";
@@ -25,9 +39,15 @@ import { costRouter } from "./costRouter";
 import { outreachRouter } from "./outreachRouter";
 import { providerRouter } from "./providerRouter";
 import { apiKeyRouter } from "./apiKeyRouter";
+import { externalActionBlock } from "./lib/externalActionPolicy";
+import {
+  isPrivilegedUser,
+  requireCostAuthority,
+  requireOwnedLead,
+} from "./lib/accessControl";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   governor: governorRouter,
   charmer: charmerRouter,
@@ -58,10 +78,12 @@ export const appRouter = router({
 
   waitlist: router({
     join: publicProcedure
-      .input(z.object({
-        email: z.string().email(),
-        targetNiche: z.string().optional(),
-      }))
+      .input(
+        z.object({
+          email: z.string().email(),
+          targetNiche: z.string().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
         const result = await addToWaitlist(input.email, input.targetNiche);
         return result;
@@ -70,106 +92,62 @@ export const appRouter = router({
 
   leads: router({
     createPublic: publicProcedure
-      .input(z.object({
-        companyName: z.string().min(1),
-        websiteUrl: z.string().url(),
-      }))
-      .mutation(async ({ input }) => {
-        // For public form submissions, use a default system user ID
-        const SYSTEM_USER_ID = 1; // Owner's user ID from env
-
-        // Capture screenshot
-        const screenshot = await captureScreenshot(input.websiteUrl);
-        
-        if (!screenshot.success) {
-          throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
-        }
-
-        // Upload to S3
-        const fileKey = `leads/public/${nanoid()}.png`;
-        const uploadResult = await storagePut(fileKey, screenshot.buffer, 'image/png');
-
-        // Create lead record
-        const lead = await createLead({
-          userId: SYSTEM_USER_ID,
-          companyName: input.companyName,
-          websiteUrl: input.websiteUrl,
-          screenshotUrl: uploadResult.url,
-          screenshotKey: fileKey,
-          status: 'pending',
+      .input(
+        z.object({
+          companyName: z.string().min(1),
+          websiteUrl: z.string().url(),
+        })
+      )
+      .mutation(async () => {
+        throw new TRPCError({
+          code: "METHOD_NOT_SUPPORTED",
+          message:
+            "Public lead creation is disabled because it can trigger billable screenshot, storage, and AI work. Sign in and use the governed operator flow.",
         });
-
-        if (!lead) {
-          throw new Error('Failed to create lead record');
-        }
-
-        // Run visual audit using LLM
-        const auditResult = await analyzeVisualDebt(
-          uploadResult.url,
-          input.websiteUrl,
-          input.companyName
-        );
-
-        // Create audit record with LLM results
-        const audit = await createAudit({
-          leadId: lead.id,
-          summary: auditResult.summary,
-          prestigeScore: auditResult.prestigeScore,
-          visualDebtData: JSON.stringify(auditResult),
-        });
-
-        // Update lead with prestige score
-        const updatedLead = await updateLead(lead.id, {
-          prestigeScore: auditResult.prestigeScore,
-          status: 'audited',
-        });
-
-        // Auto-enqueue public lead into FIFO pipeline queue
-        try {
-          const { enqueueLeadForPipeline } = await import('./worker');
-          await enqueueLeadForPipeline(lead.id);
-        } catch (enqueueErr) {
-          console.error('[leads.createPublic] Failed to enqueue lead for pipeline:', enqueueErr);
-        }
-
-        return { lead: updatedLead || lead, audit };
       }),
 
     create: protectedProcedure
-      .input(z.object({
-        companyName: z.string().min(1),
-        websiteUrl: z.string().url(),
-      }))
+      .input(
+        z.object({
+          companyName: z.string().min(1),
+          websiteUrl: z.string().url(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
+        requireCostAuthority(ctx.user);
         // Governor: Check kill-switch
         await checkKillSwitch(ctx.user.id);
 
         // Governor: Check rate limits
-        await checkRateLimit(ctx.user.id, 'lead_create');
+        await checkRateLimit(ctx.user.id, "lead_create");
 
         // Governor: Check domain reputation
         const domainSafe = await checkDomainReputation(input.websiteUrl);
         if (!domainSafe) {
           await logAudit({
             userId: ctx.user.id,
-            action: 'lead_create',
-            resource: 'leads',
+            action: "lead_create",
+            resource: "leads",
             details: `Blocked: Domain ${input.websiteUrl} flagged as unsafe`,
-            status: 'blocked',
+            status: "blocked",
           });
-          throw new Error('Domain flagged as unsafe or blacklisted');
+          throw new Error("Domain flagged as unsafe or blacklisted");
         }
 
         // Capture screenshot
         const screenshot = await captureScreenshot(input.websiteUrl);
-        
+
         if (!screenshot.success) {
           throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }
 
         // Upload to S3
         const fileKey = `leads/${ctx.user.id}/${nanoid()}.png`;
-        const uploadResult = await storagePut(fileKey, screenshot.buffer, 'image/png');
+        const uploadResult = await storagePut(
+          fileKey,
+          screenshot.buffer,
+          "image/png"
+        );
 
         // Create lead record
         const lead = await createLead({
@@ -178,11 +156,11 @@ export const appRouter = router({
           websiteUrl: input.websiteUrl,
           screenshotUrl: uploadResult.url,
           screenshotKey: fileKey,
-          status: 'pending',
+          status: "pending",
         });
 
         if (!lead) {
-          throw new Error('Failed to create lead record');
+          throw new Error("Failed to create lead record");
         }
 
         // Run visual audit using LLM
@@ -203,74 +181,79 @@ export const appRouter = router({
         // Update lead with prestige score
         const updatedLead = await updateLead(lead.id, {
           prestigeScore: auditResult.prestigeScore,
-          status: 'audited',
+          status: "audited",
         });
 
         // Governor: Log successful lead creation
         await logAudit({
           userId: ctx.user.id,
-          action: 'lead_create',
-          resource: 'leads',
+          action: "lead_create",
+          resource: "leads",
           resourceId: lead.id,
           details: `Created lead for ${input.companyName}`,
-          status: 'success',
+          status: "success",
         });
 
         // Auto-enqueue into FIFO pipeline queue
         try {
-          const { enqueueLeadForPipeline } = await import('./worker');
+          const { enqueueLeadForPipeline } = await import("./worker");
           await enqueueLeadForPipeline(lead.id);
         } catch (enqueueErr) {
-          console.error('[leads.create] Failed to enqueue lead for pipeline:', enqueueErr);
+          console.error(
+            "[leads.create] Failed to enqueue lead for pipeline:",
+            enqueueErr
+          );
         }
 
         return { lead: updatedLead || lead, audit };
       }),
 
-    list: protectedProcedure
-      .query(async ({ ctx }) => {
-        const leads = await getLeadsByUserId(ctx.user.id);
-        return leads;
-      }),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const leads = await getLeadsByUserId(ctx.user.id);
+      return leads;
+    }),
 
-    listAll: protectedProcedure
-      .query(async () => {
-        const { getAllLeads } = await import('./db');
-        const leads = await getAllLeads();
-        return leads;
-      }),
+    listAll: protectedProcedure.query(async ({ ctx }) => {
+      if (!isPrivilegedUser(ctx.user)) {
+        return getLeadsByUserId(ctx.user.id);
+      }
+      const { getAllLeads } = await import("./db");
+      const leads = await getAllLeads();
+      return leads;
+    }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        const lead = await getLeadById(input.id);
-        if (!lead) {
-          throw new Error('Lead not found');
-        }
-        
+      .query(async ({ input, ctx }) => {
+        const lead = await requireOwnedLead(input.id, ctx.user);
+
         const audit = await getAuditByLeadId(lead.id);
-        
+
         return { lead, audit };
       }),
 
     captureScreenshot: protectedProcedure
       .input(z.object({ leadId: z.number() }))
-      .mutation(async ({ input }) => {
-        const lead = await getLeadById(input.leadId);
-        if (!lead) {
-          throw new Error('Lead not found');
-        }
+      .mutation(async ({ input, ctx }) => {
+        requireCostAuthority(ctx.user);
+        await checkKillSwitch(ctx.user.id);
+        await checkRateLimit(ctx.user.id, "screenshot_capture");
+        const lead = await requireOwnedLead(input.leadId, ctx.user);
 
         // Capture screenshot
         const screenshot = await captureScreenshot(lead.websiteUrl);
-        
+
         if (!screenshot.success) {
           throw new Error(`Failed to capture screenshot: ${screenshot.error}`);
         }
 
         // Upload to S3
         const fileKey = `leads/${lead.userId}/${nanoid()}.png`;
-        const uploadResult = await storagePut(fileKey, screenshot.buffer, 'image/png');
+        const uploadResult = await storagePut(
+          fileKey,
+          screenshot.buffer,
+          "image/png"
+        );
 
         // Update lead with screenshot
         const updatedLead = await updateLead(lead.id, {
@@ -278,34 +261,30 @@ export const appRouter = router({
           screenshotKey: fileKey,
         });
 
-        return { success: true, lead: updatedLead, screenshotUrl: uploadResult.url };
+        return {
+          success: true,
+          lead: updatedLead,
+          screenshotUrl: uploadResult.url,
+        };
       }),
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const lead = await getLeadById(input.id);
-        if (!lead) {
-          throw new Error('Lead not found');
-        }
-
-        // Authorization: only owner or admin can delete
-        if (lead.userId !== ctx.user.id && ctx.user.role !== 'admin') {
-          throw new Error('Unauthorized to delete this lead');
-        }
+        const lead = await requireOwnedLead(input.id, ctx.user);
 
         // Delete lead from database
-        const { deleteLead } = await import('./db');
+        const { deleteLead } = await import("./db");
         await deleteLead(input.id);
 
         // Governor: Log lead deletion
         await logAudit({
           userId: ctx.user.id,
-          action: 'lead_delete',
-          resource: 'leads',
+          action: "lead_delete",
+          resource: "leads",
           resourceId: input.id,
           details: `Deleted lead for ${lead.companyName}`,
-          status: 'success',
+          status: "success",
         });
 
         return { success: true };
@@ -313,28 +292,14 @@ export const appRouter = router({
 
     triggerHandoff: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input, ctx }) => {
-        const lead = await getLeadById(input.id);
-        if (!lead) throw new Error('Lead not found');
-        if (lead.userId !== ctx.user.id && ctx.user.role !== 'admin') {
-          throw new Error('Unauthorized');
-        }
-        if (!lead.phone) throw new Error('Lead has no phone number — cannot queue SMIRK call');
-        if (!['audited', 'contacted'].includes(lead.status)) {
-          throw new Error('Lead must be audited before queuing a SMIRK call');
-        }
-        const { queueSmirkCall } = await import('./lib/smirkHandoff');
-        const result = await queueSmirkCall(lead.id);
-        if (!result.success) throw new Error(result.error || 'SMIRK handoff failed');
-        await logAudit({
-          userId: ctx.user.id,
-          action: 'smirk_handoff',
-          resource: 'leads',
-          resourceId: input.id,
-          details: `Queued SMIRK call for ${lead.companyName} — state: ${result.state}`,
-          status: 'success',
+      .mutation(async () => {
+        const block = externalActionBlock("prospect_handoff");
+        throw new TRPCError({
+          code: "METHOD_NOT_SUPPORTED",
+          message:
+            "Prospect registration is disabled. The current SMIRK receiver accepts call-shaped artifacts and does not authorize or place outbound calls.",
+          cause: block,
         });
-        return { success: true, state: result.state, jobId: result.jobId };
       }),
   }),
 });

@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { leads } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { leads, payments } from "../drizzle/schema";
 import { WEBSITE_PACKAGES, PackageType } from "./products";
 import Stripe from "stripe";
-import { ENV } from "./_core/env";
+import { checkKillSwitch, checkRateLimit } from "./governor";
+import { requireCostAuthority, requireOwnedLead } from "./lib/accessControl";
+import { desc, eq } from "drizzle-orm";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -14,6 +15,21 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: "2025-12-15.clover",
   });
+}
+
+function getCheckoutOrigin(rawOrigin: unknown): string {
+  if (typeof rawOrigin !== "string") {
+    throw new Error("A valid request origin is required.");
+  }
+  const origin = new URL(rawOrigin);
+  const local =
+    origin.hostname === "localhost" || origin.hostname === "127.0.0.1";
+  if (origin.protocol !== "https:" && !(local && origin.protocol === "http:")) {
+    throw new Error(
+      "Checkout redirects require HTTPS or a local development origin."
+    );
+  }
+  return origin.origin;
 }
 
 export const paymentRouter = router({
@@ -28,19 +44,15 @@ export const paymentRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      requireCostAuthority(ctx.user);
       const { leadId, packageType } = input;
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "checkout_create");
+      const lead = await requireOwnedLead(leadId, ctx.user);
       const db = await getDb();
       if (!db) throw new Error("Database connection failed");
-
-      // Get lead details
-      const leadData = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
-
-      if (!leadData || leadData.length === 0) {
-        throw new Error("Lead not found");
-      }
-
-      const lead = leadData[0];
       const packageInfo = WEBSITE_PACKAGES[packageType as PackageType];
+      const checkoutOrigin = getCheckoutOrigin(ctx.req.headers.origin);
 
       // Create Stripe Checkout Session
       const stripe = getStripe();
@@ -60,8 +72,8 @@ export const paymentRouter = router({
           },
         ],
         mode: "payment",
-        success_url: `${ctx.req.headers.origin}/leads/${leadId}?payment=success`,
-        cancel_url: `${ctx.req.headers.origin}/leads/${leadId}?payment=cancelled`,
+        success_url: `${checkoutOrigin}/leads/${leadId}?payment=success`,
+        cancel_url: `${checkoutOrigin}/leads/${leadId}?payment=cancelled`,
         client_reference_id: leadId.toString(),
         customer_email: undefined, // Email not stored in leads table
         metadata: {
@@ -70,14 +82,18 @@ export const paymentRouter = router({
           company_name: lead.companyName,
           user_id: ctx.user.id.toString(),
         },
-        allow_promotion_codes: true,
+        allow_promotion_codes: false,
       });
 
-      // Store payment record in database
-      await db.execute(
-        `INSERT INTO payments (lead_id, stripe_checkout_session_id, amount, currency, status, package_type, payment_link)
-         VALUES (${leadId}, '${session.id}', ${packageInfo.price}, '${packageInfo.currency}', 'pending', '${packageType}', '${session.url}')`
-      );
+      await db.insert(payments).values({
+        lead_id: leadId,
+        stripe_checkout_session_id: session.id,
+        amount: packageInfo.price,
+        currency: packageInfo.currency,
+        status: "pending",
+        package_type: packageType,
+        payment_link: session.url,
+      });
 
       return {
         checkoutUrl: session.url,
@@ -90,13 +106,15 @@ export const paymentRouter = router({
    */
   getPaymentsByLead: protectedProcedure
     .input(z.object({ leadId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await requireOwnedLead(input.leadId, ctx.user);
       const db = await getDb();
       if (!db) throw new Error("Database connection failed");
-      const [payments] = await db.execute(
-        `SELECT * FROM payments WHERE lead_id = ${input.leadId} ORDER BY created_at DESC`
-      ) as any;
-      return payments;
+      return db
+        .select()
+        .from(payments)
+        .where(eq(payments.lead_id, input.leadId))
+        .orderBy(desc(payments.created_at));
     }),
 
   /**
@@ -105,13 +123,18 @@ export const paymentRouter = router({
   getAllPayments: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database connection failed");
-    const [payments] = await db.execute(
-      `SELECT p.*, l.companyName, l.websiteUrl 
-       FROM payments p
-       JOIN leads l ON p.lead_id = l.id
-       WHERE l.userId = ${ctx.user.id}
-       ORDER BY p.created_at DESC`
-    ) as any;
-    return payments;
+    return db
+      .select({
+        payment: payments,
+        companyName: leads.companyName,
+        websiteUrl: leads.websiteUrl,
+      })
+      .from(payments)
+      .innerJoin(leads, eq(payments.lead_id, leads.id))
+      .where(eq(leads.userId, ctx.user.id))
+      .orderBy(desc(payments.created_at))
+      .then(rows =>
+        rows.map(({ payment, ...lead }) => ({ ...payment, ...lead }))
+      );
   }),
 });

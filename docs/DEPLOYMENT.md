@@ -1,5 +1,7 @@
 # Velvet Alchemy Deployment Guide
 
+> HISTORICAL DEPLOYMENT GUIDE: Do not deploy from this document without reconciling it with `../HANDOFF.md`, current provider state, current migrations, and a separate explicit deployment approval.
+
 This guide provides step-by-step instructions for deploying Velvet Alchemy to production environments.
 
 ---

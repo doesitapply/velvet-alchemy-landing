@@ -1,11 +1,24 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mail, CheckCircle, XCircle, Edit, Send, AlertCircle } from "lucide-react";
+import {
+  Loader2,
+  Mail,
+  CheckCircle,
+  XCircle,
+  Edit,
+  AlertCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -14,16 +27,20 @@ export default function OutreachApproval() {
   const [editedSubject, setEditedSubject] = useState("");
   const [editedBody, setEditedBody] = useState("");
 
-  const { data: pendingEmails, isLoading, refetch } = trpc.outreach.getPendingEmails.useQuery();
+  const {
+    data: pendingEmails,
+    isLoading,
+    refetch,
+  } = trpc.outreach.getPendingEmails.useQuery();
   const { data: voiceProfile } = trpc.outreach.getVoiceProfile.useQuery();
-  
+
   const approveMutation = trpc.outreach.approveEmail.useMutation({
     onSuccess: () => {
-      toast.success("Email approved and queued for sending");
+      toast.success("Email approved for manual handling. Nothing was sent.");
       refetch();
       setEditingId(null);
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Failed to approve: ${error.message}`);
     },
   });
@@ -33,7 +50,7 @@ export default function OutreachApproval() {
       toast.success("Email rejected");
       refetch();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Failed to reject: ${error.message}`);
     },
   });
@@ -44,18 +61,16 @@ export default function OutreachApproval() {
     setEditedBody(email.body);
   };
 
-  const handleApprove = (emailId: number, sendNow: boolean = true) => {
+  const handleApprove = (emailId: number) => {
     if (editingId === emailId) {
-      // Send with edits
       approveMutation.mutate({
         emailId,
         subject: editedSubject,
         body: editedBody,
-        sendNow,
+        sendNow: false,
       });
     } else {
-      // Send as-is
-      approveMutation.mutate({ emailId, sendNow });
+      approveMutation.mutate({ emailId, sendNow: false });
     }
   };
 
@@ -81,7 +96,7 @@ export default function OutreachApproval() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Email Approval Queue</h1>
         <p className="text-muted-foreground">
-          Review and approve AI-generated outreach emails before they're sent
+          Review and approve AI-generated copy for a separate manual send.
         </p>
       </div>
 
@@ -92,13 +107,17 @@ export default function OutreachApproval() {
           <AlertDescription>
             <div className="flex items-center justify-between">
               <div>
-                <strong>Voice Calibration:</strong> {calibrationProgress}/5 emails reviewed
+                <strong>Voice Calibration:</strong> {calibrationProgress}/5
+                emails reviewed
                 {isCalibrated && (
-                  <Badge variant="default" className="ml-2">Calibrated ✓</Badge>
+                  <Badge variant="default" className="ml-2">
+                    Calibrated ✓
+                  </Badge>
                 )}
               </div>
               <div className="text-sm text-muted-foreground">
-                Tone: {voiceProfile.formality} · {voiceProfile.directness} · {voiceProfile.enthusiasm}
+                Tone: {voiceProfile.formality} · {voiceProfile.directness} ·{" "}
+                {voiceProfile.enthusiasm}
               </div>
             </div>
           </AlertDescription>
@@ -110,7 +129,9 @@ export default function OutreachApproval() {
         <Card>
           <CardContent className="py-12 text-center">
             <Mail className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No emails pending approval</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              No emails pending approval
+            </h3>
             <p className="text-muted-foreground">
               Generate outreach emails from the Leads page to see them here
             </p>
@@ -118,7 +139,7 @@ export default function OutreachApproval() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {pendingEmails.map((email) => {
+          {pendingEmails.map(email => {
             const isEditing = editingId === email.id;
 
             return (
@@ -139,11 +160,13 @@ export default function OutreachApproval() {
                 <CardContent className="space-y-4">
                   {/* Subject */}
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Subject</label>
+                    <label className="text-sm font-medium mb-2 block">
+                      Subject
+                    </label>
                     {isEditing ? (
                       <Input
                         value={editedSubject}
-                        onChange={(e) => setEditedSubject(e.target.value)}
+                        onChange={e => setEditedSubject(e.target.value)}
                         className="font-medium"
                       />
                     ) : (
@@ -155,11 +178,13 @@ export default function OutreachApproval() {
 
                   {/* Body */}
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Email Body</label>
+                    <label className="text-sm font-medium mb-2 block">
+                      Email Body
+                    </label>
                     {isEditing ? (
                       <Textarea
                         value={editedBody}
-                        onChange={(e) => setEditedBody(e.target.value)}
+                        onChange={e => setEditedBody(e.target.value)}
                         rows={12}
                         className="font-mono text-sm"
                       />
@@ -175,7 +200,7 @@ export default function OutreachApproval() {
                     {isEditing ? (
                       <>
                         <Button
-                          onClick={() => handleApprove(email.id, true)}
+                          onClick={() => handleApprove(email.id)}
                           disabled={approveMutation.isPending}
                         >
                           {approveMutation.isPending ? (
@@ -183,7 +208,7 @@ export default function OutreachApproval() {
                           ) : (
                             <CheckCircle className="h-4 w-4 mr-2" />
                           )}
-                          Save & Approve
+                          Save & Approve for Manual Send
                         </Button>
                         <Button
                           variant="outline"
@@ -198,15 +223,15 @@ export default function OutreachApproval() {
                     ) : (
                       <>
                         <Button
-                          onClick={() => handleApprove(email.id, true)}
+                          onClick={() => handleApprove(email.id)}
                           disabled={approveMutation.isPending}
                         >
                           {approveMutation.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                           ) : (
-                            <Send className="h-4 w-4 mr-2" />
+                            <CheckCircle className="h-4 w-4 mr-2" />
                           )}
-                          Approve & Send
+                          Approve for Manual Send
                         </Button>
                         <Button
                           variant="outline"
@@ -225,7 +250,8 @@ export default function OutreachApproval() {
                         </Button>
                         {!isCalibrated && (
                           <div className="text-xs text-muted-foreground ml-auto">
-                            {5 - calibrationProgress} more approvals to complete calibration
+                            {5 - calibrationProgress} more approvals to complete
+                            calibration
                           </div>
                         )}
                       </>

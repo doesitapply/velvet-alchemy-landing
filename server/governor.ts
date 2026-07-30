@@ -1,5 +1,11 @@
 import { getDb } from "./db";
-import { rateLimits, systemConfig, auditLog, type InsertAuditLog, type InsertRateLimit } from "../drizzle/schema";
+import {
+  rateLimits,
+  systemConfig,
+  auditLog,
+  type InsertAuditLog,
+  type InsertRateLimit,
+} from "../drizzle/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
@@ -10,23 +16,49 @@ const RATE_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
   lead_create: { maxRequests: 10, windowMs: 60 * 60 * 1000 }, // 10 per hour
   audit_run: { maxRequests: 20, windowMs: 60 * 60 * 1000 }, // 20 per hour
   waitlist_submit: { maxRequests: 3, windowMs: 24 * 60 * 60 * 1000 }, // 3 per day
+  screenshot_capture: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  pipeline_execute: { maxRequests: 5, windowMs: 60 * 60 * 1000 },
+  batch_audit: { maxRequests: 2, windowMs: 60 * 60 * 1000 },
+  asset_generate: { maxRequests: 5, windowMs: 60 * 60 * 1000 },
+  website_generate: { maxRequests: 3, windowMs: 60 * 60 * 1000 },
+  scrape_search: { maxRequests: 5, windowMs: 60 * 60 * 1000 },
+  scrape_bulk: { maxRequests: 2, windowMs: 60 * 60 * 1000 },
+  ranking_check: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  prescreen: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  checkout_create: { maxRequests: 5, windowMs: 60 * 60 * 1000 },
+  draft_generate: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+  voice_analyze: { maxRequests: 3, windowMs: 60 * 60 * 1000 },
 };
+
+export function getRateLimitPolicy(action: string): {
+  maxRequests: number;
+  windowMs: number;
+} | null {
+  return RATE_LIMITS[action] ?? null;
+}
 
 /**
  * Check if a user has exceeded rate limits for a specific action
  * @throws TRPCError if rate limit exceeded
  */
-export async function checkRateLimit(userId: number, action: string): Promise<void> {
+export async function checkRateLimit(
+  userId: number,
+  action: string
+): Promise<void> {
   const db = await getDb();
   if (!db) {
-    console.warn("[Governor] Database unavailable, skipping rate limit check");
-    return;
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message: "Rate-limit state is unavailable; the action was not started.",
+    });
   }
 
-  const config = RATE_LIMITS[action];
+  const config = getRateLimitPolicy(action);
   if (!config) {
-    console.warn(`[Governor] No rate limit configured for action: ${action}`);
-    return;
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `No rate limit is configured for ${action}; the action was not started.`,
+    });
   }
 
   const now = new Date();
@@ -79,8 +111,10 @@ export async function checkRateLimit(userId: number, action: string): Promise<vo
 export async function checkKillSwitch(userId?: number): Promise<void> {
   const db = await getDb();
   if (!db) {
-    console.warn("[Governor] Database unavailable, skipping kill-switch check");
-    return;
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message: "Kill-switch state is unavailable; the action was not started.",
+    });
   }
 
   // Check global kill-switch
@@ -139,15 +173,14 @@ export async function checkDomainReputation(domain: string): Promise<boolean> {
   // TODO: Integrate with external reputation APIs (e.g., Google Safe Browsing, VirusTotal)
   // For MVP, just check against a simple blacklist
 
-  const blacklist = [
-    "spam.com",
-    "malware.com",
-    "phishing.com",
-  ];
+  const blacklist = ["spam.com", "malware.com", "phishing.com"];
 
-  const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const normalizedDomain = domain
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
 
-  if (blacklist.some((blocked) => normalizedDomain.includes(blocked))) {
+  if (blacklist.some(blocked => normalizedDomain.includes(blocked))) {
     return false;
   }
 
@@ -160,15 +193,34 @@ export async function checkDomainReputation(domain: string): Promise<boolean> {
 export async function initializeSystemConfig(): Promise<void> {
   const db = await getDb();
   if (!db) {
-    console.warn("[Governor] Database unavailable, skipping config initialization");
+    console.warn(
+      "[Governor] Database unavailable, skipping config initialization"
+    );
     return;
   }
 
   const defaults = [
-    { key: "global_kill_switch", value: "false", description: "Global system kill-switch" },
-    { key: "rate_limit_enabled", value: "true", description: "Enable rate limiting" },
-    { key: "domain_check_enabled", value: "true", description: "Enable domain reputation checks" },
-    { key: "daily_cost_budget_cents", value: "1000", description: "Daily API spend budget in cents ($10.00 default). Exceeding this auto-trips the global kill-switch." },
+    {
+      key: "global_kill_switch",
+      value: "false",
+      description: "Global system kill-switch",
+    },
+    {
+      key: "rate_limit_enabled",
+      value: "true",
+      description: "Enable rate limiting",
+    },
+    {
+      key: "domain_check_enabled",
+      value: "true",
+      description: "Enable domain reputation checks",
+    },
+    {
+      key: "daily_cost_budget_cents",
+      value: "1000",
+      description:
+        "Daily API spend budget in cents ($10.00 default). Exceeding this auto-trips the global kill-switch.",
+    },
   ];
 
   for (const config of defaults) {

@@ -2,7 +2,11 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
 
-describe("Activity Feed", () => {
+const hasDatabase =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  Boolean(process.env.DATABASE_URL);
+
+describe.skipIf(!hasDatabase)("Activity Feed", () => {
   let db: Awaited<ReturnType<typeof getDb>>;
 
   beforeAll(async () => {
@@ -58,17 +62,17 @@ describe("Activity Feed", () => {
 
     // Add lead activities
     recentLeads.forEach((lead: any) => {
-      if (lead.status === 'audited' && lead.prestigeScore !== null) {
+      if (lead.status === "audited" && lead.prestigeScore !== null) {
         activities.push({
           id: `audit-${lead.id}`,
-          type: 'audit_completed',
+          type: "audit_completed",
           title: `Audit completed for ${lead.companyName}`,
           timestamp: new Date(lead.updatedAt),
         });
       } else {
         activities.push({
           id: `lead-${lead.id}`,
-          type: 'lead_created',
+          type: "lead_created",
           title: `New lead: ${lead.companyName}`,
           timestamp: new Date(lead.createdAt),
         });
@@ -79,7 +83,7 @@ describe("Activity Feed", () => {
     recentPayments.forEach((payment: any) => {
       activities.push({
         id: `payment-${payment.id}`,
-        type: 'payment_received',
+        type: "payment_received",
         title: `Payment received`,
         timestamp: new Date(payment.created_at),
       });
@@ -90,10 +94,10 @@ describe("Activity Feed", () => {
 
     expect(activities.length).toBeGreaterThanOrEqual(0);
     if (activities.length > 0) {
-      expect(activities[0]).toHaveProperty('id');
-      expect(activities[0]).toHaveProperty('type');
-      expect(activities[0]).toHaveProperty('title');
-      expect(activities[0]).toHaveProperty('timestamp');
+      expect(activities[0]).toHaveProperty("id");
+      expect(activities[0]).toHaveProperty("type");
+      expect(activities[0]).toHaveProperty("title");
+      expect(activities[0]).toHaveProperty("timestamp");
     }
   });
 
@@ -112,7 +116,9 @@ describe("Activity Feed", () => {
           LIMIT 20`
     );
 
-    const totalActivities = recentLeads.length + recentPayments.filter((p: any) => p.status === 'completed').length;
+    const totalActivities =
+      recentLeads.length +
+      recentPayments.filter((p: any) => p.status === "completed").length;
     const expectedCount = Math.min(totalActivities, 15);
 
     // Activity feed should never exceed 15 items
@@ -120,10 +126,15 @@ describe("Activity Feed", () => {
   });
 
   it("should format activity types correctly", async () => {
-    const activityTypes = ['lead_created', 'audit_completed', 'payment_received', 'outreach_sent'];
-    
+    const activityTypes = [
+      "lead_created",
+      "audit_completed",
+      "payment_received",
+      "outreach_sent",
+    ];
+
     activityTypes.forEach(type => {
-      expect(typeof type).toBe('string');
+      expect(typeof type).toBe("string");
       expect(type.length).toBeGreaterThan(0);
     });
   });

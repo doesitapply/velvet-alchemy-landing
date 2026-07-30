@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+// Portable structure tests: no database, credentials, or external services.
 
 describe("The Orchestrator", () => {
   it("should have pipeline stages defined", () => {

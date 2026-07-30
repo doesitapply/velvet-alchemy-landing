@@ -1,5 +1,7 @@
 # Velvet Alchemy Outreach Playbook
 
+> HISTORICAL PLAYBOOK: Do not use this document as contact authorization. Velvet currently prepares review-only drafts; it does not send email or SMS or place prospect calls. Use `README.md` and `HANDOFF.md`.
+
 **Version 1.0** | **Author:** Manus AI | **Last Updated:** January 21, 2026
 
 ---
@@ -366,4 +368,3 @@ Your audit findings are powerful—this playbook ensures that power translates i
 **Last Updated:** January 21, 2026  
 **Author:** Manus AI  
 **For:** Velvet Alchemy Revenue Instrument
-

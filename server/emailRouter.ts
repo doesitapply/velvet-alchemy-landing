@@ -1,31 +1,42 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
-import { getLeadById, updateLead } from "./db";
-import { generateOutreachEmail, sendEmailViaGmail, checkDailySendLimit } from "./lib/emailOutreach";
+import { getLeadById } from "./db";
+import {
+  generateOutreachEmail,
+  checkDailySendLimit,
+} from "./lib/emailOutreach";
 
 export const emailRouter = router({
   /**
-   * Generate outreach email content for a lead
-   * Returns email data that can be sent via Gmail MCP through Manus UI
+   * Generate review-only email content for an owned lead.
    */
   generateOutreach: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-      recipientEmail: z.string().email().optional(),
-    }))
+    .input(
+      z.object({
+        leadId: z.number(),
+        recipientEmail: z.string().email().optional(),
+      })
+    )
     .query(async ({ input, ctx }) => {
       // Get lead details
       const lead = await getLeadById(input.leadId);
       if (!lead) {
         throw new Error("Lead not found");
       }
+      if (lead.userId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new Error("Unauthorized");
+      }
 
-      if (lead.status !== 'audited') {
-        throw new Error("Lead must be audited before generating outreach email");
+      if (lead.status !== "audited") {
+        throw new Error(
+          "Lead must be audited before generating outreach email"
+        );
       }
 
       if (!lead.detailedReport) {
-        throw new Error("Lead must have detailed report before generating outreach");
+        throw new Error(
+          "Lead must have detailed report before generating outreach"
+        );
       }
 
       // Parse detailed report
@@ -37,7 +48,8 @@ export const emailRouter = router({
         websiteUrl: lead.websiteUrl,
         prestigeScore: lead.prestigeScore || 50,
         detailedReport,
-        contactEmail: input.recipientEmail,
+        contactEmail:
+          input.recipientEmail || lead.verifiedOwnerEmail || undefined,
       });
 
       return {
@@ -53,14 +65,19 @@ export const emailRouter = router({
    * Get email preview without sending
    */
   previewOutreach: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-      recipientEmail: z.string().email().optional(),
-    }))
-    .query(async ({ input }) => {
+    .input(
+      z.object({
+        leadId: z.number(),
+        recipientEmail: z.string().email().optional(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
       const lead = await getLeadById(input.leadId);
       if (!lead) {
         throw new Error("Lead not found");
+      }
+      if (lead.userId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new Error("Unauthorized");
       }
 
       if (!lead.detailedReport) {
@@ -74,17 +91,17 @@ export const emailRouter = router({
         websiteUrl: lead.websiteUrl,
         prestigeScore: lead.prestigeScore || 50,
         detailedReport,
-        contactEmail: input.recipientEmail,
+        contactEmail:
+          input.recipientEmail || lead.verifiedOwnerEmail || undefined,
       });
 
       return email;
     }),
 
   /**
-   * Check daily send limit
+   * Compatibility query. Delivery is disabled, so the limit is always zero.
    */
-  checkSendLimit: protectedProcedure
-    .query(async ({ ctx }) => {
-      return await checkDailySendLimit(ctx.user.id);
-    }),
+  checkSendLimit: protectedProcedure.query(async ({ ctx }) => {
+    return await checkDailySendLimit(ctx.user.id);
+  }),
 });

@@ -5,12 +5,19 @@ import { leads } from "../drizzle/schema";
 
 /**
  * Payment Router Tests
- * 
+ *
  * Tests the Stripe payment integration for website packages.
  * Note: These tests use the real Stripe API in test mode.
  */
 
-describe("Payment Router", () => {
+const hasPaymentCredentials =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  process.env.RUN_DB_WRITE_TESTS === "1" &&
+  process.env.RUN_STRIPE_TESTS === "1" &&
+  Boolean(process.env.DATABASE_URL) &&
+  Boolean(process.env.STRIPE_SECRET_KEY);
+
+describe.skipIf(!hasPaymentCredentials)("Payment Router", () => {
   let testLeadId: number;
   let mockUser = {
     id: 1,
@@ -26,15 +33,15 @@ describe("Payment Router", () => {
     const db = await getDb();
     if (!db) throw new Error("Database connection failed");
 
-    const [result] = await db.execute(
+    const [result] = (await db.execute(
       `INSERT INTO leads (companyName, websiteUrl, status, userId) 
        VALUES ('Test Payment Company', 'https://testpayment.com', 'audited', ${mockUser.id})`
-    ) as any;
+    )) as any;
 
     // Get the inserted lead ID
-    const [leadResult] = await db.execute(
+    const [leadResult] = (await db.execute(
       `SELECT id FROM leads WHERE companyName = 'Test Payment Company' ORDER BY id DESC LIMIT 1`
-    ) as any;
+    )) as any;
 
     testLeadId = leadResult[0].id;
   });

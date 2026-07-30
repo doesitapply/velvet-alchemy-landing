@@ -1,15 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { analyzeVisualDebt } from "./visualAudit";
 
-describe("Visual Audit", () => {
+const hasLlmCredentials =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  process.env.RUN_COSTED_TESTS === "1" &&
+  (Boolean(
+    process.env.BUILT_IN_FORGE_API_URL && process.env.BUILT_IN_FORGE_API_KEY
+  ) ||
+    Boolean(process.env.GOOGLE_AI_API_KEY) ||
+    Boolean(process.env.OPENAI_API_KEY) ||
+    Boolean(process.env.ANTHROPIC_API_KEY));
+
+describe.skipIf(!hasLlmCredentials)("Visual Audit", () => {
   describe("analyzeVisualDebt", () => {
     it("returns structured audit result with prestige score", async () => {
       // Use a real, publicly accessible screenshot URL for testing
-      const screenshotUrl = "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800";
+      const screenshotUrl =
+        "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800";
       const websiteUrl = "https://example.com";
       const companyName = "Test Company";
 
-      const result = await analyzeVisualDebt(screenshotUrl, websiteUrl, companyName);
+      const result = await analyzeVisualDebt(
+        screenshotUrl,
+        websiteUrl,
+        companyName
+      );
 
       // Verify structure
       expect(result).toBeDefined();
@@ -28,7 +43,9 @@ describe("Visual Audit", () => {
       if (result.visualDebt.length > 0) {
         const item = result.visualDebt[0];
         expect(item.category).toBeDefined();
-        expect(["design", "ux", "branding", "content", "technical"]).toContain(item.category);
+        expect(["design", "ux", "branding", "content", "technical"]).toContain(
+          item.category
+        );
         expect(item.severity).toBeDefined();
         expect(["critical", "high", "medium", "low"]).toContain(item.severity);
         expect(item.issue).toBeDefined();
@@ -43,7 +60,11 @@ describe("Visual Audit", () => {
       const websiteUrl = "https://example.com";
       const companyName = "Test Company";
 
-      const result = await analyzeVisualDebt(screenshotUrl, websiteUrl, companyName);
+      const result = await analyzeVisualDebt(
+        screenshotUrl,
+        websiteUrl,
+        companyName
+      );
 
       // Should return fallback result
       expect(result).toBeDefined();
@@ -52,11 +73,16 @@ describe("Visual Audit", () => {
     }, 60000);
 
     it("returns valid prestige score range", async () => {
-      const screenshotUrl = "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800";
+      const screenshotUrl =
+        "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800";
       const websiteUrl = "https://example.com";
       const companyName = "Test Company";
 
-      const result = await analyzeVisualDebt(screenshotUrl, websiteUrl, companyName);
+      const result = await analyzeVisualDebt(
+        screenshotUrl,
+        websiteUrl,
+        companyName
+      );
 
       expect(result.prestigeScore).toBeGreaterThanOrEqual(0);
       expect(result.prestigeScore).toBeLessThanOrEqual(100);

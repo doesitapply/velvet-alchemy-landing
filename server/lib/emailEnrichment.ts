@@ -4,7 +4,7 @@
  * Finds verified owner/founder/CEO email addresses for a domain using
  * Hunter.io as primary, Snov.io as fallback.
  *
- * If no verified email is found, the lead is routed to SMS via Twilio.
+ * If no verified email is found, the lead remains research-only. Cold SMS is disabled.
  *
  * Environment variables required:
  *   HUNTER_API_KEY   — Hunter.io API key (https://hunter.io/api-keys)
@@ -12,7 +12,8 @@
  *   SNOV_CLIENT_SECRET — Snov.io client secret (optional fallback)
  */
 
-const OWNER_TITLE_PATTERN = /owner|founder|ceo|president|managing director|proprietor/i;
+const OWNER_TITLE_PATTERN =
+  /owner|founder|ceo|president|managing director|proprietor/i;
 
 export interface EnrichedContact {
   email: string;
@@ -55,7 +56,9 @@ export async function findVerifiedOwnerEmail(
 async function tryHunter(domain: string): Promise<EnrichedContact | null> {
   const apiKey = process.env.HUNTER_API_KEY;
   if (!apiKey) {
-    console.warn("[EmailEnrichment] HUNTER_API_KEY not set, skipping Hunter.io");
+    console.warn(
+      "[EmailEnrichment] HUNTER_API_KEY not set, skipping Hunter.io"
+    );
     return null;
   }
 
@@ -64,7 +67,9 @@ async function tryHunter(domain: string): Promise<EnrichedContact | null> {
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
 
     if (!res.ok) {
-      console.warn(`[EmailEnrichment] Hunter.io returned ${res.status} for ${domain}`);
+      console.warn(
+        `[EmailEnrichment] Hunter.io returned ${res.status} for ${domain}`
+      );
       return null;
     }
 
@@ -74,7 +79,7 @@ async function tryHunter(domain: string): Promise<EnrichedContact | null> {
     // Filter for owner-level titles, sort by confidence descending
     const ownerEmails = emails
       .filter(
-        (e) =>
+        e =>
           e.confidence >= 50 &&
           e.position &&
           OWNER_TITLE_PATTERN.test(e.position)
@@ -83,8 +88,7 @@ async function tryHunter(domain: string): Promise<EnrichedContact | null> {
 
     // Fall back to highest-confidence email if no owner title found
     const best =
-      ownerEmails[0] ??
-      emails.sort((a, b) => b.confidence - a.confidence)[0];
+      ownerEmails[0] ?? emails.sort((a, b) => b.confidence - a.confidence)[0];
 
     if (!best) return null;
 
@@ -116,11 +120,17 @@ async function trySnov(domain: string): Promise<EnrichedContact | null> {
     const tokenRes = await fetch("https://api.snov.io/v1/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
+      body: JSON.stringify({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
       signal: AbortSignal.timeout(8_000),
     });
     if (!tokenRes.ok) return null;
-    const { access_token } = (await tokenRes.json()) as { access_token: string };
+    const { access_token } = (await tokenRes.json()) as {
+      access_token: string;
+    };
 
     // Domain search
     const searchRes = await fetch(
@@ -136,14 +146,15 @@ async function trySnov(domain: string): Promise<EnrichedContact | null> {
 
     const ownerContacts = contacts
       .filter(
-        (c) =>
+        c =>
           c.emailStatus === "valid" &&
           c.position &&
           OWNER_TITLE_PATTERN.test(c.position)
       )
       .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
 
-    const best = ownerContacts[0] ?? contacts.filter((c) => c.emailStatus === "valid")[0];
+    const best =
+      ownerContacts[0] ?? contacts.filter(c => c.emailStatus === "valid")[0];
     if (!best) return null;
 
     return {

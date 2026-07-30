@@ -1,4 +1,8 @@
-import { trackApiCall, SCREENSHOT_COST_CENTS } from "./apiCostTracker";
+import {
+  assertDailyBudgetAvailable,
+  trackApiCall,
+  SCREENSHOT_COST_CENTS,
+} from "./apiCostTracker";
 
 export interface ScreenshotResult {
   buffer: Buffer;
@@ -21,43 +25,50 @@ export async function captureScreenshot(
   try {
     // Validate URL
     const parsedUrl = new URL(url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       return {
-        buffer: Buffer.from(''),
+        buffer: Buffer.from(""),
         success: false,
-        error: 'Invalid URL protocol. Must be http or https.',
+        error: "Invalid URL protocol. Must be http or https.",
       };
     }
+    await assertDailyBudgetAvailable(SCREENSHOT_COST_CENTS);
 
     // Primary: Microlink.io (free, no API key, returns PNG)
     // Docs: https://microlink.io/docs/api/parameters/screenshot
     const microlinkUrl = `https://api.microlink.io/?url=${encodeURIComponent(url)}&screenshot=true&meta=false&embed=screenshot.url`;
-    
-    console.log('[Screenshot] Attempting Microlink.io for:', url);
-    
+
+    console.log("[Screenshot] Attempting Microlink.io for:", url);
+
     try {
       const response = await fetch(microlinkUrl, {
-        method: 'GET',
+        method: "GET",
         signal: AbortSignal.timeout(timeout),
       });
 
       if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        
+        const contentType = response.headers.get("content-type");
+
         // Microlink returns the image directly when using embed=screenshot.url
-        if (contentType && contentType.includes('image')) {
+        if (contentType && contentType.includes("image")) {
           const buffer = await response.arrayBuffer();
-          console.log('[Screenshot] Success via Microlink.io:', buffer.byteLength, 'bytes');
-          
+          console.log(
+            "[Screenshot] Success via Microlink.io:",
+            buffer.byteLength,
+            "bytes"
+          );
+
           // Track API cost (async, don't block response)
           trackApiCall({
             userId: 0, // Will be set by caller if available
-            service: 'screenshot',
-            operation: 'capture_screenshot_microlink',
+            service: "screenshot",
+            operation: "capture_screenshot_microlink",
             estimatedCostCents: SCREENSHOT_COST_CENTS,
-            requestData: { url, service: 'microlink' },
-            responseStatus: 'success',
-          }).catch(err => console.error('[Screenshot] Cost tracking failed:', err));
+            requestData: { url, service: "microlink" },
+            responseStatus: "success",
+          }).catch(err =>
+            console.error("[Screenshot] Cost tracking failed:", err)
+          );
 
           return {
             buffer: Buffer.from(buffer),
@@ -65,62 +76,71 @@ export async function captureScreenshot(
           };
         }
       }
-      
-      console.log('[Screenshot] Microlink failed with status:', response.status);
+
+      console.log(
+        "[Screenshot] Microlink failed with status:",
+        response.status
+      );
     } catch (microlinkError: any) {
-      console.log('[Screenshot] Microlink error:', microlinkError.message);
+      console.log("[Screenshot] Microlink error:", microlinkError.message);
     }
 
     // Fallback: Screenshotmachine.com (free, no API key, returns GIF)
     // Docs: https://www.screenshotmachine.com/apidoc.php
-    console.log('[Screenshot] Trying fallback: Screenshotmachine.com');
-    
+    console.log("[Screenshot] Trying fallback: Screenshotmachine.com");
+
     const screenshotMachineUrl = `https://api.screenshotmachine.com/?key=&url=${encodeURIComponent(url)}&dimension=1024x600`;
-    
+
     const fallbackResponse = await fetch(screenshotMachineUrl, {
-      method: 'GET',
+      method: "GET",
       signal: AbortSignal.timeout(timeout),
     });
 
     if (!fallbackResponse.ok) {
-      throw new Error(`All screenshot services failed. Last status: ${fallbackResponse.status}`);
+      throw new Error(
+        `All screenshot services failed. Last status: ${fallbackResponse.status}`
+      );
     }
 
     const buffer = await fallbackResponse.arrayBuffer();
-    console.log('[Screenshot] Success via Screenshotmachine.com:', buffer.byteLength, 'bytes');
-    
+    console.log(
+      "[Screenshot] Success via Screenshotmachine.com:",
+      buffer.byteLength,
+      "bytes"
+    );
+
     // Track API cost (async, don't block response)
     trackApiCall({
       userId: 0,
-      service: 'screenshot',
-      operation: 'capture_screenshot_fallback',
+      service: "screenshot",
+      operation: "capture_screenshot_fallback",
       estimatedCostCents: SCREENSHOT_COST_CENTS,
-      requestData: { url, service: 'screenshotmachine' },
-      responseStatus: 'success',
-    }).catch(err => console.error('[Screenshot] Cost tracking failed:', err));
+      requestData: { url, service: "screenshotmachine" },
+      responseStatus: "success",
+    }).catch(err => console.error("[Screenshot] Cost tracking failed:", err));
 
     return {
       buffer: Buffer.from(buffer),
       success: true,
     };
   } catch (error: any) {
-    console.error('[Screenshot] All services failed:', error.message);
+    console.error("[Screenshot] All services failed:", error.message);
 
     // Track failed API call
     trackApiCall({
       userId: 0,
-      service: 'screenshot',
-      operation: 'capture_screenshot_failed',
+      service: "screenshot",
+      operation: "capture_screenshot_failed",
       estimatedCostCents: 0,
       requestData: { url },
-      responseStatus: 'error',
-    }).catch(err => console.error('[Screenshot] Cost tracking failed:', err));
+      responseStatus: "error",
+    }).catch(err => console.error("[Screenshot] Cost tracking failed:", err));
 
     // Return error instead of empty buffer
     return {
-      buffer: Buffer.from(''),
+      buffer: Buffer.from(""),
       success: false,
-      error: error.message || 'All screenshot services unavailable',
+      error: error.message || "All screenshot services unavailable",
     };
   }
 }

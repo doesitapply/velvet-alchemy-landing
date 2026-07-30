@@ -1,23 +1,25 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { generateAssetsForLead, getAssetsByLeadId } from "./visionary";
-import { getLeadById } from "./db";
+import { checkKillSwitch, checkRateLimit } from "./governor";
+import { requireCostAuthority, requireOwnedLead } from "./lib/accessControl";
 
 export const visionaryRouter = router({
   /**
    * Generate assets for a lead
    */
   generateAssets: protectedProcedure
-    .input(z.object({ 
-      leadId: z.number(),
-      force: z.boolean().optional().default(false)
-    }))
-    .mutation(async ({ input }) => {
-      // Get lead details
-      const lead = await getLeadById(input.leadId);
-      if (!lead) {
-        throw new Error("Lead not found");
-      }
+    .input(
+      z.object({
+        leadId: z.number(),
+        force: z.boolean().optional().default(false),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "asset_generate");
+      const lead = await requireOwnedLead(input.leadId, ctx.user);
 
       if (lead.status !== "audited") {
         throw new Error("Lead must be audited before generating assets");
@@ -28,12 +30,15 @@ export const visionaryRouter = router({
       if (existingAssets.length > 0 && !input.force) {
         // Check if assets were generated recently (within 24h)
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        if (lead.assetsGeneratedAt && lead.assetsGeneratedAt > twentyFourHoursAgo) {
+        if (
+          lead.assetsGeneratedAt &&
+          lead.assetsGeneratedAt > twentyFourHoursAgo
+        ) {
           return {
             success: true,
             assetCount: existingAssets.length,
             cached: true,
-            message: "Assets already exist. Use force=true to regenerate."
+            message: "Assets already exist. Use force=true to regenerate.",
           };
         }
       }
@@ -43,7 +48,10 @@ export const visionaryRouter = router({
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         if (lead.assetsGeneratedAt > twentyFourHoursAgo) {
           const hoursRemaining = Math.ceil(
-            (lead.assetsGeneratedAt.getTime() + 24 * 60 * 60 * 1000 - Date.now()) / (60 * 60 * 1000)
+            (lead.assetsGeneratedAt.getTime() +
+              24 * 60 * 60 * 1000 -
+              Date.now()) /
+              (60 * 60 * 1000)
           );
           throw new Error(
             `Assets were generated ${hoursRemaining}h ago. Please wait ${24 - hoursRemaining}h or use force=true to regenerate.`
@@ -61,7 +69,9 @@ export const visionaryRouter = router({
       // Parse visual debt data
       let visualDebt = null;
       try {
-        visualDebt = audit.visualDebtData ? JSON.parse(audit.visualDebtData) : null;
+        visualDebt = audit.visualDebtData
+          ? JSON.parse(audit.visualDebtData)
+          : null;
       } catch (e) {
         console.error("[Visionary] Failed to parse visual debt data:", e);
       }
@@ -90,7 +100,7 @@ export const visionaryRouter = router({
         return {
           success: true,
           assetCount: result.assetCount,
-          cached: false
+          cached: false,
         };
       } catch (error) {
         await updateLeadAssetsStatus(input.leadId, "failed");
@@ -103,7 +113,8 @@ export const visionaryRouter = router({
    */
   getAssets: protectedProcedure
     .input(z.object({ leadId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await requireOwnedLead(input.leadId, ctx.user);
       const assets = await getAssetsByLeadId(input.leadId);
       return assets;
     }),

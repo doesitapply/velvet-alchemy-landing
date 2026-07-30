@@ -1,6 +1,6 @@
 /**
  * AI Provider Management Router
- * 
+ *
  * tRPC procedures for managing AI providers, API keys, and monitoring health
  */
 
@@ -10,14 +10,20 @@ import { getDb } from "./db";
 import { aiProviders, providerHealth, apiUsageLogs } from "../drizzle/schema";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { requirePrivilegedUser } from "./lib/accessControl";
 
 export const providerRouter = router({
   /**
    * List all AI providers with their health status
    */
-  list: protectedProcedure.query(async () => {
+  list: protectedProcedure.query(async ({ ctx }) => {
+    requirePrivilegedUser(ctx.user);
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database unavailable",
+      });
 
     const providers = await db
       .select({
@@ -49,9 +55,14 @@ export const providerRouter = router({
    */
   getStats: protectedProcedure
     .input(z.object({ providerId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      requirePrivilegedUser(ctx.user);
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       // Get provider info
       const provider = await db
@@ -61,7 +72,10 @@ export const providerRouter = router({
         .limit(1);
 
       if (provider.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Provider not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Provider not found",
+        });
       }
 
       // Get usage stats (last 30 days)
@@ -96,23 +110,51 @@ export const providerRouter = router({
    */
   update: protectedProcedure
     .input(
-      z.object({
-        id: z.number(),
-        isEnabled: z.boolean().optional(),
-        priority: z.number().optional(),
-        apiKey: z.string().optional(),
-      })
+      z
+        .object({
+          id: z.number(),
+          isEnabled: z.boolean().optional(),
+          priority: z.number().optional(),
+          apiKey: z.string().optional(),
+        })
+        .refine(
+          input =>
+            input.isEnabled !== undefined ||
+            input.priority !== undefined ||
+            input.apiKey !== undefined,
+          { message: "At least one provider field must be supplied." }
+        )
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      requirePrivilegedUser(ctx.user);
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
+
+      const [provider] = await db
+        .select({ id: aiProviders.id })
+        .from(aiProviders)
+        .where(eq(aiProviders.id, input.id))
+        .limit(1);
+      if (!provider) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Provider not found",
+        });
+      }
 
       const updates: any = {};
       if (input.isEnabled !== undefined) updates.isEnabled = input.isEnabled;
       if (input.priority !== undefined) updates.priority = input.priority;
       if (input.apiKey !== undefined) updates.apiKey = input.apiKey;
 
-      await db.update(aiProviders).set(updates).where(eq(aiProviders.id, input.id));
+      await db
+        .update(aiProviders)
+        .set(updates)
+        .where(eq(aiProviders.id, input.id));
 
       return { success: true };
     }),
@@ -127,9 +169,14 @@ export const providerRouter = router({
         limit: z.number().default(50),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      requirePrivilegedUser(ctx.user);
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const query = db
         .select({
@@ -159,9 +206,14 @@ export const providerRouter = router({
   /**
    * Get cost summary (daily/weekly/monthly)
    */
-  getCostSummary: protectedProcedure.query(async () => {
+  getCostSummary: protectedProcedure.query(async ({ ctx }) => {
+    requirePrivilegedUser(ctx.user);
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database unavailable",
+      });
 
     const today = new Date();
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -175,9 +227,7 @@ export const providerRouter = router({
           totalRequests: sql<number>`COUNT(*)`,
         })
         .from(apiUsageLogs)
-        .where(
-          sql`DATE(${apiUsageLogs.createdAt}) = DATE(NOW())`
-        ),
+        .where(sql`DATE(${apiUsageLogs.createdAt}) = DATE(NOW())`),
       db
         .select({
           totalCost: sql<number>`SUM(${apiUsageLogs.cost})`,

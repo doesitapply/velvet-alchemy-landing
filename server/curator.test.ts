@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
+const hasCuratorCredentials =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  process.env.RUN_DB_WRITE_TESTS === "1" &&
+  process.env.RUN_COSTED_TESTS === "1" &&
+  process.env.RUN_NETWORK_TESTS === "1" &&
+  Boolean(process.env.DATABASE_URL) &&
+  Boolean(process.env.BUILT_IN_FORGE_API_URL) &&
+  Boolean(process.env.BUILT_IN_FORGE_API_KEY);
+
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
 function createAuthContext(): TrpcContext {
@@ -27,7 +36,7 @@ function createAuthContext(): TrpcContext {
   };
 }
 
-describe("Curator MVP", () => {
+describe.skipIf(!hasCuratorCredentials)("Curator MVP", () => {
   describe("leads.create", () => {
     it("creates lead with screenshot and audit", async () => {
       const ctx = createAuthContext();
@@ -95,7 +104,7 @@ describe("Curator MVP", () => {
 
       expect(Array.isArray(leads)).toBe(true);
       // All leads should belong to the user
-      leads.forEach((lead) => {
+      leads.forEach(lead => {
         expect(lead.userId).toBe(ctx.user.id);
       });
     });
@@ -139,9 +148,9 @@ describe("Curator MVP", () => {
       const ctx = createAuthContext();
       const caller = appRouter.createCaller(ctx);
 
-      await expect(
-        caller.leads.getById({ id: 999999 })
-      ).rejects.toThrow("Lead not found");
+      await expect(caller.leads.getById({ id: 999999 })).rejects.toThrow(
+        "Lead not found"
+      );
     });
   });
 });

@@ -1,5 +1,7 @@
 # Velvet Alchemy REST API v1
 
+> HISTORICAL REFERENCE: Verify every route and scope against `server/apiRouter.ts` and `HANDOFF.md`. Cost-bearing scopes are admin-only, and real-prospect handoff/outcome routes are blocked.
+
 > **External API for AI agents, automation tools, and integrations.**  
 > Base URL: `https://your-domain.com/api/v1`  
 > Auth: `Authorization: Bearer va_live_...`  

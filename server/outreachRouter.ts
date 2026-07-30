@@ -1,15 +1,24 @@
 import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { leads, audits, voiceProfiles, emailQueue, followUpSequences } from "../drizzle/schema";
-import { eq, and, or, lt, isNull } from "drizzle-orm";
-import { analyzeVoice, generateEmailInVoice, refineVoiceProfile, type EmailSample } from "./voiceAnalyzer";
+import { leads, audits, voiceProfiles, emailQueue } from "../drizzle/schema";
+import { eq, and } from "drizzle-orm";
+import {
+  analyzeVoice,
+  generateEmailInVoice,
+  type EmailSample,
+} from "./voiceAnalyzer";
 import { TRPCError } from "@trpc/server";
-import { sendGmailMessage, getSentEmails } from "./gmailClient";
+import {
+  assertSafeExternalCopy,
+  externalActionBlock,
+} from "./lib/externalActionPolicy";
+import { checkKillSwitch, checkRateLimit, logAudit } from "./governor";
+import { requireCostAuthority } from "./lib/accessControl";
 
 /**
  * Outreach Router
- * Handles automated email outreach with voice matching and approval workflow
+ * Handles review-only email drafting and approval.
  */
 
 export const outreachRouter = router({
@@ -17,17 +26,31 @@ export const outreachRouter = router({
    * Initialize voice profile by analyzing user's Gmail sent emails
    */
   initializeVoiceProfile: protectedProcedure
-    .input(z.object({
-      sampleEmails: z.array(z.object({
-        subject: z.string(),
-        body: z.string(),
-        to: z.string(),
-        date: z.string(), // ISO date string
-      })).min(1).max(20), // Analyze 1-20 emails
-    }))
+    .input(
+      z.object({
+        sampleEmails: z
+          .array(
+            z.object({
+              subject: z.string(),
+              body: z.string(),
+              to: z.string(),
+              date: z.string(), // ISO date string
+            })
+          )
+          .min(1)
+          .max(20), // Analyze 1-20 emails
+      })
+    )
     .mutation(async ({ ctx, input }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "voice_analyze");
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database not available",
+        });
 
       // Convert date strings to Date objects
       const emailSamples: EmailSample[] = input.sampleEmails.map(e => ({
@@ -39,29 +62,36 @@ export const outreachRouter = router({
       const voiceProfile = await analyzeVoice(emailSamples);
 
       // Check if profile already exists
-      const existing = await db.select().from(voiceProfiles).where(eq(voiceProfiles.userId, ctx.user.id)).limit(1);
+      const existing = await db
+        .select()
+        .from(voiceProfiles)
+        .where(eq(voiceProfiles.userId, ctx.user.id))
+        .limit(1);
 
       if (existing.length > 0) {
         // Update existing profile
-        await db.update(voiceProfiles).set({
-          formality: voiceProfile.formality,
-          directness: voiceProfile.directness,
-          enthusiasm: voiceProfile.enthusiasm,
-          avgSentenceLength: voiceProfile.avgSentenceLength,
-          avgParagraphLength: voiceProfile.avgParagraphLength,
-          usesContractions: voiceProfile.usesContractions,
-          usesEmoji: voiceProfile.usesEmoji,
-          usesProfanity: voiceProfile.usesProfanity,
-          commonPhrases: JSON.stringify(voiceProfile.commonPhrases),
-          industryJargon: JSON.stringify(voiceProfile.industryJargon),
-          signOffStyle: voiceProfile.signOffStyle,
-          greetingStyle: voiceProfile.greetingStyle,
-          usesLists: voiceProfile.usesLists,
-          usesBoldText: voiceProfile.usesBoldText,
-          usesQuestions: voiceProfile.usesQuestions,
-          exampleEmails: JSON.stringify(voiceProfile.exampleEmails),
-          updatedAt: new Date(),
-        }).where(eq(voiceProfiles.userId, ctx.user.id));
+        await db
+          .update(voiceProfiles)
+          .set({
+            formality: voiceProfile.formality,
+            directness: voiceProfile.directness,
+            enthusiasm: voiceProfile.enthusiasm,
+            avgSentenceLength: voiceProfile.avgSentenceLength,
+            avgParagraphLength: voiceProfile.avgParagraphLength,
+            usesContractions: voiceProfile.usesContractions,
+            usesEmoji: voiceProfile.usesEmoji,
+            usesProfanity: voiceProfile.usesProfanity,
+            commonPhrases: JSON.stringify(voiceProfile.commonPhrases),
+            industryJargon: JSON.stringify(voiceProfile.industryJargon),
+            signOffStyle: voiceProfile.signOffStyle,
+            greetingStyle: voiceProfile.greetingStyle,
+            usesLists: voiceProfile.usesLists,
+            usesBoldText: voiceProfile.usesBoldText,
+            usesQuestions: voiceProfile.usesQuestions,
+            exampleEmails: JSON.stringify(voiceProfile.exampleEmails),
+            updatedAt: new Date(),
+          })
+          .where(eq(voiceProfiles.userId, ctx.user.id));
 
         return { success: true, profileId: existing[0].id, updated: true };
       } else {
@@ -93,43 +123,64 @@ export const outreachRouter = router({
   /**
    * Get current voice profile
    */
-  getVoiceProfile: protectedProcedure
-    .query(async ({ ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+  getVoiceProfile: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database not available",
+      });
 
-      const profile = await db.select().from(voiceProfiles).where(eq(voiceProfiles.userId, ctx.user.id)).limit(1);
+    const profile = await db
+      .select()
+      .from(voiceProfiles)
+      .where(eq(voiceProfiles.userId, ctx.user.id))
+      .limit(1);
 
-      if (profile.length === 0) {
-        return null;
-      }
+    if (profile.length === 0) {
+      return null;
+    }
 
-      const p = profile[0];
-      return {
-        ...p,
-        commonPhrases: JSON.parse(p.commonPhrases),
-        industryJargon: JSON.parse(p.industryJargon),
-        exampleEmails: JSON.parse(p.exampleEmails),
-      };
-    }),
+    const p = profile[0];
+    return {
+      ...p,
+      commonPhrases: JSON.parse(p.commonPhrases),
+      industryJargon: JSON.parse(p.industryJargon),
+      exampleEmails: JSON.parse(p.exampleEmails),
+    };
+  }),
 
   /**
    * Generate outreach email for a lead
    */
   generateOutreachEmail: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-    }))
+    .input(
+      z.object({
+        leadId: z.number(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "draft_generate");
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database not available",
+        });
 
       // Get voice profile
-      const profileResult = await db.select().from(voiceProfiles).where(eq(voiceProfiles.userId, ctx.user.id)).limit(1);
+      const profileResult = await db
+        .select()
+        .from(voiceProfiles)
+        .where(eq(voiceProfiles.userId, ctx.user.id))
+        .limit(1);
       if (profileResult.length === 0) {
-        throw new TRPCError({ 
-          code: "PRECONDITION_FAILED", 
-          message: "Voice profile not initialized. Please analyze your emails first." 
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Voice profile not initialized. Please analyze your emails first.",
         });
       }
 
@@ -142,21 +193,35 @@ export const outreachRouter = router({
       };
 
       // Get lead and audit
-      const leadResult = await db.select().from(leads).where(eq(leads.id, input.leadId)).limit(1);
+      const leadResult = await db
+        .select()
+        .from(leads)
+        .where(and(eq(leads.id, input.leadId), eq(leads.userId, ctx.user.id)))
+        .limit(1);
       if (leadResult.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
       }
       const lead = leadResult[0];
 
-      const auditResult = await db.select().from(audits).where(eq(audits.leadId, input.leadId)).limit(1);
+      const auditResult = await db
+        .select()
+        .from(audits)
+        .where(eq(audits.leadId, input.leadId))
+        .limit(1);
       if (auditResult.length === 0) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Lead must be audited first" });
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Lead must be audited first",
+        });
       }
       const audit = auditResult[0];
 
       // Parse visual debt data
-      const visualDebt = audit.visualDebtData ? JSON.parse(audit.visualDebtData) : {};
-      const topIssues = visualDebt.issues?.slice(0, 3).map((i: any) => i.title) || [];
+      const visualDebt = audit.visualDebtData
+        ? JSON.parse(audit.visualDebtData)
+        : {};
+      const topIssues =
+        visualDebt.issues?.slice(0, 3).map((i: any) => i.title) || [];
 
       // Generate email
       const email = await generateEmailInVoice(voiceProfile, {
@@ -167,11 +232,20 @@ export const outreachRouter = router({
         prestigeScore: audit.prestigeScore || 0,
         topIssues,
       });
+      assertSafeExternalCopy(email.subject, email.body);
+
+      if (!lead.verifiedOwnerEmail) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "A verified public business email is required before preparing outreach.",
+        });
+      }
 
       // Add to email queue with pending_approval status
       const queueResult = await db.insert(emailQueue).values({
         leadId: input.leadId,
-        recipientEmail: "placeholder@example.com", // TODO: Extract from lead or user input
+        recipientEmail: lead.verifiedOwnerEmail,
         recipientName: lead.companyName,
         subject: email.subject,
         body: email.body,
@@ -189,12 +263,16 @@ export const outreachRouter = router({
   /**
    * Get emails pending approval
    */
-  getPendingEmails: protectedProcedure
-    .query(async ({ ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+  getPendingEmails: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database not available",
+      });
 
-      const emails = await db.select({
+    const emails = await db
+      .select({
         id: emailQueue.id,
         leadId: emailQueue.leadId,
         companyName: leads.companyName,
@@ -209,160 +287,202 @@ export const outreachRouter = router({
       })
       .from(emailQueue)
       .leftJoin(leads, eq(emailQueue.leadId, leads.id))
-      .where(eq(emailQueue.status, "pending_approval"))
+      .where(
+        and(
+          eq(emailQueue.status, "pending_approval"),
+          eq(leads.userId, ctx.user.id)
+        )
+      )
       .orderBy(emailQueue.createdAt);
 
-      return emails;
-    }),
+    return emails;
+  }),
 
   /**
-   * Approve email and optionally edit before sending
+   * Approve or edit an email for separate manual handling. This never sends.
    */
   approveEmail: protectedProcedure
-    .input(z.object({
-      emailId: z.number(),
-      subject: z.string().optional(), // Edited subject
-      body: z.string().optional(), // Edited body
-      sendNow: z.boolean().default(true),
-    }))
+    .input(
+      z.object({
+        emailId: z.number(),
+        subject: z.string().optional(), // Edited subject
+        body: z.string().optional(), // Edited body
+        sendNow: z.boolean().default(false),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database not available",
+        });
 
-      // Get email
-      const emailResult = await db.select().from(emailQueue).where(eq(emailQueue.id, input.emailId)).limit(1);
+      const emailResult = await db
+        .select({ email: emailQueue })
+        .from(emailQueue)
+        .leftJoin(leads, eq(emailQueue.leadId, leads.id))
+        .where(
+          and(
+            eq(emailQueue.id, input.emailId),
+            eq(emailQueue.status, "pending_approval"),
+            eq(leads.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
       if (emailResult.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Email not found" });
       }
-      const email = emailResult[0];
+      const email = emailResult[0].email;
 
       // Update email with edits if provided
       const updates: any = {
-        status: input.sendNow ? "approved" : "pending",
+        status: "approved",
       };
       if (input.subject) updates.subject = input.subject;
       if (input.body) updates.body = input.body;
+      assertSafeExternalCopy(
+        input.subject || email.subject,
+        input.body || email.body
+      );
 
-      await db.update(emailQueue).set(updates).where(eq(emailQueue.id, input.emailId));
+      await db
+        .update(emailQueue)
+        .set(updates)
+        .where(
+          and(
+            eq(emailQueue.id, input.emailId),
+            eq(emailQueue.status, "pending_approval")
+          )
+        );
 
-      // If user edited the email, use it to refine voice profile
-      if (input.subject || input.body) {
-        const profileResult = await db.select().from(voiceProfiles).where(eq(voiceProfiles.userId, ctx.user.id)).limit(1);
-        if (profileResult.length > 0) {
-          const profileRow = profileResult[0];
-          const currentProfile = {
-            ...profileRow,
-            commonPhrases: JSON.parse(profileRow.commonPhrases),
-            industryJargon: JSON.parse(profileRow.industryJargon),
-            exampleEmails: JSON.parse(profileRow.exampleEmails),
-          };
-
-          // Refine profile based on edits
-          const refinedProfile = await refineVoiceProfile(currentProfile, {
-            emailGenerated: `Subject: ${email.subject}\n\n${email.body}`,
-            userEdits: `Subject: ${input.subject || email.subject}\n\n${input.body || email.body}`,
-            feedbackNotes: "User edited the generated email",
-          });
-
-          // Update profile
-          await db.update(voiceProfiles).set({
-            formality: refinedProfile.formality,
-            directness: refinedProfile.directness,
-            enthusiasm: refinedProfile.enthusiasm,
-            avgSentenceLength: refinedProfile.avgSentenceLength,
-            avgParagraphLength: refinedProfile.avgParagraphLength,
-            usesContractions: refinedProfile.usesContractions,
-            usesEmoji: refinedProfile.usesEmoji,
-            usesProfanity: refinedProfile.usesProfanity,
-            commonPhrases: JSON.stringify(refinedProfile.commonPhrases),
-            industryJargon: JSON.stringify(refinedProfile.industryJargon),
-            signOffStyle: refinedProfile.signOffStyle,
-            greetingStyle: refinedProfile.greetingStyle,
-            usesLists: refinedProfile.usesLists,
-            usesBoldText: refinedProfile.usesBoldText,
-            usesQuestions: refinedProfile.usesQuestions,
-            calibrationCount: profileRow.calibrationCount + 1,
-            isCalibrated: profileRow.calibrationCount + 1 >= 5,
-          }).where(eq(voiceProfiles.userId, ctx.user.id));
-        }
+      const approved = await db
+        .select({ status: emailQueue.status })
+        .from(emailQueue)
+        .leftJoin(leads, eq(emailQueue.leadId, leads.id))
+        .where(
+          and(
+            eq(emailQueue.id, input.emailId),
+            eq(emailQueue.status, "approved"),
+            eq(leads.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
+      if (!approved[0]) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Email approval was not persisted.",
+        });
       }
+      await logAudit({
+        userId: ctx.user.id,
+        action: "email_approved_for_manual_handling",
+        resource: "email_queue",
+        resourceId: input.emailId,
+        details: JSON.stringify({
+          edited: Boolean(input.subject || input.body),
+          deliveryAuthorized: false,
+        }),
+        status: "success",
+      });
 
-      return { success: true, willSend: input.sendNow };
+      return {
+        success: true,
+        willSend: false,
+        mode: "prepare_only" as const,
+      };
     }),
 
   /**
    * Reject email (remove from queue)
    */
   rejectEmail: protectedProcedure
-    .input(z.object({
-      emailId: z.number(),
-      reason: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        emailId: z.number(),
+        reason: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database not available",
+        });
 
-      await db.update(emailQueue).set({
-        status: "failed",
-        errorMessage: input.reason || "Rejected by user",
-      }).where(eq(emailQueue.id, input.emailId));
+      const owned = await db
+        .select({ id: emailQueue.id, status: emailQueue.status })
+        .from(emailQueue)
+        .leftJoin(leads, eq(emailQueue.leadId, leads.id))
+        .where(
+          and(eq(emailQueue.id, input.emailId), eq(leads.userId, ctx.user.id))
+        )
+        .limit(1);
+      if (!owned[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Email not found" });
+      }
+      if (!["pending_approval", "approved"].includes(owned[0].status)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Only a pending or approved email can be rejected.",
+        });
+      }
+
+      await db
+        .update(emailQueue)
+        .set({
+          status: "failed",
+          errorMessage: input.reason || "Rejected by user",
+        })
+        .where(
+          and(
+            eq(emailQueue.id, input.emailId),
+            eq(emailQueue.status, owned[0].status)
+          )
+        );
+
+      const rejected = await db
+        .select({ status: emailQueue.status })
+        .from(emailQueue)
+        .leftJoin(leads, eq(emailQueue.leadId, leads.id))
+        .where(
+          and(
+            eq(emailQueue.id, input.emailId),
+            eq(emailQueue.status, "failed"),
+            eq(leads.userId, ctx.user.id)
+          )
+        )
+        .limit(1);
+      if (!rejected[0]) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Email rejection was not persisted.",
+        });
+      }
+      await logAudit({
+        userId: ctx.user.id,
+        action: "email_rejected",
+        resource: "email_queue",
+        resourceId: input.emailId,
+        details: JSON.stringify({ reason: input.reason || "Rejected by user" }),
+        status: "success",
+      });
 
       return { success: true };
     }),
 
   /**
-   * Send approved emails (called by cron job or manual trigger)
+   * Retained as a fail-closed compatibility route. Approval prepares an email
+   * for manual handling; it does not authorize this process to send it.
    */
-  sendApprovedEmails: protectedProcedure
-    .mutation(async ({ ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-
-      // Get approved emails ready to send
-      const emails = await db.select().from(emailQueue)
-        .where(
-          and(
-            eq(emailQueue.status, "approved"),
-            or(
-              isNull(emailQueue.scheduledFor),
-              lt(emailQueue.scheduledFor, new Date())
-            )
-          )
-        )
-        .limit(10); // Send 10 at a time to avoid rate limits
-
-      const results = [];
-      for (const email of emails) {
-        try {
-          // Mark as sending
-          await db.update(emailQueue).set({ status: "sending" }).where(eq(emailQueue.id, email.id));
-
-          // Send via Gmail MCP
-          const result = await sendGmailMessage({
-            to: email.recipientEmail,
-            subject: email.subject,
-            body: email.body,
-          });
-
-          await db.update(emailQueue).set({
-            status: "sent",
-            sentAt: new Date(),
-            gmailMessageId: result.messageId,
-            gmailThreadId: result.threadId,
-          }).where(eq(emailQueue.id, email.id));
-
-          results.push({ emailId: email.id, success: true });
-        } catch (error) {
-          await db.update(emailQueue).set({
-            status: "failed",
-            errorMessage: error instanceof Error ? error.message : "Unknown error",
-            retryCount: email.retryCount + 1,
-          }).where(eq(emailQueue.id, email.id));
-
-          results.push({ emailId: email.id, success: false, error: error instanceof Error ? error.message : "Unknown error" });
-        }
-      }
-
-      return { sent: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, results };
-    }),
+  sendApprovedEmails: protectedProcedure.mutation(async () => {
+    const block = externalActionBlock("email_send");
+    throw new TRPCError({
+      code: "METHOD_NOT_SUPPORTED",
+      message:
+        "Bulk send is disabled. Each approved draft must be handled manually outside Velvet.",
+      cause: block,
+    });
+  }),
 });
