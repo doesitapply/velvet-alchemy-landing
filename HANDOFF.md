@@ -1,6 +1,6 @@
 # Velvet Alchemy — Operator Handoff Document
 
-**Hardening baseline:** `aea0743` | **Date:** 2026-07-29
+**Hardening baseline:** `73728f8` | **Date:** 2026-07-30
 
 **Current local proof:** TypeScript clean; 113/113 portable unit tests pass; the production build completes with known analytics-placeholder and bundle-size warnings. Credentialed, deployed, and live results are separate gates below.
 
@@ -16,7 +16,18 @@ Velvet does not send email or SMS and does not place or queue prospect calls. Th
 
 The hardening branches now contain a separate research-only prospect intake. A privileged owner or administrator can explicitly move one audited lead into SMIRK's operator review queue. That path has a dedicated token, exact workspace lock, stable opaque ID, local audit receipt, 10-per-hour cap, and no contact semantics. It is not deployed, configured, or live-tested yet.
 
-The branches also contain a signed, idempotent outcome contract. SMIRK writes callbacks to a durable outbox; dispatch remains disabled. Velvet verifies a dedicated API key, HMAC signature, fresh timestamp, owner/lead identity, exact payload hash, and idempotency key before writing an outcome event. No deployed callback has been verified.
+The branches also contain a signed, idempotent outcome contract. SMIRK writes
+callbacks to a durable outbox and now has a full-operator, one-record dispatch
+path that remains disabled by default. Velvet verifies a dedicated API key,
+HMAC signature, fresh timestamp, owner/lead identity, exact payload hash, and
+idempotency key before writing an outcome event. No deployed callback has been
+verified.
+
+The paired SMIRK source also contains a guarded, one-recipient Resend lane with
+an exact second confirmation, rolling recipient and reserved-spend caps,
+suppression checks, deterministic idempotency, signed delivery/reply webhooks,
+and a separate transactional key. That lane is disabled by default and has not
+been deployed, configured, or live-tested.
 
 It is not a SaaS product. It has no public marketing page. The root URL shows a minimal auth gate and redirects authenticated operators to the Command Center.
 
@@ -37,11 +48,11 @@ The system is designed to be operated by a single person or a small team, with e
 
 [Synthetic contract test only] -> POST /api/integrations/velvet/handoffs
 [Admin-reviewed research]       -> POST /api/integrations/velvet/prospects
-[Prospect call handoff]         -> BLOCKED
+[Prospect call handoff]         -> BLOCKED; SMIRK call briefs are manual-dial-only
 [Signed outcome receiver]       -> POST /api/v1/leads/:id/outcome
 [Trade + metro scorecard]       -> human-review sourcing candidate
-[SMIRK callback dispatch]       -> OUTBOX ONLY / BLOCKED
-[Email delivery]                -> BLOCKED
+[SMIRK callback dispatch]       -> ONE RECORD / FULL OPERATOR / DEFAULT BLOCKED
+[SMIRK prospect email]          -> ONE RECIPIENT / FULL OPERATOR / DEFAULT BLOCKED
 [SMS delivery]                  -> BLOCKED
 ```
 
@@ -321,7 +332,9 @@ The existing `/api/integrations/velvet/handoffs` contract is synthetic-test only
 
 ### Outcome Callback
 
-Implemented on the hardening branch but not deployed, configured, or live-tested.
+Implemented on both hardening branches but not deployed, configured, or
+live-tested. SMIRK source commit `c53df589` adds one-record callback dispatch;
+the default remains disabled and an outbox row never dispatches itself.
 
 `POST /api/v1/leads/:id/outcome` requires a dedicated Velvet API key with
 `outcome:write`, `X-SMIRK-Timestamp`, and `X-SMIRK-Signature`. The body contract
@@ -406,7 +419,8 @@ Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` auth
 | Google AI key (`AQ.*`) is a short-lived OAuth token       | High — Gemini fallback will die                 | Get permanent `AIzaSy*` key from aistudio.google.com/apikey                                             |
 | Builder JSX-location plugin expects Vite 4/5, not Vite 7  | Low — install warning; current build passes     | Upgrade or remove the development-only plugin before the next Vite upgrade                              |
 | Research receiver/client exist only on hardening branches | Real prospect registration is not active        | Approve exact commits, deploy both sides, configure dedicated credentials, then run one synthetic proof |
-| SMIRK outcome sender is outbox-only and unverified live    | Closed-loop dispatch is inactive                | Deploy both exact commits, configure dedicated secrets, then run one synthetic callback and replay      |
+| SMIRK callback sender is source-complete but default-disabled and unverified live | Closed-loop dispatch is inactive | Deploy both exact commits, configure dedicated secrets, then run one synthetic callback and replay |
+| SMIRK guarded prospect email is source-complete but default-disabled | No provider email is active | Back up and review schema changes, deploy the exact SMIRK commit, configure a separate Resend key and signed webhook, then run one harmless synthetic recipient test |
 
 ### Deferred Features
 
@@ -449,13 +463,14 @@ VELVET_REPO_PATH=/path/to/velvet-alchemy-landing \
   npm run -s check:velvet-smirk-closed-loop -- --require-clean
 ```
 
-The clean source pair verified on 2026-07-30 was Velvet
-`6b56ad804937e76d6d06753a324842715c2e9cdf` plus SMIRK
-`88077bc9f5b73eb825da7c1566f66539e29da0d9`. The gate imports both
+The clean source pair verified on 2026-07-30 is Velvet
+`73728f8b2266b829ad7ba92067878215f291c287` plus SMIRK
+`c53df5892bdefffb42ffd7fc62c9e340aa8dec2e`. The gate imports both
 repositories' real research, approval, outcome, signature, replay, and learning
 modules while trapping network access. It proves source compatibility only. It
-does not prove migrations, deployed parity, credentials, delivery, calls,
-revenue, or a real outcome.
+also proves the guarded email and callback request shapes without allowing a
+network request. It does not prove migrations, deployed parity, credentials,
+provider acceptance, delivery, calls, revenue, or a real outcome.
 
 ---
 
@@ -473,7 +488,12 @@ The project deploys via the Manus Management UI Publish button. No manual deploy
 
 External agents may read owned leads, generate internal evidence, and prepare drafts. They must not treat `leads/ready`, a SMIRK research import, an outcome receipt, or a learning candidate as contact authorization.
 
-The synthetic handoff client remains restricted to fake fixtures. The research client is an admin-only UI action and is not exposed through the public REST API. The outcome receiver exists, but SMIRK dispatch remains disabled and unverified live.
+The synthetic handoff client remains restricted to fake fixtures. The research
+client is an admin-only UI action and is not exposed through the public REST
+API. The outcome receiver exists. SMIRK callback and email provider execution
+remain disabled by default and unverified live. No agent may enable either
+lane, send a real email, or record a call without the separate exact approval
+for that action.
 
 ---
 
@@ -481,6 +501,7 @@ The synthetic handoff client remains restricted to fake fixtures. The research c
 
 | Commit     | Description                                                               |
 | ---------- | ------------------------------------------------------------------------- |
+| `73728f8`  | Portable 113-test gate and exact Velvet/SMIRK closed-loop source proof     |
 | `6b56ad8`  | Research intake, signed outcome feedback, and human-reviewed sourcing loop |
 | `4232acb`  | Guarded research-only bridge to the SMIRK prospect queue                   |
 | `aea0743`  | Approval, tenant, provider-spend, and no-cold-SMS hardening                |
