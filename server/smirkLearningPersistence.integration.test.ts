@@ -37,6 +37,10 @@ const enabled = requireDisposableLoopbackDatabase(
 );
 
 describe.skipIf(!enabled)("SMIRK human-reviewed learning persistence", () => {
+  const originalSigningSecret =
+    process.env.SMIRK_OUTCOME_SIGNING_SECRET;
+  const originalResearchWorkspace =
+    process.env.SMIRK_RESEARCH_WORKSPACE_ID;
   let server: Server | null = null;
   let baseUrl = "";
   let owner!: User;
@@ -173,6 +177,18 @@ describe.skipIf(!enabled)("SMIRK human-reviewed learning persistence", () => {
       server = null;
     }
     await cleanFixture();
+    if (originalSigningSecret === undefined) {
+      delete process.env.SMIRK_OUTCOME_SIGNING_SECRET;
+    } else {
+      process.env.SMIRK_OUTCOME_SIGNING_SECRET =
+        originalSigningSecret;
+    }
+    if (originalResearchWorkspace === undefined) {
+      delete process.env.SMIRK_RESEARCH_WORKSPACE_ID;
+    } else {
+      process.env.SMIRK_RESEARCH_WORKSPACE_ID =
+        originalResearchWorkspace;
+    }
   });
 
   async function postJson(

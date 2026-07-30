@@ -31,6 +31,8 @@ const enabled = requireDisposableLoopbackDatabase(
 );
 
 describe.skipIf(!enabled)("SMIRK signed outcome persistence", () => {
+  const originalSigningSecret =
+    process.env.SMIRK_OUTCOME_SIGNING_SECRET;
   let server: Server | null = null;
   let baseUrl = "";
   let userId = 0;
@@ -243,6 +245,12 @@ describe.skipIf(!enabled)("SMIRK signed outcome persistence", () => {
     await db
       .delete(smirkLeadBatches)
       .where(eq(smirkLeadBatches.requestId, batchRequestId));
+    if (originalSigningSecret === undefined) {
+      delete process.env.SMIRK_OUTCOME_SIGNING_SECRET;
+    } else {
+      process.env.SMIRK_OUTCOME_SIGNING_SECRET =
+        originalSigningSecret;
+    }
   });
 
   async function send(
