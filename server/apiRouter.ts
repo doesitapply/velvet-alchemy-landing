@@ -272,6 +272,8 @@ export function createApiRouter(): Router {
           prospectsHash: result.prospectsHash,
           prospects: result.prospects,
           appliedLearningCandidate: result.appliedLearningCandidate,
+          sourceDiscoveryRequestId:
+            result.sourceDiscoveryRequestId,
           contactActionAllowed: false,
           spendAuthorized: false,
           externalAction: "research_export_only",

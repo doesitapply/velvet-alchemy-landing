@@ -12,6 +12,10 @@ const storeSource = readFileSync(
   new URL("./lib/smirkDiscoveryStore.ts", import.meta.url),
   "utf8"
 );
+const leadBatchStoreSource = readFileSync(
+  new URL("./lib/smirkLeadBatchStore.ts", import.meta.url),
+  "utf8"
+);
 const executorSource = readFileSync(
   new URL("./lib/smirkDiscoveryExecutor.ts", import.meta.url),
   "utf8"
@@ -151,5 +155,23 @@ describe("SMIRK discovery execution safety", () => {
     expect(schemaSource).toContain("smirk_discovery_requests");
     expect(schemaSource).toContain("smirk_discovery_lead_items");
     expect(schemaSource).toContain("smirk_discovery_events");
+  });
+
+  it("exports a discovery-bound batch only from exact READY receipts", () => {
+    expect(leadBatchStoreSource).toContain(
+      "request.sourceDiscoveryRequestId"
+    );
+    expect(leadBatchStoreSource).toContain(
+      "smirkDiscoveryRequests.requestId"
+    );
+    expect(leadBatchStoreSource).toContain(
+      'eq(smirkDiscoveryLeadItems.state, "READY")'
+    );
+    expect(leadBatchStoreSource).toContain(
+      "inArray(leads.id, discoveryLeadIds)"
+    );
+    expect(leadBatchStoreSource).toContain(
+      "SMIRK_LEAD_BATCH_DISCOVERY_NOT_READY"
+    );
   });
 });

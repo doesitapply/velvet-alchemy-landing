@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
 
-**Current local proof:** TypeScript clean; 145/145 portable unit tests pass; the production build completes with known analytics-placeholder and bundle-size warnings. Credentialed, migrated, deployed, and live results are separate gates below.
+**Current local proof:** TypeScript clean; 147/147 portable unit tests pass; the production build completes with known analytics-placeholder and bundle-size warnings. Credentialed, migrated, deployed, and live results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -50,6 +50,7 @@ The system is designed to be operated by a single person or a small team, with e
 [SMIRK discovery request]       -> POST /api/v1/smirk/discovery-requests
 [Velvet admin approval]         -> PREPARED -> APPROVED -> QUEUED -> RUNNING
 [Bounded public discovery]      -> audited review records; no contact
+[Discovery-bound reviewed pull] -> exact READY discovery receipts only
 [Admin-reviewed research]       -> POST /api/integrations/velvet/prospects
 [Prospect call handoff]         -> BLOCKED; SMIRK call briefs are manual-dial-only
 [Signed outcome receiver]       -> POST /api/v1/leads/:id/outcome
@@ -285,7 +286,9 @@ email, sends no message, and places no call.
 SMIRK can read status with the same owner-scoped key. A completed discovery
 does not automatically export or contact anything. SMIRK must separately use
 the reviewed-inventory pull below, which retains its own prepare, approval,
-dispatch, and import receipts.
+dispatch, and import receipts. That pull carries the opaque discovery request
+ID; Velvet requires the same API-key owner and SMIRK workspace and exports only
+`READY` lead receipts from that exact `COMPLETED` or `PARTIAL` discovery.
 
 ### SMIRK Pulls Reviewed Velvet Inventory
 
@@ -312,6 +315,14 @@ response and hashes are retained for exact `200 DUPLICATE` replay. An approved
 learning candidate can narrow only that one request and can only reduce the
 batch cap. The endpoint does not call scrape, pipeline, LLM, email, SMS, or
 telephony providers.
+
+The request may include additive `sourceDiscoveryRequestId` provenance. When
+present, manual category, city, and state are required; learned mode is
+rejected. The store resolves the exact owner/workspace discovery, requires
+`COMPLETED` or `PARTIAL`, and intersects the export with its `READY` lead
+receipts. The response echoes the same opaque ID so SMIRK can reject missing or
+changed provenance before import. Segment similarity alone is not treated as
+discovery proof.
 
 SMIRK separately stores `PREPARED`, `APPROVED`, `SENDING`, `PARTIAL`,
 `COMPLETED`, `EMPTY`, `FAILED`, `CANCELLED`, and `EXPIRED`. A full operator
@@ -537,7 +548,7 @@ Current gates:
 
 | Command                 | Boundary                                           | Credential-free result on 2026-07-30      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 145 passed, 0 failed, 0 skipped            |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 147 passed, 0 failed, 0 skipped            |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 59 explicitly skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
 | `pnpm audit --prod --audit-level high` | Production dependency advisories       | 0 known vulnerabilities                   |

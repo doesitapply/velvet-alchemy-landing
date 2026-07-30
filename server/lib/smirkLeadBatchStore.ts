@@ -2,6 +2,7 @@ import {
   and,
   desc,
   eq,
+  inArray,
   isNotNull,
   isNull,
   or,
@@ -11,6 +12,8 @@ import {
   acquisitionLearningCandidates,
   audits,
   leads,
+  smirkDiscoveryLeadItems,
+  smirkDiscoveryRequests,
   smirkLeadBatchItems,
   smirkLeadBatches,
 } from "../../drizzle/schema";
@@ -50,6 +53,7 @@ export type SmirkLeadBatchStoreResult = {
   prospectsHash: string;
   prospects: SmirkResearchPayload[];
   appliedLearningCandidate: AppliedLearningCandidate | null;
+  sourceDiscoveryRequestId: string | null;
 };
 
 type BatchActor = {
@@ -62,6 +66,7 @@ type StoredResponse = {
   prospects: SmirkResearchPayload[];
   appliedLearningCandidate: AppliedLearningCandidate | null;
   prospectsHash: string;
+  sourceDiscoveryRequestId?: string | null;
 };
 
 const storedResponseSchema = z
@@ -71,6 +76,12 @@ const storedResponseSchema = z
       .max(MAX_SMIRK_LEAD_BATCH_SIZE),
     appliedLearningCandidate: appliedLearningCandidateSchema.nullable(),
     prospectsHash: z.string().regex(/^[a-f0-9]{64}$/),
+    sourceDiscoveryRequestId: z
+      .string()
+      .min(20)
+      .max(160)
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -178,6 +189,8 @@ async function replayExistingBatch(
     prospectsHash: stored.prospectsHash,
     prospects: stored.prospects,
     appliedLearningCandidate: stored.appliedLearningCandidate,
+    sourceDiscoveryRequestId:
+      stored.sourceDiscoveryRequestId || null,
   };
 }
 
@@ -298,6 +311,8 @@ export async function exportSmirkLeadBatch(
         prospectsHash: stored.prospectsHash,
         prospects: stored.prospects,
         appliedLearningCandidate: stored.appliedLearningCandidate,
+        sourceDiscoveryRequestId:
+          stored.sourceDiscoveryRequestId || null,
       };
     }
 
@@ -351,6 +366,63 @@ export async function exportSmirkLeadBatch(
       );
     }
 
+    let discoveryLeadIds: number[] | null = null;
+    if (request.sourceDiscoveryRequestId) {
+      const discoveries = await tx
+        .select({
+          id: smirkDiscoveryRequests.id,
+          userId: smirkDiscoveryRequests.userId,
+          workspaceId: smirkDiscoveryRequests.workspaceId,
+          state: smirkDiscoveryRequests.state,
+        })
+        .from(smirkDiscoveryRequests)
+        .where(
+          eq(
+            smirkDiscoveryRequests.requestId,
+            request.sourceDiscoveryRequestId
+          )
+        )
+        .limit(1);
+      const discovery = discoveries[0];
+      if (
+        !discovery ||
+        discovery.userId !== actor.userId ||
+        discovery.workspaceId !== request.workspaceId
+      ) {
+        throw new SmirkLeadBatchStoreError(
+          "The source discovery is not available to this owner and workspace.",
+          "SMIRK_LEAD_BATCH_DISCOVERY_NOT_FOUND",
+          404
+        );
+      }
+      if (!["COMPLETED", "PARTIAL"].includes(discovery.state)) {
+        throw new SmirkLeadBatchStoreError(
+          `The source discovery is ${discovery.state}, not ready for export.`,
+          "SMIRK_LEAD_BATCH_DISCOVERY_NOT_READY",
+          412
+        );
+      }
+      const discoveryItems = await tx
+        .select({ leadId: smirkDiscoveryLeadItems.leadId })
+        .from(smirkDiscoveryLeadItems)
+        .where(
+          and(
+            eq(
+              smirkDiscoveryLeadItems.discoveryId,
+              discovery.id
+            ),
+            eq(smirkDiscoveryLeadItems.userId, actor.userId),
+            eq(smirkDiscoveryLeadItems.state, "READY"),
+            isNotNull(smirkDiscoveryLeadItems.leadId)
+          )
+        );
+      discoveryLeadIds = discoveryItems
+        .map(item => Number(item.leadId || 0))
+        .filter(
+          leadId => Number.isSafeInteger(leadId) && leadId > 0
+        );
+    }
+
     const conditions = [
       eq(leads.userId, actor.userId),
       eq(leads.status, "audited"),
@@ -360,6 +432,13 @@ export async function exportSmirkLeadBatch(
         isNotNull(leads.phone)
       )!,
     ];
+    if (discoveryLeadIds) {
+      conditions.push(
+        discoveryLeadIds.length > 0
+          ? inArray(leads.id, discoveryLeadIds)
+          : sql`FALSE`
+      );
+    }
     if (filters.category) {
       conditions.push(
         sql`LOWER(TRIM(${leads.category})) = ${filters.category}`
@@ -505,6 +584,8 @@ export async function exportSmirkLeadBatch(
       prospects,
       appliedLearningCandidate: candidate,
       prospectsHash,
+      sourceDiscoveryRequestId:
+        request.sourceDiscoveryRequestId || null,
     };
     const responsePayload = JSON.stringify(storedResponse);
     const responsePayloadHash = hashSmirkLeadBatchValue(storedResponse);
@@ -554,6 +635,8 @@ export async function exportSmirkLeadBatch(
       prospectsHash,
       prospects,
       appliedLearningCandidate: candidate,
+      sourceDiscoveryRequestId:
+        request.sourceDiscoveryRequestId || null,
     };
     });
   } catch (error) {

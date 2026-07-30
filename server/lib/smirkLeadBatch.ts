@@ -16,6 +16,12 @@ export const smirkLeadBatchRequestSchema = z
     contractVersion: z.literal(SMIRK_LEAD_BATCH_REQUEST_CONTRACT),
     requestId: z.string().min(20).max(160).regex(SAFE_EXTERNAL_ID),
     workspaceId: z.number().int().positive(),
+    sourceDiscoveryRequestId: z
+      .string()
+      .min(20)
+      .max(160)
+      .regex(SAFE_EXTERNAL_ID)
+      .optional(),
     criteria: z
       .object({
         limit: z.number().int().min(1).max(MAX_SMIRK_LEAD_BATCH_SIZE),
@@ -46,7 +52,22 @@ export const smirkLeadBatchRequestSchema = z
     contactActionAllowed: z.literal(false),
     maxSpendCents: z.literal(0),
   })
-  .strict();
+  .strict()
+  .superRefine((request, ctx) => {
+    if (
+      request.sourceDiscoveryRequestId &&
+      (request.criteria.learningMode !== "none" ||
+        !request.criteria.category ||
+        !request.criteria.city ||
+        !request.criteria.state)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "A discovery-bound batch requires the exact manual category, city, and state returned by that discovery.",
+      });
+    }
+  });
 
 export const acquisitionSourcingProposalSchema = z
   .object({
@@ -84,6 +105,13 @@ export const smirkLeadBatchResponseSchema = z
       .array(smirkResearchPayloadSchema)
       .max(MAX_SMIRK_LEAD_BATCH_SIZE),
     appliedLearningCandidate: appliedLearningCandidateSchema.nullable(),
+    sourceDiscoveryRequestId: z
+      .string()
+      .min(20)
+      .max(160)
+      .regex(SAFE_EXTERNAL_ID)
+      .nullable()
+      .default(null),
     contactActionAllowed: z.literal(false),
     spendAuthorized: z.literal(false),
     externalAction: z.literal("research_export_only"),

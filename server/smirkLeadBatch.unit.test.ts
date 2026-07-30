@@ -101,6 +101,27 @@ describe("SMIRK lead batch request", () => {
       }).success
     ).toBe(false);
   });
+
+  it("requires exact manual filters for a discovery-bound batch", () => {
+    const sourceDiscoveryRequestId =
+      "smirk-discovery-22222222-2222-4222-8222-222222222222";
+    expect(
+      smirkLeadBatchRequestSchema.parse({
+        ...request,
+        sourceDiscoveryRequestId,
+      }).sourceDiscoveryRequestId
+    ).toBe(sourceDiscoveryRequestId);
+    expect(
+      smirkLeadBatchRequestSchema.safeParse({
+        ...request,
+        sourceDiscoveryRequestId,
+        criteria: {
+          limit: 8,
+          learningMode: "latest_approved",
+        },
+      }).success
+    ).toBe(false);
+  });
 });
 
 describe("SMIRK lead batch learning gate", () => {
@@ -162,6 +183,7 @@ describe("SMIRK lead batch response", () => {
         prospectsHash: hashSmirkLeadBatchValue(prospects),
         prospects,
         appliedLearningCandidate: null,
+        sourceDiscoveryRequestId: null,
         contactActionAllowed: false,
         spendAuthorized: false,
         externalAction: "research_export_only",
@@ -219,6 +241,8 @@ describe("SMIRK lead batch response", () => {
       prospects,
       appliedLearningCandidate: null,
       prospectsHash: hashSmirkLeadBatchValue(prospects),
+      sourceDiscoveryRequestId:
+        "smirk-discovery-22222222-2222-4222-8222-222222222222",
     };
     expect(
       parseStoredSmirkLeadBatchResponse(
