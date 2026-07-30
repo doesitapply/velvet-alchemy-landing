@@ -222,6 +222,12 @@ export async function initializeSystemConfig(): Promise<void> {
       description:
         "Daily API spend budget in cents ($10.00 default). Exceeding this auto-trips the global kill-switch.",
     },
+    {
+      key: "smirk_discovery_worker_lock",
+      value: "idle",
+      description:
+        "Singleton row locked while claiming one approval-gated SMIRK discovery job.",
+    },
   ];
 
   for (const config of defaults) {

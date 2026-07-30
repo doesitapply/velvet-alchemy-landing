@@ -51,6 +51,7 @@ export type MapRequestContext = {
   userId: number;
   operation: string;
   leadId?: number;
+  expectedCostCentsPerRequest?: number;
 };
 
 export function readMapsRequestCostConfig(
@@ -114,6 +115,15 @@ export async function makeRequest<T = unknown>(
   ) {
     throw new Error(
       "A valid owner and operation are required for Maps cost tracking."
+    );
+  }
+  if (
+    context.expectedCostCentsPerRequest !== undefined &&
+    context.expectedCostCentsPerRequest !==
+      costConfig.costCentsPerRequest
+  ) {
+    throw new Error(
+      "Google Maps request cost changed after operator approval; the provider request was not started."
     );
   }
 
@@ -406,5 +416,4 @@ export type RoadsResult = {
  * Output: Image URL (not JSON) - use directly in <img src={url} />
  * Note: Construct URL manually with getMapsConfig() for auth
  */
-
 

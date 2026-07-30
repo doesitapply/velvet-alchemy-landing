@@ -10,6 +10,8 @@ import { serveStatic, setupVite } from "./vite";
 import { registerStripeWebhook } from "../webhooks";
 import { createApiRouter } from "../apiRouter";
 import { startWorker } from "../worker";
+import { initializeSystemConfig } from "../governor";
+import { startSmirkDiscoveryWorker } from "../smirkDiscoveryWorker";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,6 +33,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  await initializeSystemConfig();
   const app = express();
   const server = createServer(app);
   
@@ -71,6 +74,7 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     // Start the background pipeline queue worker
     startWorker();
+    startSmirkDiscoveryWorker();
   });
 }
 

@@ -169,6 +169,13 @@
       "when": 1785427366184,
       "tag": "0023_high_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1785430676393,
+      "tag": "0024_known_talisman",
+      "breakpoints": true
     }
   ]
 }

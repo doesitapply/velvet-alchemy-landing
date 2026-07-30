@@ -1,6 +1,7 @@
 import {
   boolean,
   decimal,
+  index,
   int,
   mediumtext,
   mysqlEnum,
@@ -269,6 +270,147 @@ export const smirkLeadBatchItems = mysqlTable(
 export type SmirkLeadBatchItem = typeof smirkLeadBatchItems.$inferSelect;
 export type InsertSmirkLeadBatchItem =
   typeof smirkLeadBatchItems.$inferInsert;
+
+/**
+ * Approval-gated discovery requests originating from SMIRK.
+ * The external request can only prepare a quote. A Velvet administrator must
+ * separately approve and queue the exact request before any provider call.
+ */
+export const smirkDiscoveryRequests = mysqlTable(
+  "smirk_discovery_requests",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    requestId: varchar("requestId", { length: 160 }).notNull(),
+    workspaceId: int("workspaceId").notNull(),
+    requestedByApiKeyId: int("requestedByApiKeyId").notNull(),
+    requestedByApiKeyName: varchar("requestedByApiKeyName", {
+      length: 100,
+    }).notNull(),
+    requestPayload: mediumtext("requestPayload").notNull(),
+    requestPayloadHash: varchar("requestPayloadHash", {
+      length: 64,
+    }).notNull(),
+    effectiveCriteria: text("effectiveCriteria").notNull(),
+    effectiveCriteriaHash: varchar("effectiveCriteriaHash", {
+      length: 64,
+    }).notNull(),
+    appliedLearningCandidateId: int("appliedLearningCandidateId"),
+    appliedLearningCandidatePayload: text("appliedLearningCandidatePayload"),
+    quotePayload: text("quotePayload").notNull(),
+    quotePayloadHash: varchar("quotePayloadHash", { length: 64 }).notNull(),
+    state: mysqlEnum("state", [
+      "PREPARED",
+      "APPROVED",
+      "QUEUED",
+      "RUNNING",
+      "COMPLETED",
+      "EMPTY",
+      "PARTIAL",
+      "FAILED",
+      "REJECTED",
+      "CANCELLED",
+      "EXPIRED",
+    ])
+      .default("PREPARED")
+      .notNull(),
+    approvalPayloadHash: varchar("approvalPayloadHash", { length: 64 }),
+    approvedMaxSpendCents: int("approvedMaxSpendCents"),
+    approvedBy: int("approvedBy"),
+    approvedAt: timestamp("approvedAt"),
+    expiresAt: timestamp("expiresAt").notNull(),
+    queuedBy: int("queuedBy"),
+    queuedAt: timestamp("queuedAt"),
+    executionToken: varchar("executionToken", { length: 64 }),
+    leaseExpiresAt: timestamp("leaseExpiresAt"),
+    providerRequests: int("providerRequests").default(0).notNull(),
+    createdLeadCount: int("createdLeadCount").default(0).notNull(),
+    readyLeadCount: int("readyLeadCount").default(0).notNull(),
+    skippedLeadCount: int("skippedLeadCount").default(0).notNull(),
+    failedLeadCount: int("failedLeadCount").default(0).notNull(),
+    resultPayload: mediumtext("resultPayload"),
+    resultPayloadHash: varchar("resultPayloadHash", { length: 64 }),
+    error: text("error"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    completedAt: timestamp("completedAt"),
+  },
+  table => ({
+    requestUnique: uniqueIndex("smirk_discovery_requests_request_unique").on(
+      table.requestId
+    ),
+    stateCreatedIndex: index(
+      "smirk_discovery_requests_state_created_idx"
+    ).on(table.state, table.createdAt),
+  })
+);
+
+export type SmirkDiscoveryRequestRecord =
+  typeof smirkDiscoveryRequests.$inferSelect;
+export type InsertSmirkDiscoveryRequestRecord =
+  typeof smirkDiscoveryRequests.$inferInsert;
+
+export const smirkDiscoveryLeadItems = mysqlTable(
+  "smirk_discovery_lead_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    discoveryId: int("discoveryId").notNull(),
+    userId: int("userId").notNull(),
+    sourcePlaceId: varchar("sourcePlaceId", { length: 255 }).notNull(),
+    leadId: int("leadId"),
+    state: mysqlEnum("state", ["CREATED", "READY", "SKIPPED", "FAILED"])
+      .notNull(),
+    sourcePayloadHash: varchar("sourcePayloadHash", { length: 64 }).notNull(),
+    error: text("error"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    discoveryPlaceUnique: uniqueIndex(
+      "smirk_discovery_lead_items_discovery_place_unique"
+    ).on(table.discoveryId, table.sourcePlaceId),
+    discoveryStateIndex: index(
+      "smirk_discovery_lead_items_discovery_state_idx"
+    ).on(table.discoveryId, table.state),
+  })
+);
+
+export type SmirkDiscoveryLeadItem =
+  typeof smirkDiscoveryLeadItems.$inferSelect;
+export type InsertSmirkDiscoveryLeadItem =
+  typeof smirkDiscoveryLeadItems.$inferInsert;
+
+export const smirkDiscoveryEvents = mysqlTable(
+  "smirk_discovery_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    discoveryId: int("discoveryId").notNull(),
+    userId: int("userId").notNull(),
+    actorType: mysqlEnum("actorType", [
+      "smirk_api",
+      "velvet_user",
+      "worker",
+      "system",
+    ]).notNull(),
+    actorId: varchar("actorId", { length: 160 }).notNull(),
+    action: varchar("action", { length: 80 }).notNull(),
+    fromState: varchar("fromState", { length: 32 }),
+    toState: varchar("toState", { length: 32 }).notNull(),
+    payloadHash: varchar("payloadHash", { length: 64 }).notNull(),
+    details: text("details").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    discoveryCreatedIndex: index(
+      "smirk_discovery_events_discovery_created_idx"
+    ).on(table.discoveryId, table.createdAt),
+  })
+);
+
+export type SmirkDiscoveryEvent =
+  typeof smirkDiscoveryEvents.$inferSelect;
+export type InsertSmirkDiscoveryEvent =
+  typeof smirkDiscoveryEvents.$inferInsert;
 
 /**
  * Human-review proposals derived from outcome-linked sourcing segments.

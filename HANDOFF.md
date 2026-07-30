@@ -1,8 +1,8 @@
 # Velvet Alchemy — Operator Handoff Document
 
-**Hardening baseline:** `73728f8` | **Date:** 2026-07-30
+**Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
 
-**Current local proof:** TypeScript clean; 113/113 portable unit tests pass; the production build completes with known analytics-placeholder and bundle-size warnings. Credentialed, deployed, and live results are separate gates below.
+**Current local proof:** TypeScript clean; 145/145 portable unit tests pass; the production build completes with known analytics-placeholder and bundle-size warnings. Credentialed, migrated, deployed, and live results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -47,6 +47,9 @@ The system is designed to be operated by a single person or a small team, with e
                                          [Human approve / reject / copy]
 
 [Synthetic contract test only] -> POST /api/integrations/velvet/handoffs
+[SMIRK discovery request]       -> POST /api/v1/smirk/discovery-requests
+[Velvet admin approval]         -> PREPARED -> APPROVED -> QUEUED -> RUNNING
+[Bounded public discovery]      -> audited review records; no contact
 [Admin-reviewed research]       -> POST /api/integrations/velvet/prospects
 [Prospect call handoff]         -> BLOCKED; SMIRK call briefs are manual-dial-only
 [Signed outcome receiver]       -> POST /api/v1/leads/:id/outcome
@@ -108,6 +111,11 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/lib/smirkResearch.ts`        | Research-only SMIRK client, payload validation, and response proof |
 | `server/lib/smirkLeadBatch.ts`       | SMIRK pull contract, zero-spend/no-contact validation, learning filter proof |
 | `server/lib/smirkLeadBatchStore.ts`  | Owner-scoped audited-lead reservation and exact replay receipts    |
+| `server/lib/smirkDiscovery.ts`       | SMIRK discovery request, quote, status, and exact spend-cap contracts |
+| `server/lib/smirkDiscoveryStore.ts`  | Approval state machine, immutable hashes, audit events, and leases |
+| `server/lib/smirkDiscoveryExecutor.ts` | Sequential public-source discovery with no contact providers     |
+| `server/smirkDiscoveryRouter.ts`     | Privileged browser-only approve, queue, reject, and cancel controls |
+| `server/smirkDiscoveryWorker.ts`     | Default-disabled one-job discovery worker                          |
 | `server/lib/smirkOutcome.ts`         | Signed callback verification and research-receipt binding          |
 | `server/lib/acquisitionLearning.ts`  | Outcome-linked sourcing scorecards and bounded proposals           |
 | `server/lib/emailEnrichment.ts`      | Budget-reserved Hunter.io verified-owner lookup                    |
@@ -140,7 +148,7 @@ The system is designed to be operated by a single person or a small team, with e
 
 | File                | Purpose                  |
 | ------------------- | ------------------------ |
-| `drizzle/schema.ts` | All 25 table definitions |
+| `drizzle/schema.ts` | All 28 table definitions |
 
 ---
 
@@ -159,6 +167,9 @@ The system is designed to be operated by a single person or a small team, with e
 | `acquisition_learning_candidates` | Human-reviewed trade/metro sourcing proposals |
 | `smirk_lead_batches` | Immutable SMIRK reviewed-lead export requests and responses |
 | `smirk_lead_batch_items` | One-time owner-scoped lead reservations for those exports |
+| `smirk_discovery_requests` | Immutable request, quote, approval, lease, and result receipts |
+| `smirk_discovery_lead_items` | Per-listing READY, SKIPPED, or FAILED discovery receipt |
+| `smirk_discovery_events` | Append-only discovery state and actor audit trail |
 | `payments`        | Stripe checkout sessions and payment status                  |
 | `users`           | Authenticated operators (Manus OAuth)                        |
 
@@ -228,6 +239,7 @@ Repository contents do not prove whether a runtime secret is currently installed
 | `HUNTER_COST_CENTS_PER_CREDIT`| Owner-supplied cost used for the pre-request daily-budget reservation                            |
 | `ENABLE_MAPS_RESEARCH`        | Must equal `true` before any Google Maps proxy request can start                                 |
 | `MAPS_COST_CENTS_PER_REQUEST` | Owner-supplied positive cost reserved before every Maps search, page, ranking, or detail request |
+| `ENABLE_SMIRK_DISCOVERY_WORKER` | Must equal `true` to claim separately approved discovery jobs; disabled by default             |
 | `GOOGLE_AI_API_KEY`           | Optional LLM fallback                                                                           |
 | `ENABLE_PIPELINE_WORKER`      | Must equal `true` to start the cost-bearing background worker; disabled by default              |
 
@@ -240,7 +252,40 @@ daily cap. Missing cost configuration fails closed before network access.
 
 ## SMIRK Integration
 
-There are three separate contracts. Their credentials and semantics must never be mixed.
+There are four separate contracts. Their credentials and semantics must never be mixed.
+
+### SMIRK Requests Bounded Discovery
+
+Source-complete on the Velvet hardening branch; not migrated, deployed,
+configured, or provider-tested.
+
+```
+POST https://velvetalchemy.manus.space/api/v1/smirk/discovery-requests
+GET  https://velvetalchemy.manus.space/api/v1/smirk/discovery-requests/:requestId
+Authorization: Bearer <dedicated Velvet key with smirk:research>
+Idempotency-Key: <same opaque request ID as the POST body>
+```
+
+The POST can only persist an immutable no-contact, no-spend request and a
+deterministic Maps quote. It cannot approve that quote or invoke a provider.
+The request is limited to 20 leads and a maximum quoted cost of 500 cents.
+Manual mode requires trade, city, and state. Learned mode applies exactly one
+previously human-approved category or metro candidate plus the complementary
+operator-selected dimension.
+
+Only a privileged Velvet browser session can approve the exact request hash,
+quote hash, and quoted amount. Queueing is a separate exact action. The worker
+is disabled unless `ENABLE_SMIRK_DISCOVERY_WORKER=true`, claims one job at a
+time, honors global and owner kill switches, never auto-retries an uncertain
+lease, and rechecks the approved unit price and total provider-request count
+before every Maps call. Each provider cost is durably reserved before network
+access. The executor creates public-source review records only; it imports no
+email, sends no message, and places no call.
+
+SMIRK can read status with the same owner-scoped key. A completed discovery
+does not automatically export or contact anything. SMIRK must separately use
+the reviewed-inventory pull below, which retains its own prepare, approval,
+dispatch, and import receipts.
 
 ### SMIRK Pulls Reviewed Velvet Inventory
 
@@ -414,6 +459,8 @@ All endpoints require `Authorization: Bearer <api_key>`.
 | POST   | `/api/v1/leads/:id/audit`   | `audit`         | Trigger audit on one owned lead                              |
 | POST   | `/api/v1/pipeline`          | `pipeline`      | Scrape, create leads, and optionally audit                   |
 | POST   | `/api/v1/smirk/lead-batches` | `smirk:research` | Reserve 1-20 audited records for SMIRK review; no contact or spend |
+| POST   | `/api/v1/smirk/discovery-requests` | `smirk:research` | Prepare one bounded discovery quote; no provider call |
+| GET    | `/api/v1/smirk/discovery-requests/:requestId` | `smirk:research` | Read owner-scoped discovery status; no external action |
 | GET    | `/api/v1/leads/ready`       | `leads:read`    | Get audited leads for human review; no contact authorization |
 | POST   | `/api/v1/leads/:id/handoff` | `handoff:write` | Compatibility route; returns a policy block                  |
 | POST   | `/api/v1/leads/:id/outcome` | `outcome:write` | Signed, owner-scoped, idempotent feedback event               |
@@ -460,7 +507,7 @@ Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` auth
 
 | Issue                                                     | Impact                                          | Fix                                                                                                     |
 | --------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Outcome/learning and reviewed-batch migrations are generated but not applied | Callback, sourcing-learning, and batch-reservation storage are not live | Review `drizzle/0022_smirk_outcome_events.sql` plus `drizzle/0023_high_loners.sql`, back up the target DB, then approve the exact migrations |
+| Outcome, reviewed-batch, and discovery migrations are generated but not applied | Callback, sourcing-learning, batch-reservation, and discovery storage are not live | Review `drizzle/0022_smirk_outcome_events.sql`, `drizzle/0023_high_loners.sql`, and `drizzle/0024_known_talisman.sql`; back up the target DB, then approve exact migrations |
 | Google AI key (`AQ.*`) is a short-lived OAuth token       | High — Gemini fallback will die                 | Get permanent `AIzaSy*` key from aistudio.google.com/apikey                                             |
 | Builder JSX-location plugin expects Vite 4/5, not Vite 7  | Low — install warning; current build passes     | Upgrade or remove the development-only plugin before the next Vite upgrade                              |
 | Research receiver/client exist only on hardening branches | Real prospect registration is not active        | Approve exact commits, deploy both sides, configure dedicated credentials, then run one synthetic proof |
@@ -490,7 +537,7 @@ Current gates:
 
 | Command                 | Boundary                                           | Credential-free result on 2026-07-30      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 126 passed, 0 failed, 0 skipped            |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 145 passed, 0 failed, 0 skipped            |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 59 explicitly skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
 | `pnpm audit --prod --audit-level high` | Production dependency advisories       | 0 known vulnerabilities                   |

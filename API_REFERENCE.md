@@ -24,7 +24,7 @@ automatically enqueue pipeline work or authorize outreach.
 | `audit` | POST /leads/:id/audit |
 | `pipeline` | POST /pipeline |
 | `outcome:write` | POST /leads/:id/outcome (signed feedback only) |
-| `smirk:research` | POST /smirk/lead-batches (admin-granted, zero-spend research export only) |
+| `smirk:research` | Prepare/status bounded discovery and export reviewed inventory; never approves spend or contact |
 | `*` | All endpoints |
 
 ## Endpoints
@@ -40,6 +40,43 @@ automatically enqueue pipeline work or authorize outreach.
 | POST | `/api/v1/pipeline` | `pipeline` | Scrape + create leads + optionally audit in one call |
 | POST | `/api/v1/leads/:id/outcome` | `outcome:write` | Record one signed SMIRK outcome; cannot contact a prospect |
 | POST | `/api/v1/smirk/lead-batches` | `smirk:research` | Reserve 1-20 audited records for SMIRK review; cannot search, contact, or spend |
+| POST | `/api/v1/smirk/discovery-requests` | `smirk:research` | Persist one bounded no-contact request and cost quote; cannot approve or execute |
+| GET | `/api/v1/smirk/discovery-requests/:requestId` | `smirk:research` | Read owner-scoped discovery status; no external action |
+
+### POST /api/v1/smirk/discovery-requests
+
+This route prepares discovery; it does not run discovery. The request must
+explicitly set both `contactActionAllowed` and `spendAuthorized` to `false`.
+Its `Idempotency-Key` must exactly match `requestId`.
+
+```json
+{
+  "contractVersion": "smirk-velvet.discovery-request.v1",
+  "requestId": "smirk_discovery_20260730_example_0001",
+  "workspaceId": 1,
+  "criteria": {
+    "limit": 5,
+    "category": "plumbing",
+    "city": "Reno",
+    "state": "NV",
+    "learningMode": "none"
+  },
+  "contactActionAllowed": false,
+  "spendAuthorized": false
+}
+```
+
+A new request returns `201 PREPARED`; an exact replay returns `200 DUPLICATE`.
+The response binds the request hash, quote hash, effective criteria, maximum
+provider calls, per-call price, and maximum cost. Only a privileged Velvet
+browser session can approve the exact quote and separately queue it.
+
+### GET /api/v1/smirk/discovery-requests/:requestId
+
+Returns one owner-scoped state receipt:
+`PREPARED`, `APPROVED`, `QUEUED`, `RUNNING`, `COMPLETED`, `EMPTY`, `PARTIAL`,
+`FAILED`, `REJECTED`, `CANCELLED`, or `EXPIRED`. Counts are research receipts,
+not contact, delivery, conversion, or revenue proof.
 
 ### POST /api/v1/smirk/lead-batches
 

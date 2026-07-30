@@ -6,6 +6,8 @@ import {
   Activity,
   Check,
   CheckCircle2,
+  CircleDollarSign,
+  Database,
   Loader2,
   Play,
   Search,
@@ -41,12 +43,23 @@ export default function CommandCenter() {
   });
   const learningCandidatesQuery =
     trpc.acquisitionLearning.candidates.useQuery();
+  const smirkDiscoveryQuery = trpc.smirkDiscovery.list.useQuery({
+    limit: 10,
+  });
   const batchAuditMutation = trpc.orchestrator.batchAuditAll.useMutation();
   const prescreenAllMutation = trpc.prescreener.prescreenAll.useMutation();
   const createLearningCandidateMutation =
     trpc.acquisitionLearning.createCandidate.useMutation();
   const decideLearningCandidateMutation =
     trpc.acquisitionLearning.decideCandidate.useMutation();
+  const approveSmirkDiscoveryMutation =
+    trpc.smirkDiscovery.approve.useMutation();
+  const executeSmirkDiscoveryMutation =
+    trpc.smirkDiscovery.execute.useMutation();
+  const rejectSmirkDiscoveryMutation =
+    trpc.smirkDiscovery.reject.useMutation();
+  const cancelSmirkDiscoveryMutation =
+    trpc.smirkDiscovery.cancel.useMutation();
 
   const metrics = metricsQuery.data;
   const pipeline = pipelineQuery.data;
@@ -85,6 +98,92 @@ export default function CommandCenter() {
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Unable to record decision."
+      );
+    }
+  };
+
+  const approveSmirkDiscovery = async (
+    request: NonNullable<typeof smirkDiscoveryQuery.data>[number]
+  ) => {
+    const approved = confirm(
+      `Approve exactly $${(request.quote.maximumCostCents / 100).toFixed(2)} for this bounded Maps discovery? This approval cannot send email, SMS, or place a call.`
+    );
+    if (!approved) return;
+    try {
+      await approveSmirkDiscoveryMutation.mutateAsync({
+        discoveryId: request.discoveryId,
+        requestPayloadHash: request.requestPayloadHash,
+        quotePayloadHash: request.quotePayloadHash,
+        approvedMaxSpendCents: request.quote.maximumCostCents,
+        confirmation: "approve-one-smirk-discovery-v1",
+        attestNoContactAuthority: true,
+        attestExactSpendCap: true,
+      });
+      toast.success("Discovery spend cap approved. Nothing has executed.");
+      smirkDiscoveryQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to approve discovery."
+      );
+    }
+  };
+
+  const executeSmirkDiscovery = async (
+    request: NonNullable<typeof smirkDiscoveryQuery.data>[number]
+  ) => {
+    const approved = confirm(
+      "Queue this one approved discovery? The worker may use only the displayed cap and cannot contact a prospect."
+    );
+    if (!approved) return;
+    try {
+      await executeSmirkDiscoveryMutation.mutateAsync({
+        discoveryId: request.discoveryId,
+        requestPayloadHash: request.requestPayloadHash,
+        quotePayloadHash: request.quotePayloadHash,
+        confirmation: "execute-one-smirk-discovery-v1",
+        attestWorkerMayUseApprovedCap: true,
+        attestNoContactAuthority: true,
+      });
+      toast.success("Discovery queued under the approved cap.");
+      smirkDiscoveryQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to queue discovery."
+      );
+    }
+  };
+
+  const decideSmirkDiscovery = async (
+    request: NonNullable<typeof smirkDiscoveryQuery.data>[number],
+    decision: "REJECTED" | "CANCELLED"
+  ) => {
+    const approved = confirm(
+      `${decision === "REJECTED" ? "Reject" : "Cancel"} this discovery request?`
+    );
+    if (!approved) return;
+    try {
+      if (decision === "REJECTED") {
+        await rejectSmirkDiscoveryMutation.mutateAsync({
+          discoveryId: request.discoveryId,
+          confirmation: "reject-one-smirk-discovery-v1",
+        });
+      } else {
+        await cancelSmirkDiscoveryMutation.mutateAsync({
+          discoveryId: request.discoveryId,
+          confirmation: "cancel-one-smirk-discovery-v1",
+        });
+      }
+      toast.success(`Discovery ${decision.toLowerCase()}.`);
+      smirkDiscoveryQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to update discovery."
       );
     }
   };
@@ -145,6 +244,161 @@ export default function CommandCenter() {
 
           {/* Operator Wizard */}
           <OperatorWizard />
+
+          <Card className="bg-black/50 border-white/10">
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-gold">
+                    <Database className="h-5 w-5" />
+                    SMIRK discovery approvals
+                  </CardTitle>
+                  <CardDescription>
+                    SMIRK can request a segment and receive a quote. Only this
+                    administrator surface can approve cost and queue one
+                    bounded discovery.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                  <ShieldCheck className="h-4 w-4" />
+                  No contact authority
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {smirkDiscoveryQuery.isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : smirkDiscoveryQuery.error ? (
+                <p className="text-sm text-red-300">
+                  Discovery approval ledger unavailable.
+                </p>
+              ) : !smirkDiscoveryQuery.data?.length ? (
+                <p className="text-sm text-muted-foreground">
+                  No SMIRK discovery requests are awaiting review.
+                </p>
+              ) : (
+                <div className="divide-y divide-white/10 border-y border-white/10">
+                  {smirkDiscoveryQuery.data.map(request => {
+                    const busy =
+                      approveSmirkDiscoveryMutation.isPending ||
+                      executeSmirkDiscoveryMutation.isPending ||
+                      rejectSmirkDiscoveryMutation.isPending ||
+                      cancelSmirkDiscoveryMutation.isPending;
+                    return (
+                      <div
+                        key={request.discoveryId}
+                        className="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              {request.effectiveCriteria.category}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {request.effectiveCriteria.city},{" "}
+                              {request.effectiveCriteria.state}
+                            </span>
+                            <span className="rounded border border-white/10 px-2 py-0.5 text-[11px] text-emerald-300">
+                              {request.state}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span>
+                              Limit {request.effectiveCriteria.limit}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <CircleDollarSign className="h-3.5 w-3.5" />
+                              Maximum $
+                              {(
+                                request.quote.maximumCostCents / 100
+                              ).toFixed(2)}
+                            </span>
+                            <span>
+                              {request.providerRequests}/
+                              {request.quote.maximumRequests} provider slots
+                            </span>
+                            <span>
+                              {request.readyLeadCount} review-ready
+                            </span>
+                          </div>
+                          {request.error ? (
+                            <p className="mt-2 text-xs text-red-300">
+                              {request.error}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {request.state === "PREPARED" ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                title="Reject discovery request"
+                                disabled={busy}
+                                onClick={() =>
+                                  decideSmirkDiscovery(request, "REJECTED")
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() =>
+                                  approveSmirkDiscovery(request)
+                                }
+                              >
+                                <Check className="mr-2 h-4 w-4" />
+                                Approve cap
+                              </Button>
+                            </>
+                          ) : null}
+                          {request.state === "APPROVED" ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                title="Cancel approved discovery"
+                                disabled={busy}
+                                onClick={() =>
+                                  decideSmirkDiscovery(request, "CANCELLED")
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() =>
+                                  executeSmirkDiscovery(request)
+                                }
+                              >
+                                <Play className="mr-2 h-4 w-4" />
+                                Queue one
+                              </Button>
+                            </>
+                          ) : null}
+                          {request.state === "QUEUED" ? (
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              title="Cancel queued discovery"
+                              disabled={busy}
+                              onClick={() =>
+                                decideSmirkDiscovery(request, "CANCELLED")
+                              }
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="bg-black/50 border-white/10">
             <CardHeader>

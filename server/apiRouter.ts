@@ -11,7 +11,7 @@
  *   scrape       - POST /scrape
  *   audit        - POST /leads/:id/audit
  *   pipeline     - POST /pipeline
- *   smirk:research - POST /smirk/lead-batches
+ *   smirk:research - prepare/status discovery and export reviewed lead batches
  *   *            - all scopes
  */
 
@@ -61,6 +61,15 @@ import {
   SmirkLeadBatchStoreError,
   exportSmirkLeadBatch,
 } from "./lib/smirkLeadBatchStore";
+import {
+  SMIRK_DISCOVERY_SCOPE,
+  smirkDiscoveryRequestSchema,
+} from "./lib/smirkDiscovery";
+import {
+  SmirkDiscoveryStoreError,
+  getSmirkDiscoveryStatus,
+  prepareSmirkDiscovery,
+} from "./lib/smirkDiscoveryStore";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -281,6 +290,115 @@ export function createApiRouter(): Router {
         return res.status(500).json({
           error: "The reviewed lead batch could not be exported.",
           code: "SMIRK_LEAD_BATCH_EXPORT_FAILED",
+        });
+      }
+    }
+  );
+
+  // ── POST /api/v1/smirk/discovery-requests ─────────────────────────────────
+  // Creates a no-contact, no-spend request and deterministic quote. Only a
+  // separate authenticated Velvet administrator action can approve or queue it.
+  r.post(
+    "/smirk/discovery-requests",
+    requireScope(SMIRK_DISCOVERY_SCOPE),
+    async (req: AuthedRequest, res: Response) => {
+      if (!req.apiKey?.privileged) {
+        return res.status(403).json({
+          error: "Administrator authorization is required.",
+          code: "SMIRK_DISCOVERY_ADMIN_REQUIRED",
+        });
+      }
+      const parsed = smirkDiscoveryRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid SMIRK discovery request.",
+          code: "SMIRK_DISCOVERY_INVALID_REQUEST",
+        });
+      }
+      const idempotencyKey = String(
+        req.headers["idempotency-key"] || ""
+      ).trim();
+      if (idempotencyKey !== parsed.data.requestId) {
+        return res.status(400).json({
+          error:
+            "Idempotency-Key must exactly match the discovery request ID.",
+          code: "SMIRK_DISCOVERY_IDEMPOTENCY_KEY_MISMATCH",
+        });
+      }
+      const configuredWorkspaceId = Number(
+        String(process.env.SMIRK_RESEARCH_WORKSPACE_ID || "").trim()
+      );
+      if (
+        !Number.isSafeInteger(configuredWorkspaceId) ||
+        configuredWorkspaceId <= 0
+      ) {
+        return res.status(503).json({
+          error: "SMIRK research export is not configured.",
+          code: "SMIRK_DISCOVERY_NOT_CONFIGURED",
+        });
+      }
+      if (parsed.data.workspaceId !== configuredWorkspaceId) {
+        return res.status(403).json({
+          error: "Workspace is not authorized for this integration.",
+          code: "SMIRK_DISCOVERY_WORKSPACE_MISMATCH",
+        });
+      }
+      try {
+        const result = await prepareSmirkDiscovery(parsed.data, {
+          userId: req.apiKey.userId,
+          apiKeyId: req.apiKey.id,
+          apiKeyName: req.apiKey.name,
+        });
+        return res
+          .status(result.outcome === "duplicate" ? 200 : 201)
+          .json(result.response);
+      } catch (error) {
+        if (error instanceof SmirkDiscoveryStoreError) {
+          return res.status(error.status).json({
+            error: error.message,
+            code: error.code,
+          });
+        }
+        console.error("[SMIRK Discovery] Prepare error:", error);
+        return res.status(500).json({
+          error: "The discovery request could not be prepared.",
+          code: "SMIRK_DISCOVERY_PREPARE_FAILED",
+        });
+      }
+    }
+  );
+
+  // ── GET /api/v1/smirk/discovery-requests/:requestId ───────────────────────
+  r.get(
+    "/smirk/discovery-requests/:requestId",
+    requireScope(SMIRK_DISCOVERY_SCOPE),
+    async (req: AuthedRequest, res: Response) => {
+      const requestId = String(req.params.requestId || "").trim();
+      if (
+        requestId.length < 20 ||
+        requestId.length > 160 ||
+        !/^[A-Za-z0-9:_-]+$/.test(requestId)
+      ) {
+        return res.status(400).json({
+          error: "Invalid discovery request ID.",
+          code: "SMIRK_DISCOVERY_INVALID_REQUEST_ID",
+        });
+      }
+      try {
+        return res.json(
+          await getSmirkDiscoveryStatus(requestId, req.apiKey!.userId)
+        );
+      } catch (error) {
+        if (error instanceof SmirkDiscoveryStoreError) {
+          return res.status(error.status).json({
+            error: error.message,
+            code: error.code,
+          });
+        }
+        console.error("[SMIRK Discovery] Status error:", error);
+        return res.status(500).json({
+          error: "The discovery request status could not be loaded.",
+          code: "SMIRK_DISCOVERY_STATUS_FAILED",
         });
       }
     }

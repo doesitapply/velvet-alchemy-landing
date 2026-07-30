@@ -43,6 +43,7 @@ import { outreachRouter } from "./outreachRouter";
 import { providerRouter } from "./providerRouter";
 import { apiKeyRouter } from "./apiKeyRouter";
 import { acquisitionLearningRouter } from "./acquisitionLearningRouter";
+import { smirkDiscoveryRouter } from "./smirkDiscoveryRouter";
 import { externalActionBlock } from "./lib/externalActionPolicy";
 import {
   isPrivilegedUser,
@@ -78,6 +79,7 @@ export const appRouter = router({
   provider: providerRouter,
   apiKeys: apiKeyRouter,
   acquisitionLearning: acquisitionLearningRouter,
+  smirkDiscovery: smirkDiscoveryRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
