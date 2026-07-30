@@ -24,6 +24,8 @@ import {
   CheckCircle2,
   XCircle,
   PhoneMissed,
+  ListPlus,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -59,6 +61,33 @@ export default function LeadDetail() {
     { leadId: leadId! },
     { enabled: !!leadId && !!user }
   );
+  const { data: smirkResearchReadiness } =
+    trpc.leads.smirkResearchReadiness.useQuery(undefined, {
+      enabled: Boolean(leadId && user),
+      retry: false,
+    });
+  const canManageSmirkResearch = smirkResearchReadiness?.authorized === true;
+  const { data: smirkResearchReceipt, refetch: refetchSmirkResearchReceipt } =
+    trpc.leads.smirkResearchReceipt.useQuery(
+      { id: leadId! },
+      {
+        enabled: Boolean(leadId && canManageSmirkResearch),
+        retry: false,
+      }
+    );
+  const addToSmirkResearch = trpc.leads.addToSmirkResearch.useMutation({
+    onSuccess: result => {
+      toast.success(
+        result.state === "DUPLICATE"
+          ? "SMIRK already has this exact research record."
+          : "Added to the SMIRK research queue. No contact action was created."
+      );
+      refetchSmirkResearchReceipt();
+    },
+    onError: (mutationError: any) => {
+      toast.error(`SMIRK research import failed: ${mutationError.message}`);
+    },
+  });
 
   const generateAssets = trpc.visionary.generateAssets.useMutation({
     onSuccess: () => {
@@ -327,6 +356,64 @@ export default function LeadDetail() {
                 toast.error(`Audit failed: ${error}`);
               }}
             />
+          )}
+
+          {canManageSmirkResearch && (
+            <Card className="p-5 border-violet-500/20 bg-violet-500/5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <ListPlus className="h-5 w-5 text-violet-300" />
+                    <h2 className="text-lg font-serif italic text-violet-200">
+                      SMIRK Research Queue
+                    </h2>
+                    <span className="inline-flex items-center gap-1 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                      <ShieldCheck className="h-3 w-3" />
+                      NO CONTACT
+                    </span>
+                  </div>
+                  {smirkResearchReceipt ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {smirkResearchReceipt.state === "IMPORTED"
+                        ? "Imported"
+                        : "Exact record confirmed"}{" "}
+                      as SMIRK prospect #{smirkResearchReceipt.prospectId}. No
+                      email, SMS, call, handoff, or callback task was created.
+                    </p>
+                  ) : smirkResearchReadiness?.configured ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Move this audited public-business record into SMIRK for
+                      operator review only.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-amber-300/80">
+                      Configuration required:{" "}
+                      {smirkResearchReadiness?.missing?.join(", ") ||
+                        "checking dedicated research credentials"}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  className="shrink-0 border-violet-500/40 text-violet-200 hover:bg-violet-500/10"
+                  onClick={() => addToSmirkResearch.mutate({ id: lead.id })}
+                  disabled={
+                    addToSmirkResearch.isPending ||
+                    lead.status !== "audited" ||
+                    !smirkResearchReadiness?.configured
+                  }
+                >
+                  {addToSmirkResearch.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ListPlus className="mr-2 h-4 w-4" />
+                  )}
+                  {smirkResearchReceipt
+                    ? "Verify Exact Record"
+                    : "Add to SMIRK Research"}
+                </Button>
+              </div>
+            </Card>
           )}
 
           {/* Screenshot */}

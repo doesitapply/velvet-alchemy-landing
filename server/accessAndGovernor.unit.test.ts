@@ -38,6 +38,7 @@ describe("cost-bearing action limits", () => {
     "checkout_create",
     "draft_generate",
     "voice_analyze",
+    "smirk_research_export",
   ])("has an explicit policy for %s", action => {
     expect(getRateLimitPolicy(action)).toMatchObject({
       maxRequests: expect.any(Number),

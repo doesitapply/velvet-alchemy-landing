@@ -28,6 +28,7 @@ const RATE_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
   checkout_create: { maxRequests: 5, windowMs: 60 * 60 * 1000 },
   draft_generate: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
   voice_analyze: { maxRequests: 3, windowMs: 60 * 60 * 1000 },
+  smirk_research_export: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
 };
 
 export function getRateLimitPolicy(action: string): {

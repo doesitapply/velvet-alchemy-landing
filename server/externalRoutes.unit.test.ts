@@ -70,4 +70,16 @@ describe("external action compatibility routes", () => {
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("blocks a normal operator before exporting research to SMIRK", async () => {
+    const caller = appRouter.createCaller(context(true));
+    await expect(caller.leads.smirkResearchReadiness()).resolves.toMatchObject({
+      authorized: false,
+      configured: false,
+      externalActions: "none",
+    });
+    await expect(
+      caller.leads.addToSmirkResearch({ id: 1 })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });

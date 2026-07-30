@@ -5,7 +5,7 @@ import { checkKillSwitch, checkRateLimit } from "./governor";
 import { requireCostAuthority, requireOwnedLead } from "./lib/accessControl";
 import * as fs from "fs";
 import * as path from "path";
-import archiver from "archiver";
+import { ZipArchive, type ArchiverError } from "archiver";
 
 const WEBSITES_DIR = "/tmp/generated-websites";
 
@@ -220,7 +220,7 @@ export const websiteGeneratorRouter = router({
       // Create ZIP file
       const zipPath = path.join("/tmp", `${companyName}-website.zip`);
       const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", {
+      const archive = new ZipArchive({
         zlib: { level: 9 }, // Maximum compression
       });
 
@@ -236,7 +236,7 @@ export const websiteGeneratorRouter = router({
             });
           });
 
-          archive.on("error", err => {
+          archive.on("error", (err: ArchiverError) => {
             reject(err);
           });
 

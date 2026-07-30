@@ -70,11 +70,9 @@ async function requireApiKey(
 ) {
   const authHeader = req.headers["authorization"];
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .json({
-        error: "Missing or invalid Authorization header. Use: Bearer <api_key>",
-      });
+    return res.status(401).json({
+      error: "Missing or invalid Authorization header. Use: Bearer <api_key>",
+    });
   }
 
   const rawKey = authHeader.slice(7).trim();
@@ -605,7 +603,7 @@ export function createApiRouter(): Router {
         code: EXTERNAL_ACTION_BLOCKED_CODE,
         mode: EXTERNAL_ACTION_MODE,
         error:
-          "Prospect registration is disabled. The current SMIRK receiver accepts call-shaped artifacts and does not authorize or place outbound calls.",
+          "Prospect call handoffs are disabled. Research-only SMIRK imports require an explicit administrator action in the Velvet lead review UI.",
       });
     }
   );

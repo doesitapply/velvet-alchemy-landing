@@ -14,4 +14,6 @@ export const ENV = {
   smirkBaseUrl: process.env.SMIRK_BASE_URL ?? "",
   smirkApiKey: process.env.SMIRK_API_KEY ?? "",
   smirkWorkspaceId: process.env.SMIRK_WORKSPACE_ID ?? "",
+  smirkResearchApiKey: process.env.SMIRK_RESEARCH_API_KEY ?? "",
+  smirkResearchWorkspaceId: process.env.SMIRK_RESEARCH_WORKSPACE_ID ?? "",
 };
