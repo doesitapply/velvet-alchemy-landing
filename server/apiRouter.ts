@@ -417,7 +417,11 @@ export function createApiRouter(): Router {
 
         const placesResult = await makeRequest<PlacesSearchResult>(
           "/maps/api/place/textsearch/json",
-          { query: searchQuery }
+          { query: searchQuery },
+          {
+            userId: req.apiKey!.userId,
+            operation: "maps_public_api_text_search",
+          }
         );
 
         if (placesResult.status !== "OK" || !placesResult.results) {
@@ -425,7 +429,7 @@ export function createApiRouter(): Router {
         }
 
         const businesses: any[] = [];
-        const cap = Math.min(limit, 40);
+        const cap = parseBoundedInteger(limit, 20, 1, 40);
 
         for (const place of placesResult.results.slice(0, cap)) {
           try {
@@ -435,6 +439,10 @@ export function createApiRouter(): Router {
                 place_id: place.place_id,
                 fields:
                   "name,website,formatted_address,rating,user_ratings_total",
+              },
+              {
+                userId: req.apiKey!.userId,
+                operation: "maps_public_api_place_details",
               }
             );
             if (!details.result?.website) continue;
@@ -446,7 +454,13 @@ export function createApiRouter(): Router {
               reviewCount: details.result.user_ratings_total,
               placeId: place.place_id,
             });
-          } catch {}
+          } catch (error) {
+            console.warn(
+              "[Public API] Maps detail lookup stopped after a guarded failure:",
+              error
+            );
+            break;
+          }
         }
 
         res.json({ businesses, count: businesses.length, query: searchQuery });
@@ -552,7 +566,11 @@ export function createApiRouter(): Router {
 
         const placesResult = await makeRequest<PlacesSearchResult>(
           "/maps/api/place/textsearch/json",
-          { query: searchQuery }
+          { query: searchQuery },
+          {
+            userId: req.apiKey!.userId,
+            operation: "maps_public_pipeline_text_search",
+          }
         );
 
         if (placesResult.status !== "OK" || !placesResult.results) {
@@ -560,7 +578,7 @@ export function createApiRouter(): Router {
         }
 
         const created: any[] = [];
-        const cap = Math.min(limit, 20);
+        const cap = parseBoundedInteger(limit, 10, 1, 20);
 
         for (const place of placesResult.results.slice(0, cap)) {
           try {
@@ -570,6 +588,10 @@ export function createApiRouter(): Router {
                 place_id: place.place_id,
                 fields:
                   "name,website,formatted_address,rating,user_ratings_total",
+              },
+              {
+                userId: req.apiKey!.userId,
+                operation: "maps_public_pipeline_place_details",
               }
             );
             if (!details.result?.website) continue;
@@ -630,7 +652,13 @@ export function createApiRouter(): Router {
             }
 
             created.push(entry);
-          } catch {}
+          } catch (error) {
+            console.warn(
+              "[Public API] Pipeline stopped after a guarded provider failure:",
+              error
+            );
+            break;
+          }
         }
 
         res.json({ leads: created, count: created.length, query: searchQuery });

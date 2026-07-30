@@ -55,21 +55,14 @@ describe.skipIf(!hasLlmCredentials)("Visual Audit", () => {
       }
     }, 60000); // 60s timeout for LLM call
 
-    it("handles invalid URL gracefully", async () => {
+    it("fails closed for an invalid screenshot URL", async () => {
       const screenshotUrl = "not-a-valid-url";
       const websiteUrl = "https://example.com";
       const companyName = "Test Company";
 
-      const result = await analyzeVisualDebt(
-        screenshotUrl,
-        websiteUrl,
-        companyName
-      );
-
-      // Should return fallback result
-      expect(result).toBeDefined();
-      expect(result.prestigeScore).toBe(50);
-      expect(result.summary).toContain("failed");
+      await expect(
+        analyzeVisualDebt(screenshotUrl, websiteUrl, companyName)
+      ).rejects.toThrow("the lead was not marked audited");
     }, 60000);
 
     it("returns valid prestige score range", async () => {

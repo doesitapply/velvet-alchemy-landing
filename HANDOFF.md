@@ -226,10 +226,15 @@ Repository contents do not prove whether a runtime secret is currently installed
 | `ENABLE_HUNTER_OWNER_ENRICHMENT` | Must equal `true` before any Hunter request can start                                        |
 | `HUNTER_API_KEY`              | Hunter owner-email enrichment                                                                    |
 | `HUNTER_COST_CENTS_PER_CREDIT`| Owner-supplied cost used for the pre-request daily-budget reservation                            |
+| `ENABLE_MAPS_RESEARCH`        | Must equal `true` before any Google Maps proxy request can start                                 |
+| `MAPS_COST_CENTS_PER_REQUEST` | Owner-supplied positive cost reserved before every Maps search, page, ranking, or detail request |
 | `GOOGLE_AI_API_KEY`           | Optional LLM fallback                                                                           |
 | `ENABLE_PIPELINE_WORKER`      | Must equal `true` to start the cost-bearing background worker; disabled by default              |
 
 Twilio variables are intentionally not required because cold SMS is disabled.
+Maps and Hunter reservations are persisted before the provider request. A
+failed, timed-out, or uncertain request remains charged against the configured
+daily cap. Missing cost configuration fails closed before network access.
 
 ---
 
@@ -421,8 +426,8 @@ Cost-bearing steps require `admin` or the configured owner. A normal operator ca
 
 The intended admin/owner loop is:
 
-1. **Hunt** — go to Business Scraper, enter a city + vertical (e.g., "HVAC Las Vegas NV"), run scrape. System finds businesses, pre-screens, stores leads.
-2. **Audit** — leads may enqueue for the pipeline worker, but the worker is disabled unless `ENABLE_PIPELINE_WORKER=true`. When enabled it runs one privileged-owner job at a time. Audits can also be triggered manually.
+1. **Hunt** — go to Business Scraper, enter a city + vertical (e.g., "HVAC Las Vegas NV"), run scrape. Every Maps request requires the enable switch, a positive configured per-request cost, a durable pre-call reservation, daily-budget room, and the global kill-switch to be clear.
+2. **Audit** — scraped leads are not auto-enqueued. Review the stored results and approve metered audits separately. The legacy pipeline worker remains disabled unless `ENABLE_PIPELINE_WORKER=true`; enabling it does not create jobs by itself.
 3. **Review** — check Lead Detail for prestige score, strengths/weaknesses, verified email, outreach channel.
 4. **SMIRK research** - after the two deploys, migrations, dedicated credentials, and synthetic proof are approved, an admin may move one audited lead into SMIRK or SMIRK may pull one separately approved 1-20 record batch. Neither path authorizes contact.
 5. **Draft** - generate evidence-based email copy only when a verified public business email exists.
@@ -438,7 +443,7 @@ The intended admin/owner loop is:
 | --------------- | ------------------------------------------------------- |
 | `leads:read`    | Read lead data                                          |
 | `leads:write`   | Create/delete leads                                     |
-| `scrape`        | Trigger scraping                                        |
+| `scrape`        | Trigger budget-reserved Maps research                   |
 | `audit`         | Trigger audits                                          |
 | `pipeline`      | Run full pipeline                                       |
 | `handoff:write` | Reserved compatibility scope; real handoffs are blocked |

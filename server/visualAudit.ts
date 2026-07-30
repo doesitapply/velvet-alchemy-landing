@@ -136,21 +136,9 @@ Be honest and specific about what is visible. Do not infer business outcomes. A 
     return result;
   } catch (error: any) {
     console.error("[Visual Audit] Failed to analyze screenshot:", error);
-    
-    // Return fallback result on error
-    return {
-      visualDebt: [
-        {
-          category: "technical",
-          severity: "high",
-          issue: "Automated audit failed",
-          recommendation: "Manual review required",
-        },
-      ],
-      prestigeScore: 50,
-      summary: `Audit failed for ${companyName}. Error: ${error.message}`,
-      strengths: ["Unable to analyze"],
-      weaknesses: ["Audit system error"],
-    };
+    throw new Error(
+      `Visual audit failed for ${companyName}; the lead was not marked audited.`,
+      { cause: error }
+    );
   }
 }

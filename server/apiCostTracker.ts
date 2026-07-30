@@ -1,6 +1,6 @@
 import { getDb } from "./db";
 import { apiCalls, systemConfig } from "../drizzle/schema";
-import { eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 /**
  * API Cost Tracker — logs all API usage and enforces a daily spend budget.
@@ -135,6 +135,160 @@ interface TrackApiCallParams {
   estimatedCostCents: number; // e.g., 50 = $0.50
   requestData?: Record<string, any>;
   responseStatus: "success" | "error" | "timeout";
+}
+
+export type ApiCostReservationParams = {
+  userId: number;
+  leadId?: number;
+  service: "llm" | "screenshot" | "storage" | "other";
+  operation: string;
+  estimatedCostCents: number;
+  requestData?: Record<string, unknown>;
+};
+
+export type ApiCostReservation = {
+  id: number;
+  estimatedCostCents: number;
+  dailyTotalBeforeReservationCents: number;
+  dailyBudgetCents: number;
+};
+
+/**
+ * Persist a cost reservation before an external request begins.
+ *
+ * Locking the budget configuration row serializes reservations across app
+ * instances. Reserved rows count toward the daily total even if the provider
+ * call later fails or its outcome is uncertain.
+ */
+export async function reserveApiCallCost(
+  params: ApiCostReservationParams
+): Promise<ApiCostReservation> {
+  const estimatedCostCents = Math.ceil(params.estimatedCostCents);
+  if (
+    !Number.isSafeInteger(estimatedCostCents) ||
+    estimatedCostCents <= 0 ||
+    estimatedCostCents > 100_000
+  ) {
+    throw new Error("External API cost reservation must be 1-100000 cents.");
+  }
+  const db = await getDb();
+  if (!db) {
+    throw new Error(
+      "Cost state is unavailable; the external API request was not started."
+    );
+  }
+
+  return db.transaction(async tx => {
+    const budgetRows = await tx
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, "daily_cost_budget_cents"))
+      .limit(1)
+      .for("update");
+    const configured = Number.parseInt(budgetRows[0]?.value ?? "", 10);
+    if (
+      !budgetRows[0] ||
+      !Number.isSafeInteger(configured) ||
+      configured <= 0
+    ) {
+      throw new Error(
+        "A valid daily_cost_budget_cents configuration is required before external API use."
+      );
+    }
+
+    const todayMidnight = new Date();
+    todayMidnight.setUTCHours(0, 0, 0, 0);
+    const totals = await tx
+      .select({ total: sql<number>`COALESCE(SUM(estimatedCost), 0)` })
+      .from(apiCalls)
+      .where(gte(apiCalls.createdAt, todayMidnight));
+    const totalCents = Number(totals[0]?.total ?? 0);
+    const decision = evaluateDailyBudget(
+      totalCents,
+      configured,
+      estimatedCostCents
+    );
+    if (!decision.allowed) {
+      const description = `Auto-tripped before external API reservation: daily cost $${(decision.totalCents / 100).toFixed(2)}, requested $${(decision.reserveCents / 100).toFixed(2)}, budget $${(decision.budgetCents / 100).toFixed(2)} at ${new Date().toISOString()}`;
+      const killSwitchRows = await tx
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, "global_kill_switch"))
+        .limit(1)
+        .for("update");
+      if (killSwitchRows[0]) {
+        await tx
+          .update(systemConfig)
+          .set({ value: "true", description, updatedAt: new Date() })
+          .where(eq(systemConfig.key, "global_kill_switch"));
+      } else {
+        await tx.insert(systemConfig).values({
+          key: "global_kill_switch",
+          value: "true",
+          description,
+        });
+      }
+      throw new Error(
+        `Daily API budget would be exceeded: ${decision.remainingCents} cents remain and ${decision.reserveCents} cents are required.`
+      );
+    }
+
+    const inserted = await tx
+      .insert(apiCalls)
+      .values({
+        userId: params.userId,
+        leadId: params.leadId,
+        service: params.service,
+        operation: params.operation,
+        estimatedCost: estimatedCostCents,
+        requestData: params.requestData
+          ? JSON.stringify(params.requestData)
+          : null,
+        responseStatus: "reserved",
+      })
+      .$returningId();
+    const id = Number(inserted[0]?.id || 0);
+    if (!id) {
+      throw new Error(
+        "The external API cost reservation was not persisted; the request was not started."
+      );
+    }
+    return {
+      id,
+      estimatedCostCents,
+      dailyTotalBeforeReservationCents: decision.totalCents,
+      dailyBudgetCents: decision.budgetCents,
+    };
+  });
+}
+
+export async function settleApiCallCostReservation(
+  reservationId: number,
+  responseStatus: "success" | "error" | "timeout" | "outcome_unknown"
+): Promise<void> {
+  if (!Number.isSafeInteger(reservationId) || reservationId <= 0) {
+    throw new Error("A valid API cost reservation ID is required.");
+  }
+  const db = await getDb();
+  if (!db) {
+    throw new Error(
+      "Cost state is unavailable; the provider outcome remains uncertain."
+    );
+  }
+  const updated = await db
+    .update(apiCalls)
+    .set({ responseStatus })
+    .where(
+      and(
+        eq(apiCalls.id, reservationId),
+        eq(apiCalls.responseStatus, "reserved")
+      )
+    );
+  if (Number(updated[0]?.affectedRows ?? 0) !== 1) {
+    throw new Error(
+      "The API cost reservation was missing or already settled."
+    );
+  }
 }
 
 /**

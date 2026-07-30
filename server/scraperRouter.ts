@@ -15,7 +15,7 @@ import { requireCostAuthority } from "./lib/accessControl";
  *
  * Key improvements over v1:
  * - Pagination: fetches up to 3 pages (60 results) per query instead of 20
- * - Parallel detail fetching: 5 concurrent requests instead of sequential
+ * - Detail fetching: at most 2 concurrent cost-reserved requests
  * - Stores phone, address, city, state, rating, reviewCount, reviewSnippets, placeId
  * - Pre-filters by business_status OPERATIONAL before touching AI
  * - Heuristic filter runs before AI (review count, aggregator check)
@@ -88,13 +88,15 @@ function isNationalChain(name: string): boolean {
  * Fetch all pages of a text search (up to 3 pages = 60 results)
  */
 async function fetchAllPages(
-  query: string
+  query: string,
+  userId: number
 ): Promise<PlacesSearchResult["results"]> {
   const allResults: PlacesSearchResult["results"] = [];
 
   let page = await makeRequest<PlacesSearchResult>(
     "/maps/api/place/textsearch/json",
-    { query }
+    { query },
+    { userId, operation: "maps_scraper_text_search" }
   );
 
   if (page.status !== "OK" || !page.results) return allResults;
@@ -110,7 +112,8 @@ async function fetchAllPages(
 
     page = await makeRequest<PlacesSearchResult>(
       "/maps/api/place/textsearch/json",
-      { query, pagetoken: token }
+      { query, pagetoken: token },
+      { userId, operation: "maps_scraper_text_search_page" }
     );
 
     if (page.status !== "OK" || !page.results) break;
@@ -121,23 +124,31 @@ async function fetchAllPages(
 }
 
 /**
- * Fetch place details in parallel batches of 5
+ * Fetch place details in conservative parallel batches of 2
  */
 async function fetchDetailsBatch(
-  placeIds: string[]
+  placeIds: string[],
+  userId: number
 ): Promise<PlaceDetailsResult["result"][]> {
-  const BATCH_SIZE = 5;
+  const BATCH_SIZE = 2;
   const results: PlaceDetailsResult["result"][] = [];
 
   for (let i = 0; i < placeIds.length; i += BATCH_SIZE) {
     const batch = placeIds.slice(i, i + BATCH_SIZE);
     const settled = await Promise.allSettled(
       batch.map(placeId =>
-        makeRequest<PlaceDetailsResult>("/maps/api/place/details/json", {
-          place_id: placeId,
-          fields:
-            "name,website,formatted_address,formatted_phone_number,rating,user_ratings_total,business_status,reviews,types",
-        })
+        makeRequest<PlaceDetailsResult>(
+          "/maps/api/place/details/json",
+          {
+            place_id: placeId,
+            fields:
+              "name,website,formatted_address,formatted_phone_number,rating,user_ratings_total,business_status,reviews,types",
+          },
+          {
+            userId,
+            operation: "maps_scraper_place_details",
+          }
+        )
       )
     );
 
@@ -173,10 +184,13 @@ export const scraperRouter = router({
       const searchQuery = `${category} in ${location}`;
 
       try {
-        const rawResults = await fetchAllPages(searchQuery);
+        const rawResults = await fetchAllPages(searchQuery, ctx.user.id);
         const sliced = rawResults.slice(0, limit);
 
-        const details = await fetchDetailsBatch(sliced.map(r => r.place_id));
+        const details = await fetchDetailsBatch(
+          sliced.map(r => r.place_id),
+          ctx.user.id
+        );
 
         const businesses = details
           .filter(r => {
@@ -235,7 +249,11 @@ export const scraperRouter = router({
         const searchQuery = `${keyword} ${location}`;
         const placesResult = await makeRequest<PlacesSearchResult>(
           "/maps/api/place/textsearch/json",
-          { query: searchQuery }
+          { query: searchQuery },
+          {
+            userId: ctx.user.id,
+            operation: "maps_ranking_text_search",
+          }
         );
 
         if (placesResult.status !== "OK" || !placesResult.results) {
@@ -315,14 +333,17 @@ export const scraperRouter = router({
 
       try {
         // Step 1: Fetch up to 60 raw results (3 pages)
-        const rawResults = await fetchAllPages(searchQuery);
+        const rawResults = await fetchAllPages(searchQuery, ctx.user.id);
         console.log(
           `[Scraper] Found ${rawResults.length} raw results for "${searchQuery}"`
         );
 
         // Step 2: Fetch details in parallel batches
         const sliced = rawResults.slice(0, limit);
-        const details = await fetchDetailsBatch(sliced.map(r => r.place_id));
+        const details = await fetchDetailsBatch(
+          sliced.map(r => r.place_id),
+          ctx.user.id
+        );
 
         // Step 3: Pre-filter (no AI yet)
         const preFiltered = details.filter(r => {
@@ -425,12 +446,15 @@ Return JSON only.`,
                 console.log(`[AI Filter] Skipped ${r.name}: ${result.reason}`);
               }
             } catch (aiError) {
-              // AI failed — default to qualified to avoid losing leads
               console.warn(
-                `[AI Filter] Failed for ${r.name}, defaulting to qualified`,
+                `[AI Filter] Failed for ${r.name}; the lead remains unqualified`,
                 aiError
               );
-              qualified = true;
+              qualified = false;
+              skipped.push({
+                name: r.name,
+                reason: "AI qualification failed; manual review is required.",
+              });
             }
           }
 
@@ -466,18 +490,6 @@ Return JSON only.`,
 
             if (lead) {
               createdLeads.push(lead);
-              // Auto-enqueue into FIFO pipeline queue (worker processes every 5 min)
-              if (lead.id) {
-                try {
-                  const { enqueueLeadForPipeline } = await import("./worker");
-                  await enqueueLeadForPipeline(lead.id);
-                } catch (enqueueError) {
-                  console.error(
-                    `Failed to enqueue lead ${lead.id} for pipeline:`,
-                    enqueueError
-                  );
-                }
-              }
             }
           } catch (error) {
             console.error(`Error creating lead for ${r.name}:`, error);
@@ -498,6 +510,9 @@ Return JSON only.`,
           createdCount: createdLeads.length,
           skippedByAI: skipped.length,
           errorCount: errors.length,
+          pipelineQueued: false,
+          nextAction:
+            "Review the created leads and approve each metered audit separately.",
           leads: createdLeads,
           errors,
         };

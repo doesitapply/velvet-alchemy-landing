@@ -7,6 +7,13 @@
 > Auth: `Authorization: Bearer va_live_...`  
 > Generate keys at `/api-keys` in the dashboard.
 
+Cost-bearing Maps routes fail closed unless `ENABLE_MAPS_RESEARCH=true`,
+`MAPS_COST_CENTS_PER_REQUEST` is a positive owner-reviewed value, the API-key
+owner is privileged, the global kill-switch is clear, and the durable daily
+budget accepts a pre-call reservation. Failed or uncertain requests retain
+their reservation. Scraping creates review records only and does not
+automatically enqueue pipeline work or authorize outreach.
+
 ## Scopes
 
 | Scope | Grants Access To |

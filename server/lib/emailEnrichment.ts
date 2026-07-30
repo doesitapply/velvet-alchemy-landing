@@ -13,8 +13,8 @@
  */
 
 import {
-  assertDailyBudgetAvailable,
-  trackApiCall,
+  reserveApiCallCost,
+  settleApiCallCostReservation,
 } from "../apiCostTracker";
 
 const OWNER_TITLE_PATTERN =
@@ -109,8 +109,19 @@ async function tryHunter(
     return null;
   }
 
-  await assertDailyBudgetAvailable(config.costCentsPerCredit);
-  let responseStatus: "success" | "error" | "timeout" = "error";
+  const reservation = await reserveApiCallCost({
+    userId: context.userId,
+    leadId: context.leadId,
+    service: "other",
+    operation: "hunter_owner_domain_search_one_credit_max",
+    estimatedCostCents: config.costCentsPerCredit,
+    requestData: { domain, maximumResults: 1 },
+  });
+  let responseStatus:
+    | "success"
+    | "error"
+    | "timeout"
+    | "outcome_unknown" = "outcome_unknown";
   try {
     const params = new URLSearchParams({
       domain,
@@ -142,15 +153,10 @@ async function tryHunter(
         : "error";
     return null;
   } finally {
-    await trackApiCall({
-      userId: context.userId,
-      leadId: context.leadId,
-      service: "other",
-      operation: "hunter_owner_domain_search_one_credit_max",
-      estimatedCostCents: config.costCentsPerCredit,
-      requestData: { domain, maximumResults: 1 },
+    await settleApiCallCostReservation(
+      reservation.id,
       responseStatus,
-    });
+    );
   }
 }
 
