@@ -440,6 +440,23 @@ Current gates:
 
 Integration credentials do not authorize execution by themselves. `RUN_INTEGRATION_TESTS=1` is required for every integration suite. Suites that mutate the database additionally require `RUN_DB_WRITE_TESTS=1` and must target a disposable test database. Provider/network and Stripe suites additionally require `RUN_COSTED_TESTS=1`, `RUN_NETWORK_TESTS=1`, or `RUN_STRIPE_TESTS=1` as applicable. Set only the exact gate that Cameron has approved.
 
+The paired SMIRK branch provides a credential-free cross-repository contract
+gate:
+
+```bash
+cd /path/to/ai-phone-agent-from-gemini
+VELVET_REPO_PATH=/path/to/velvet-alchemy-landing \
+  npm run -s check:velvet-smirk-closed-loop -- --require-clean
+```
+
+The clean source pair verified on 2026-07-30 was Velvet
+`6b56ad804937e76d6d06753a324842715c2e9cdf` plus SMIRK
+`88077bc9f5b73eb825da7c1566f66539e29da0d9`. The gate imports both
+repositories' real research, approval, outcome, signature, replay, and learning
+modules while trapping network access. It proves source compatibility only. It
+does not prove migrations, deployed parity, credentials, delivery, calls,
+revenue, or a real outcome.
+
 ---
 
 ## Deployment
@@ -464,8 +481,11 @@ The synthetic handoff client remains restricted to fake fixtures. The research c
 
 | Commit     | Description                                                               |
 | ---------- | ------------------------------------------------------------------------- |
+| `6b56ad8`  | Research intake, signed outcome feedback, and human-reviewed sourcing loop |
+| `4232acb`  | Guarded research-only bridge to the SMIRK prospect queue                   |
+| `aea0743`  | Approval, tenant, provider-spend, and no-cold-SMS hardening                |
 | `e9f88818` | UI coherence pass: minimal auth gate, SMIRK outcome panel, handoff button |
-| `a5c3d11e` | SMIRK ↔ VA bidirectional integration, live cross-system proof            |
+| `a5c3d11e` | Historical bidirectional integration checkpoint; current live proof absent |
 | `74213332` | Phase 1-3: email enrichment, FIFO worker, cost kill-switch                |
 | `29eceb7e` | Bug fix session: 79/79 tests                                              |
 | `a80ed4f`  | Scraper v2: pagination, parallel fetch, 10 new columns                    |

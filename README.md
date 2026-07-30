@@ -84,6 +84,18 @@ The live SMIRK test writes a synthetic handoff to production. It is disabled
 unless `RUN_LIVE_TESTS=1` and the dedicated SMIRK variables are present, and it
 still requires explicit approval for that exact run.
 
+The paired SMIRK repository also exposes a no-network compatibility gate:
+
+```bash
+cd /path/to/ai-phone-agent-from-gemini
+VELVET_REPO_PATH=/path/to/velvet-alchemy-landing \
+  npm run -s check:velvet-smirk-closed-loop -- --require-clean
+```
+
+That gate proves the two source contracts agree. It does not contact a
+prospect, write production data, or establish that either source commit is
+deployed.
+
 ## Operational Rules
 
 1. Review public evidence before drafting.
