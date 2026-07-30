@@ -433,7 +433,8 @@ export default function CommandCenter() {
                       <div>
                         <p className="text-sm font-semibold">{label} signals</p>
                         <p className="text-xs text-muted-foreground">
-                          {query.data?.sampleSize || 0} linked outcomes
+                          {query.data?.sampleSize || 0} unique prospects across{" "}
+                          {query.data?.eventCount || 0} measured events
                         </p>
                       </div>
                     </div>
@@ -528,7 +529,7 @@ export default function CommandCenter() {
                               <p className="text-xs text-muted-foreground">
                                 Max next batch{" "}
                                 {proposal.maximumNextBatchSize || 20} ·{" "}
-                                {candidate.sampleSize} outcomes · v
+                                {candidate.sampleSize} prospects · v
                                 {candidate.version}
                               </p>
                             </div>

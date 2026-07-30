@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
 
-**Current local proof:** TypeScript clean; 153/153 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; 156/156 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -461,9 +461,15 @@ New events return `201 RECORDED`; exact replays return `200 DUPLICATE`; changed
 data under the same event ID returns `409`. The receiver writes feedback only.
 It cannot draft, approve, send, call, or promote a policy.
 
-`acquisitionLearning.scorecard` aggregates linked outcomes by trade or metro.
-`createCandidate` requires at least 10 outcomes in the proposed segment, 10 in
-its comparison group, and at least five percentage points of positive lift.
+`acquisitionLearning.scorecard` aggregates one canonical lifecycle result per
+unique prospect by trade or metro. Delivery, reply, call, and business-outcome
+events remain visible in the raw event count, but one lead contributes only one
+sample. A later transport event cannot overwrite engagement, and the latest
+business-level result determines the measured prospect outcome.
+`createCandidate` requires at least 10 unique prospects with measured outcomes
+in the proposed segment, 10 in its comparison group, and at least five
+percentage points of positive lift. Repeated events for one prospect cannot
+satisfy the sample gate.
 The only proposal is a maximum 20-row next research batch.
 `decideCandidate` records `APPROVED` or `REJECTED` but always returns
 `policyChanged: false`; it cannot start scraping or contact.
@@ -562,7 +568,7 @@ Current gates:
 
 | Command                 | Boundary                                           | Result on 2026-07-30                      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 153 passed, 0 failed, 0 skipped           |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 156 passed, 0 failed, 0 skipped           |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 62 explicitly skipped |
 | `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence` | Discovery, outcome, and human-reviewed learning persistence | 3 passed, 0 failed, 0 skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
@@ -579,7 +585,8 @@ Maps response and uses synthetic leads and outcomes. It proves:
 - bounded discovery state and audit receipts;
 - owner/workspace-scoped lead export and exact replay;
 - signed outcome persistence with forgery, conflict, and isolation defenses;
-- 20 synthetic outcomes producing an evidence-backed candidate;
+- 21 synthetic lifecycle events across 20 prospects producing an
+  evidence-backed candidate without inflating the sample denominator;
 - an explicit administrator decision before candidate use; and
 - one later zero-spend batch narrowed by that approved candidate.
 

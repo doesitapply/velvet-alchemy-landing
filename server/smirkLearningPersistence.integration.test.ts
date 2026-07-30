@@ -238,6 +238,9 @@ describe.skipIf(!enabled)("SMIRK human-reviewed learning persistence", () => {
     expect(initial.body.prospects).toHaveLength(20);
 
     const categoryCounters = { plumbing: 0, hvac: 0 };
+    let firstPlumbingProspect:
+      | { leadId: number; externalId: string }
+      | null = null;
     for (const prospect of initial.body.prospects as Array<any>) {
       const match = String(prospect.externalId).match(/-lead-(\d+)$/);
       const leadId = Number(match?.[1] || 0);
@@ -247,6 +250,12 @@ describe.skipIf(!enabled)("SMIRK human-reviewed learning persistence", () => {
       }
       const ordinal =
         categoryCounters[category as keyof typeof categoryCounters]++;
+      if (category === "plumbing" && ordinal === 0) {
+        firstPlumbingProspect = {
+          leadId,
+          externalId: prospect.externalId,
+        };
+      }
       const positiveLimit = category === "plumbing" ? 4 : 1;
       const outcome = ordinal < positiveLimit ? "replied" : "delivered";
       const event = smirkOutcomePayloadSchema.parse({
@@ -286,18 +295,60 @@ describe.skipIf(!enabled)("SMIRK human-reviewed learning persistence", () => {
       });
     }
 
+    if (!firstPlumbingProspect) {
+      throw new Error("Synthetic batch did not return a plumbing prospect.");
+    }
+    const lifecycleEvent = smirkOutcomePayloadSchema.parse({
+      contractVersion: "smirk-velvet.outcome.v1",
+      workspaceId: 1,
+      externalProspectId: firstPlumbingProspect.externalId,
+      externalEventId: `synthetic-learning-qualified-${firstPlumbingProspect.leadId}`,
+      outreachApprovalId: "0dbe230c-9f38-4c2c-9496-6fdd0f0605b6",
+      channel: "email",
+      outcome: "qualified",
+      occurredAt: "2026-07-30T18:35:00.000Z",
+      evidenceHash: "d".repeat(64),
+      outreachPayloadHash: "e".repeat(64),
+      notes:
+        "Synthetic lifecycle event only. No email, SMS, or call occurred.",
+    });
+    const lifecycleTimestamp = String(Math.floor(Date.now() / 1_000));
+    expect(
+      await postJson(
+        `/leads/${firstPlumbingProspect.leadId}/outcome`,
+        lifecycleEvent,
+        {
+          "x-smirk-timestamp": lifecycleTimestamp,
+          "x-smirk-signature": signSmirkOutcome(
+            lifecycleEvent,
+            lifecycleTimestamp,
+            signingSecret
+          ),
+        }
+      )
+    ).toMatchObject({
+      status: 201,
+      body: {
+        success: true,
+        state: "RECORDED",
+        externalAction: "none",
+      },
+    });
+
     const caller = appRouter.createCaller(context());
     const scorecard = await caller.acquisitionLearning.scorecard({
       dimension: "category",
     });
     expect(scorecard).toMatchObject({
       sampleSize: 20,
+      eventCount: 21,
       policyChanged: false,
       externalAction: "none",
     });
     expect(scorecard.segments[0]).toMatchObject({
       value: "plumbing",
       sampleSize: 10,
+      eventCount: 11,
       positive: 4,
       positiveRate: 0.4,
     });

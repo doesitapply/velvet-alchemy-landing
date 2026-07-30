@@ -9,7 +9,7 @@ import {
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import {
-  buildAcquisitionSegmentScorecard,
+  buildAcquisitionLearningSummary,
   evaluateAcquisitionLearningCandidate,
   type AcquisitionDimension,
   type AcquisitionObservation,
@@ -28,13 +28,15 @@ async function loadObservations(
       message: "Database unavailable.",
     });
   }
-  return db
+  const rows = await db
     .select({
+      prospectId: smirkOutcomeEvents.leadId,
       category: leads.category,
       city: leads.city,
       state: leads.state,
       channel: smirkOutcomeEvents.channel,
       outcome: smirkOutcomeEvents.outcome,
+      occurredAt: smirkOutcomeEvents.occurredAt,
     })
     .from(smirkOutcomeEvents)
     .innerJoin(
@@ -45,6 +47,10 @@ async function loadObservations(
       )
     )
     .where(eq(smirkOutcomeEvents.userId, userId));
+  return rows.map(row => ({
+    ...row,
+    prospectId: String(row.prospectId),
+  }));
 }
 
 function candidateKey(
@@ -68,13 +74,15 @@ export const acquisitionLearningRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const observations = await loadObservations(ctx.user.id);
+      const summary = buildAcquisitionLearningSummary(
+        observations,
+        input.dimension
+      );
       return {
         dimension: input.dimension,
-        sampleSize: observations.length,
-        segments: buildAcquisitionSegmentScorecard(
-          observations,
-          input.dimension
-        ),
+        sampleSize: summary.sampleSize,
+        eventCount: summary.eventCount,
+        segments: summary.segments,
         policyChanged: false as const,
         externalAction: "none" as const,
       };
@@ -132,7 +140,7 @@ export const acquisitionLearningRouter = router({
           code: "PRECONDITION_FAILED",
           message:
             evaluation.code === "INSUFFICIENT_SAMPLE"
-              ? "The candidate and comparison group each need at least 10 linked outcomes."
+              ? "The candidate and comparison group each need at least 10 unique prospects with measured outcomes."
               : "The candidate segment has no measured positive lift.",
         });
       }

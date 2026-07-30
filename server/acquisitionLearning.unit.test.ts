@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAcquisitionLearningSummary,
   buildAcquisitionSegmentScorecard,
   evaluateAcquisitionLearningCandidate,
   type AcquisitionObservation,
@@ -13,11 +14,15 @@ function observations(input: {
   positives: number;
 }): AcquisitionObservation[] {
   return Array.from({ length: input.count }, (_, index) => ({
+    prospectId: `${input.category}-${input.city}-${index + 1}`,
     category: input.category,
     city: input.city,
     state: input.state,
     channel: "email" as const,
     outcome: index < input.positives ? "replied" : "delivered",
+    occurredAt: new Date(
+      Date.UTC(2026, 6, 1, 9, index)
+    ).toISOString(),
   }));
 }
 
@@ -43,12 +48,143 @@ describe("Velvet acquisition learning", () => {
     expect(buildAcquisitionSegmentScorecard(dataset, "category")[0]).toMatchObject({
       value: "plumbing",
       sampleSize: 10,
+      eventCount: 10,
       positive: 4,
       positiveRate: 0.4,
     });
     expect(buildAcquisitionSegmentScorecard(dataset, "metro")[0].value).toBe(
       "Reno, NV"
     );
+  });
+
+  it("counts one canonical lifecycle result per unique prospect", () => {
+    const summary = buildAcquisitionLearningSummary(
+      [
+        {
+          prospectId: "prospect-1",
+          category: "plumbing",
+          city: "Reno",
+          state: "NV",
+          channel: "email",
+          outcome: "delivered",
+          occurredAt: "2026-07-01T09:00:00.000Z",
+        },
+        {
+          prospectId: "prospect-1",
+          category: "plumbing",
+          city: "Reno",
+          state: "NV",
+          channel: "email",
+          outcome: "replied",
+          occurredAt: "2026-07-01T09:05:00.000Z",
+        },
+        {
+          prospectId: "prospect-1",
+          category: "plumbing",
+          city: "Reno",
+          state: "NV",
+          channel: "call",
+          outcome: "qualified",
+          occurredAt: "2026-07-01T09:10:00.000Z",
+        },
+        {
+          prospectId: "prospect-2",
+          category: "plumbing",
+          city: "Reno",
+          state: "NV",
+          channel: "email",
+          outcome: "replied",
+          occurredAt: "2026-07-01T10:00:00.000Z",
+        },
+        {
+          prospectId: "prospect-2",
+          category: "plumbing",
+          city: "Reno",
+          state: "NV",
+          channel: "call",
+          outcome: "not_interested",
+          occurredAt: "2026-07-01T10:05:00.000Z",
+        },
+      ],
+      "category"
+    );
+
+    expect(summary).toMatchObject({
+      sampleSize: 2,
+      eventCount: 5,
+      segments: [
+        {
+          value: "plumbing",
+          sampleSize: 2,
+          eventCount: 5,
+          positive: 1,
+          positiveRate: 0.5,
+        },
+      ],
+    });
+  });
+
+  it("does not let repeated events satisfy the ten-prospect gate", () => {
+    const repeatedPlumbing = Array.from({ length: 20 }, (_, index) => ({
+      prospectId: `plumbing-${(index % 5) + 1}`,
+      category: "plumbing",
+      city: "Reno",
+      state: "NV",
+      channel: "email" as const,
+      outcome: index % 2 === 0 ? ("delivered" as const) : ("replied" as const),
+      occurredAt: new Date(
+        Date.UTC(2026, 6, 2, 9, index)
+      ).toISOString(),
+    }));
+
+    expect(
+      evaluateAcquisitionLearningCandidate({
+        observations: [
+          ...repeatedPlumbing,
+          ...observations({
+            category: "hvac",
+            city: "Sacramento",
+            state: "CA",
+            count: 10,
+            positives: 1,
+          }),
+        ],
+        dimension: "category",
+        value: "plumbing",
+      })
+    ).toMatchObject({
+      ready: false,
+      code: "INSUFFICIENT_SAMPLE",
+      sampleSize: 15,
+    });
+  });
+
+  it("fails closed when one prospect changes source-segment attribution", () => {
+    expect(() =>
+      buildAcquisitionLearningSummary(
+        [
+          {
+            prospectId: "prospect-conflict",
+            category: "plumbing",
+            city: "Reno",
+            state: "NV",
+            channel: "email",
+            outcome: "delivered",
+            occurredAt: "2026-07-01T09:00:00.000Z",
+          },
+          {
+            prospectId: "prospect-conflict",
+            category: "hvac",
+            city: "Sacramento",
+            state: "CA",
+            channel: "email",
+            outcome: "replied",
+            occurredAt: "2026-07-01T09:05:00.000Z",
+          },
+        ],
+        "category"
+      )
+    ).toThrow(/changed source-segment attribution/);
   });
 
   it("proposes only a bounded human-review sourcing candidate", () => {
