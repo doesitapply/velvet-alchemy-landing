@@ -80,6 +80,12 @@ describe("REST API scope policy", () => {
     expect(canGrantApiScopes(false, ["leads:read", "pipeline"])).toBe(false);
   });
 
+  it("keeps the zero-spend SMIRK research export scope admin-only", () => {
+    expect(apiScopeMaySpend("smirk:research")).toBe(false);
+    expect(canGrantApiScopes(false, ["smirk:research"])).toBe(false);
+    expect(canGrantApiScopes(true, ["smirk:research"])).toBe(true);
+  });
+
   it("allows an administrator to grant cost-bearing scopes", () => {
     expect(canGrantApiScopes(true, ["*"])).toBe(true);
   });

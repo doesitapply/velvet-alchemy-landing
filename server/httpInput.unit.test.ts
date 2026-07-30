@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createApiRouter, parseBoundedInteger } from "./apiRouter";
+import {
+  SMIRK_LEAD_BATCH_REQUEST_CONTRACT,
+} from "./lib/smirkLeadBatch";
 
 describe("REST integer inputs", () => {
   it("uses a fallback for missing and malformed values", () => {
@@ -22,5 +25,65 @@ describe("REST integer inputs", () => {
       .filter(Boolean);
     expect(paths).toContain("/leads/ready");
     expect(paths).toContain("/leads/:id(\\d+)");
+  });
+
+  it("exposes the dedicated SMIRK reviewed-batch route", () => {
+    const route = createApiRouter().stack.find(
+      layer => layer.route?.path === "/smirk/lead-batches"
+    )?.route;
+    expect(route).toBeTruthy();
+    expect(route?.methods).toMatchObject({ post: true });
+    expect(route?.stack).toHaveLength(2);
+  });
+
+  it("rejects a lead batch when the idempotency header is not exact", async () => {
+    const route = createApiRouter().stack.find(
+      layer => layer.route?.path === "/smirk/lead-batches"
+    )?.route;
+    const handler = route?.stack.at(-1)?.handle;
+    expect(handler).toBeTypeOf("function");
+    const response = {
+      statusCode: 200,
+      body: null as any,
+      status(code: number) {
+        response.statusCode = code;
+        return response;
+      },
+      json(body: unknown) {
+        response.body = body;
+        return response;
+      },
+    };
+    await handler?.(
+      {
+        apiKey: {
+          id: 1,
+          userId: 1,
+          name: "synthetic-smirk-research",
+          scopes: ["smirk:research"],
+          privileged: true,
+        },
+        headers: { "idempotency-key": "wrong-request-id" },
+        body: {
+          contractVersion: SMIRK_LEAD_BATCH_REQUEST_CONTRACT,
+          requestId:
+            "smirk-source-11111111-1111-4111-8111-111111111111",
+          workspaceId: 1,
+          criteria: {
+            limit: 1,
+            category: "plumbing",
+            learningMode: "none",
+          },
+          contactActionAllowed: false,
+          maxSpendCents: 0,
+        },
+      },
+      response,
+      () => undefined
+    );
+    expect(response.statusCode).toBe(400);
+    expect(response.body.code).toBe(
+      "SMIRK_LEAD_BATCH_IDEMPOTENCY_KEY_MISMATCH"
+    );
   });
 });

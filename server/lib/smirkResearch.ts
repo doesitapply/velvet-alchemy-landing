@@ -10,7 +10,7 @@ const MAX_RESPONSE_BYTES = 64 * 1024;
 const E164_PHONE = /^\+[1-9]\d{7,14}$/;
 const EXTERNAL_ID = /^[A-Za-z0-9:_-]+$/;
 
-const smirkResearchPayloadSchema = z
+export const smirkResearchPayloadSchema = z
   .object({
     contractVersion: z.literal(SMIRK_RESEARCH_CONTRACT_VERSION),
     workspaceId: z.number().int().positive(),
@@ -176,6 +176,13 @@ type SmirkResearchAudit = Pick<
 
 type ResearchEvidence = SmirkResearchPayload["prospect"]["evidence"][number];
 
+export type SmirkResearchBatchOverride = {
+  externalId: string;
+  name: string;
+  targetIndustry?: string;
+  targetLocation?: string;
+};
+
 const unsupportedOutcomeClaim =
   /\b(lost|losing|costing|revenue|income|profit|customers?|jobs?|leads?|conversions?|ranking|rankings|page speed|load time|mobile[- ]friendly|responsive)\b/i;
 
@@ -282,7 +289,8 @@ export function buildResearchEvidence(
 export function buildSmirkResearchPayload(
   lead: SmirkResearchLead,
   workspaceId: number,
-  audit?: SmirkResearchAudit | null
+  audit?: SmirkResearchAudit | null,
+  batchOverride?: SmirkResearchBatchOverride
 ): SmirkResearchPayload {
   if (!Number.isSafeInteger(workspaceId) || workspaceId <= 0) {
     throw new Error("SMIRK research workspace must be a positive integer.");
@@ -297,10 +305,18 @@ export function buildSmirkResearchPayload(
     workspaceId,
     externalId: `velvet-owner-${lead.userId}-lead-${lead.id}`,
     batch: {
-      externalId: `velvet-owner-${lead.userId}-smirk-research`,
-      name: "Velvet Alchemy Research Review",
-      targetIndustry: optionalText(lead.category, 120),
-      targetLocation: optionalText(targetLocation, 160),
+      externalId:
+        batchOverride?.externalId ||
+        `velvet-owner-${lead.userId}-smirk-research`,
+      name: batchOverride?.name || "Velvet Alchemy Research Review",
+      targetIndustry: optionalText(
+        batchOverride?.targetIndustry || lead.category,
+        120
+      ),
+      targetLocation: optionalText(
+        batchOverride?.targetLocation || targetLocation,
+        160
+      ),
     },
     prospect: {
       companyName: lead.companyName.trim().slice(0, 240),

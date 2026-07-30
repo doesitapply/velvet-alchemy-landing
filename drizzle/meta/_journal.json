@@ -162,6 +162,13 @@
       "when": 1785417941999,
       "tag": "0022_smirk_outcome_events",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1785427366184,
+      "tag": "0023_high_loners",
+      "breakpoints": true
     }
   ]
 }

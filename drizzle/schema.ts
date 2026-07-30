@@ -2,6 +2,7 @@ import {
   boolean,
   decimal,
   int,
+  mediumtext,
   mysqlEnum,
   mysqlTable,
   text,
@@ -202,6 +203,72 @@ export const smirkOutcomeEvents = mysqlTable("smirk_outcome_events", {
 
 export type SmirkOutcomeEvent = typeof smirkOutcomeEvents.$inferSelect;
 export type InsertSmirkOutcomeEvent = typeof smirkOutcomeEvents.$inferInsert;
+
+/**
+ * Immutable, owner-scoped receipts for reviewed lead batches exported to SMIRK.
+ * These rows reserve leads for research review only; they never authorize contact.
+ */
+export const smirkLeadBatches = mysqlTable(
+  "smirk_lead_batches",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    requestId: varchar("requestId", { length: 160 }).notNull(),
+    workspaceId: int("workspaceId").notNull(),
+    requestedByApiKeyId: int("requestedByApiKeyId").notNull(),
+    requestedByApiKeyName: varchar("requestedByApiKeyName", {
+      length: 100,
+    }).notNull(),
+    requestPayload: text("requestPayload").notNull(),
+    requestPayloadHash: varchar("requestPayloadHash", {
+      length: 64,
+    }).notNull(),
+    state: mysqlEnum("state", ["PROCESSING", "EXPORTED", "EMPTY"])
+      .default("PROCESSING")
+      .notNull(),
+    responsePayload: mediumtext("responsePayload"),
+    responsePayloadHash: varchar("responsePayloadHash", { length: 64 }),
+    appliedLearningCandidateId: int("appliedLearningCandidateId"),
+    leadCount: int("leadCount").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+  },
+  table => ({
+    requestUnique: uniqueIndex("smirk_lead_batches_request_unique").on(
+      table.requestId
+    ),
+  })
+);
+
+export type SmirkLeadBatch = typeof smirkLeadBatches.$inferSelect;
+export type InsertSmirkLeadBatch = typeof smirkLeadBatches.$inferInsert;
+
+export const smirkLeadBatchItems = mysqlTable(
+  "smirk_lead_batch_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    batchId: int("batchId").notNull(),
+    userId: int("userId").notNull(),
+    leadId: int("leadId").notNull(),
+    ordinal: int("ordinal").notNull(),
+    prospectPayloadHash: varchar("prospectPayloadHash", {
+      length: 64,
+    }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    ownerLeadUnique: uniqueIndex(
+      "smirk_lead_batch_items_owner_lead_unique"
+    ).on(table.userId, table.leadId),
+    batchOrdinalUnique: uniqueIndex(
+      "smirk_lead_batch_items_batch_ordinal_unique"
+    ).on(table.batchId, table.ordinal),
+  })
+);
+
+export type SmirkLeadBatchItem = typeof smirkLeadBatchItems.$inferSelect;
+export type InsertSmirkLeadBatchItem =
+  typeof smirkLeadBatchItems.$inferInsert;
 
 /**
  * Human-review proposals derived from outcome-linked sourcing segments.

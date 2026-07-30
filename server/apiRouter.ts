@@ -11,6 +11,7 @@
  *   scrape       - POST /scrape
  *   audit        - POST /leads/:id/audit
  *   pipeline     - POST /pipeline
+ *   smirk:research - POST /smirk/lead-batches
  *   *            - all scopes
  */
 
@@ -50,6 +51,16 @@ import {
   validateSmirkOutcomeResearchReceipt,
   verifySmirkOutcomeSignature,
 } from "./lib/smirkOutcome";
+import {
+  SMIRK_LEAD_BATCH_RESPONSE_CONTRACT,
+  SMIRK_LEAD_BATCH_SCOPE,
+  smirkLeadBatchRequestSchema,
+  smirkLeadBatchResponseSchema,
+} from "./lib/smirkLeadBatch";
+import {
+  SmirkLeadBatchStoreError,
+  exportSmirkLeadBatch,
+} from "./lib/smirkLeadBatchStore";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -182,6 +193,98 @@ export function createApiRouter(): Router {
       timestamp: new Date().toISOString(),
     });
   });
+
+  // ── POST /api/v1/smirk/lead-batches ────────────────────────────────────────
+  // Reserves audited owner-scoped leads for SMIRK review. This route cannot
+  // search, spend, send a message, place a call, or authorize contact.
+  r.post(
+    "/smirk/lead-batches",
+    requireScope(SMIRK_LEAD_BATCH_SCOPE),
+    async (req: AuthedRequest, res: Response) => {
+      if (!req.apiKey?.privileged) {
+        return res.status(403).json({
+          error: "Administrator authorization is required.",
+          code: "SMIRK_LEAD_BATCH_ADMIN_REQUIRED",
+        });
+      }
+      const parsed = smirkLeadBatchRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid SMIRK lead batch request.",
+          code: "SMIRK_LEAD_BATCH_INVALID_REQUEST",
+        });
+      }
+      const idempotencyKey = String(
+        req.headers["idempotency-key"] || ""
+      ).trim();
+      if (idempotencyKey !== parsed.data.requestId) {
+        return res.status(400).json({
+          error:
+            "Idempotency-Key must exactly match the lead batch request ID.",
+          code: "SMIRK_LEAD_BATCH_IDEMPOTENCY_KEY_MISMATCH",
+        });
+      }
+      const configuredWorkspaceId = Number(
+        String(process.env.SMIRK_RESEARCH_WORKSPACE_ID || "").trim()
+      );
+      if (
+        !Number.isSafeInteger(configuredWorkspaceId) ||
+        configuredWorkspaceId <= 0
+      ) {
+        return res.status(503).json({
+          error: "SMIRK research export is not configured.",
+          code: "SMIRK_LEAD_BATCH_NOT_CONFIGURED",
+        });
+      }
+      if (parsed.data.workspaceId !== configuredWorkspaceId) {
+        return res.status(403).json({
+          error: "Workspace is not authorized for this integration.",
+          code: "SMIRK_LEAD_BATCH_WORKSPACE_MISMATCH",
+        });
+      }
+
+      try {
+        const result = await exportSmirkLeadBatch(parsed.data, {
+          userId: req.apiKey.userId,
+          apiKeyId: req.apiKey.id,
+          apiKeyName: req.apiKey.name,
+        });
+        const response = smirkLeadBatchResponseSchema.parse({
+          ok: true,
+          contractVersion: SMIRK_LEAD_BATCH_RESPONSE_CONTRACT,
+          state:
+            result.outcome === "duplicate"
+              ? "DUPLICATE"
+              : result.originalState,
+          originalState: result.originalState,
+          requestId: parsed.data.requestId,
+          requestPayloadHash: result.requestPayloadHash,
+          batchId: result.batchId,
+          prospectsHash: result.prospectsHash,
+          prospects: result.prospects,
+          appliedLearningCandidate: result.appliedLearningCandidate,
+          contactActionAllowed: false,
+          spendAuthorized: false,
+          externalAction: "research_export_only",
+        });
+        return res
+          .status(result.outcome === "duplicate" ? 200 : 201)
+          .json(response);
+      } catch (error) {
+        if (error instanceof SmirkLeadBatchStoreError) {
+          return res.status(error.status).json({
+            error: error.message,
+            code: error.code,
+          });
+        }
+        console.error("[SMIRK Lead Batch] Error:", error);
+        return res.status(500).json({
+          error: "The reviewed lead batch could not be exported.",
+          code: "SMIRK_LEAD_BATCH_EXPORT_FAILED",
+        });
+      }
+    }
+  );
 
   // ── GET /api/v1/leads ───────────────────────────────────────────────────────
   r.get(

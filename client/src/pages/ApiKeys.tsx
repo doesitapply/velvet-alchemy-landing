@@ -17,6 +17,7 @@ const SCOPE_OPTIONS = [
   { value: "scrape", label: "Scrape", description: "POST /scrape — search businesses" },
   { value: "audit", label: "Audit", description: "POST /leads/:id/audit" },
   { value: "pipeline", label: "Pipeline", description: "POST /pipeline — scrape + create + audit" },
+  { value: "smirk:research", label: "SMIRK Research", description: "Export bounded reviewed batches to SMIRK; no contact or spend" },
   { value: "*", label: "Full Access", description: "All current and future scopes" },
 ];
 

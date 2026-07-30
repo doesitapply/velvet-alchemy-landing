@@ -22,6 +22,7 @@ const VALID_SCOPES = [
   "pipeline",
   "handoff:write", // Reserved compatibility scope; prospect handoffs are blocked
   "outcome:write", // Signed feedback-only callbacks; cannot trigger contact
+  "smirk:research", // Admin-only export of reviewed leads; no contact or spend
   "*",
 ] as const;
 
@@ -80,7 +81,7 @@ export const apiKeyRouter = router({
         throw new TRPCError({
           code: "FORBIDDEN",
           message:
-            "Only an administrator can grant scrape, audit, pipeline, or wildcard API scopes.",
+            "Only an administrator can grant cost-bearing, SMIRK research export, or wildcard API scopes.",
         });
       }
       const orm = await getDb();
