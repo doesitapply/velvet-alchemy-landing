@@ -56,6 +56,10 @@ type PersistResult = {
   reason?: string;
 };
 
+export type SmirkDiscoveryExecutorDeps = {
+  requestMaps?: typeof makeRequest;
+};
+
 function normalizeWebsite(raw: string): string {
   const parsed = new URL(raw);
   if (!["http:", "https:"].includes(parsed.protocol)) {
@@ -305,8 +309,10 @@ async function persistDiscoveryItem(input: {
 }
 
 export async function executeClaimedSmirkDiscovery(
-  claim: ClaimedSmirkDiscovery
+  claim: ClaimedSmirkDiscovery,
+  deps: SmirkDiscoveryExecutorDeps = {}
 ): Promise<void> {
+  const requestMaps = deps.requestMaps || makeRequest;
   let providerRequests = 0;
   let createdLeadCount = 0;
   let readyLeadCount = 0;
@@ -322,7 +328,7 @@ export async function executeClaimedSmirkDiscovery(
     });
     providerRequests += 1;
     const query = `${claim.effectiveCriteria.category} in ${claim.effectiveCriteria.city}, ${claim.effectiveCriteria.state}`;
-    const search = await makeRequest<PlacesSearchResult>(
+    const search = await requestMaps<PlacesSearchResult>(
       "/maps/api/place/textsearch/json",
       { query },
       {
@@ -350,7 +356,7 @@ export async function executeClaimedSmirkDiscovery(
       providerRequests += 1;
       let details: PlaceDetailsResult;
       try {
-        details = await makeRequest<PlaceDetailsResult>(
+        details = await requestMaps<PlaceDetailsResult>(
           "/maps/api/place/details/json",
           {
             place_id: place.place_id,

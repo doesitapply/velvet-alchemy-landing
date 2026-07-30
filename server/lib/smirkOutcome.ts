@@ -109,6 +109,43 @@ export function validateSmirkOutcomeResearchReceipt(
   return { ok: true };
 }
 
+export function validateSmirkOutcomeBatchReceipt(
+  receipt:
+    | {
+        workspaceId: number;
+        state: string;
+        prospectPayloadHash: string | null;
+      }
+    | null
+    | undefined,
+  payload: SmirkOutcomePayload
+):
+  | { ok: true }
+  | {
+      ok: false;
+      code:
+        | "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED"
+        | "SMIRK_OUTCOME_RESEARCH_RECEIPT_MISMATCH";
+    } {
+  if (!receipt) {
+    return {
+      ok: false,
+      code: "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED",
+    };
+  }
+  if (
+    Number(receipt.workspaceId) !== payload.workspaceId ||
+    receipt.state !== "EXPORTED" ||
+    !/^[a-f0-9]{64}$/.test(String(receipt.prospectPayloadHash || ""))
+  ) {
+    return {
+      ok: false,
+      code: "SMIRK_OUTCOME_RESEARCH_RECEIPT_MISMATCH",
+    };
+  }
+  return { ok: true };
+}
+
 export function canonicalOutcomeJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);

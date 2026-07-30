@@ -80,6 +80,21 @@ test database. Provider/network or Stripe suites additionally require the
 specific `RUN_COSTED_TESTS=1`, `RUN_NETWORK_TESTS=1`, or `RUN_STRIPE_TESTS=1`
 gate. Never point a write-enabled test at production.
 
+The SMIRK acquisition-loop persistence gate has its own explicit switch and
+fails unless the target is loopback MySQL with `codex`, `disposable`, `test`,
+or `tmp` in the database name:
+
+```bash
+DATABASE_URL=mysql://...@127.0.0.1:3306/disposable_db \
+  pnpm test:smirk:persistence
+```
+
+It proves local MySQL persistence for bounded discovery, signed outcome
+callbacks, exact replay, workspace isolation, and a human-approved learning
+candidate applied to one later zero-spend batch. Its Maps boundary is injected
+with a deterministic fake. It sends no email or SMS, places no call, contacts
+no provider or prospect, and does not prove deployment or revenue.
+
 The live SMIRK test writes a synthetic handoff to production. It is disabled
 unless `RUN_LIVE_TESTS=1` and the dedicated SMIRK variables are present, and it
 still requires explicit approval for that exact run.
@@ -112,8 +127,9 @@ deployed.
 
 ## Current Known Limitations
 
-- The credentialed integration suites were not run during the portable
-  hardening pass.
+- The broader credentialed integration suites were not run during the portable
+  hardening pass. Only the explicit loopback SMIRK persistence gate was run
+  against a disposable local MySQL database.
 - The production SMIRK test was not run.
 - The deployed Velvet runtime has not been compared with this branch.
 - Analytics placeholders are optional but emit build warnings when unset.

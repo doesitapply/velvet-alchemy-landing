@@ -34,7 +34,55 @@ CREATE TABLE IF NOT EXISTS `smirk_outcome_events` (
 	CONSTRAINT `smirk_outcome_events_externalEventId_unique` UNIQUE(`externalEventId`)
 );
 --> statement-breakpoint
-ALTER TABLE `leads` ADD COLUMN IF NOT EXISTS `smirkHandoffAt` timestamp;--> statement-breakpoint
-ALTER TABLE `leads` ADD COLUMN IF NOT EXISTS `smirkCallOutcome` varchar(64);--> statement-breakpoint
-ALTER TABLE `leads` ADD COLUMN IF NOT EXISTS `smirkCallSummary` text;--> statement-breakpoint
-ALTER TABLE `leads` ADD COLUMN IF NOT EXISTS `smirkWorkspaceId` varchar(128);
+SET @smirk_add_column_sql = IF(
+	EXISTS(
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = DATABASE()
+			AND table_name = 'leads'
+			AND column_name = 'smirkHandoffAt'
+	),
+	'SELECT 1',
+	'ALTER TABLE `leads` ADD COLUMN `smirkHandoffAt` timestamp'
+);--> statement-breakpoint
+PREPARE smirk_add_column_stmt FROM @smirk_add_column_sql;--> statement-breakpoint
+EXECUTE smirk_add_column_stmt;--> statement-breakpoint
+DEALLOCATE PREPARE smirk_add_column_stmt;--> statement-breakpoint
+SET @smirk_add_column_sql = IF(
+	EXISTS(
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = DATABASE()
+			AND table_name = 'leads'
+			AND column_name = 'smirkCallOutcome'
+	),
+	'SELECT 1',
+	'ALTER TABLE `leads` ADD COLUMN `smirkCallOutcome` varchar(64)'
+);--> statement-breakpoint
+PREPARE smirk_add_column_stmt FROM @smirk_add_column_sql;--> statement-breakpoint
+EXECUTE smirk_add_column_stmt;--> statement-breakpoint
+DEALLOCATE PREPARE smirk_add_column_stmt;--> statement-breakpoint
+SET @smirk_add_column_sql = IF(
+	EXISTS(
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = DATABASE()
+			AND table_name = 'leads'
+			AND column_name = 'smirkCallSummary'
+	),
+	'SELECT 1',
+	'ALTER TABLE `leads` ADD COLUMN `smirkCallSummary` text'
+);--> statement-breakpoint
+PREPARE smirk_add_column_stmt FROM @smirk_add_column_sql;--> statement-breakpoint
+EXECUTE smirk_add_column_stmt;--> statement-breakpoint
+DEALLOCATE PREPARE smirk_add_column_stmt;--> statement-breakpoint
+SET @smirk_add_column_sql = IF(
+	EXISTS(
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = DATABASE()
+			AND table_name = 'leads'
+			AND column_name = 'smirkWorkspaceId'
+	),
+	'SELECT 1',
+	'ALTER TABLE `leads` ADD COLUMN `smirkWorkspaceId` varchar(128)'
+);--> statement-breakpoint
+PREPARE smirk_add_column_stmt FROM @smirk_add_column_sql;--> statement-breakpoint
+EXECUTE smirk_add_column_stmt;--> statement-breakpoint
+DEALLOCATE PREPARE smirk_add_column_stmt;

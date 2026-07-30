@@ -4,6 +4,7 @@ import {
   isDuplicateOutcomeStorageError,
   signSmirkOutcome,
   smirkOutcomePayloadSchema,
+  validateSmirkOutcomeBatchReceipt,
   validateSmirkOutcomeResearchReceipt,
   verifySmirkOutcomeSignature,
 } from "./lib/smirkOutcome";
@@ -67,6 +68,47 @@ describe("SMIRK outcome signature", () => {
       ok: false,
       code: "SMIRK_OUTCOME_RESEARCH_RECEIPT_MISMATCH",
     });
+  });
+
+  it("binds pulled-batch callbacks to an exported owner-scoped batch item", () => {
+    expect(
+      validateSmirkOutcomeBatchReceipt(
+        {
+          workspaceId: payload.workspaceId,
+          state: "EXPORTED",
+          prospectPayloadHash: "c".repeat(64),
+        },
+        payload
+      )
+    ).toEqual({ ok: true });
+    expect(validateSmirkOutcomeBatchReceipt(null, payload)).toMatchObject({
+      ok: false,
+      code: "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED",
+    });
+    for (const invalid of [
+      {
+        workspaceId: payload.workspaceId + 1,
+        state: "EXPORTED",
+        prospectPayloadHash: "c".repeat(64),
+      },
+      {
+        workspaceId: payload.workspaceId,
+        state: "PROCESSING",
+        prospectPayloadHash: "c".repeat(64),
+      },
+      {
+        workspaceId: payload.workspaceId,
+        state: "EXPORTED",
+        prospectPayloadHash: null,
+      },
+    ]) {
+      expect(
+        validateSmirkOutcomeBatchReceipt(invalid, payload)
+      ).toMatchObject({
+        ok: false,
+        code: "SMIRK_OUTCOME_RESEARCH_RECEIPT_MISMATCH",
+      });
+    }
   });
 
   it("requires the exact executed outreach references", () => {

@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:smirk:persistence": "RUN_SMIRK_PERSISTENCE_TEST=1 vitest run server/smirkDiscoveryPersistence.integration.test.ts server/smirkOutcomePersistence.integration.test.ts server/smirkLearningPersistence.integration.test.ts",
     "test:live": "vitest run --config vitest.live.config.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },

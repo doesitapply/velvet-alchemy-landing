@@ -27,6 +27,8 @@ import {
   auditLog,
   users,
   smirkOutcomeEvents,
+  smirkLeadBatchItems,
+  smirkLeadBatches,
 } from "../drizzle/schema";
 import { captureScreenshot } from "./screenshot";
 import { storagePut } from "./storage";
@@ -48,6 +50,7 @@ import {
   hashSmirkOutcomePayload,
   isDuplicateOutcomeStorageError,
   smirkOutcomePayloadSchema,
+  validateSmirkOutcomeBatchReceipt,
   validateSmirkOutcomeResearchReceipt,
   verifySmirkOutcomeSignature,
 } from "./lib/smirkOutcome";
@@ -987,13 +990,42 @@ export function createApiRouter(): Router {
             receiptRows[0]?.details,
             parsed.data
           );
+          const batchReceiptRows = await tx
+            .select({
+              workspaceId: smirkLeadBatches.workspaceId,
+              state: smirkLeadBatches.state,
+              prospectPayloadHash:
+                smirkLeadBatchItems.prospectPayloadHash,
+            })
+            .from(smirkLeadBatchItems)
+            .innerJoin(
+              smirkLeadBatches,
+              eq(smirkLeadBatches.id, smirkLeadBatchItems.batchId)
+            )
+            .where(
+              and(
+                eq(smirkLeadBatchItems.userId, userId),
+                eq(smirkLeadBatchItems.leadId, leadId)
+              )
+            )
+            .orderBy(desc(smirkLeadBatches.completedAt))
+            .limit(1);
+          const batchReceiptResult =
+            validateSmirkOutcomeBatchReceipt(
+              batchReceiptRows[0],
+              parsed.data
+            );
           if (
             !receiptResult.ok &&
-            receiptResult.code === "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED"
+            !batchReceiptResult.ok &&
+            receiptResult.code ===
+              "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED" &&
+            batchReceiptResult.code ===
+              "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED"
           ) {
             return { state: "NOT_REGISTERED" as const };
           }
-          if (!receiptResult.ok) {
+          if (!receiptResult.ok && !batchReceiptResult.ok) {
             return { state: "RECEIPT_MISMATCH" as const };
           }
 

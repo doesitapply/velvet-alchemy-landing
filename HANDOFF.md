@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
 
-**Current local proof:** TypeScript clean; 147/147 portable unit tests pass; the production build completes with known analytics-placeholder and bundle-size warnings. Credentialed, migrated, deployed, and live results are separate gates below.
+**Current local proof:** TypeScript clean; 153/153 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -14,13 +14,15 @@ Velvet Alchemy is a **private operator intelligence platform**. It finds busines
 
 Velvet does not send email or SMS and does not place or queue prospect calls. The deployed SMIRK handoff receiver accepts a call-shaped `caller` payload, so it remains restricted to explicitly enabled synthetic integration tests.
 
-The hardening branches now contain a separate research-only prospect intake. A privileged owner or administrator can explicitly move one audited lead into SMIRK's operator review queue. That path has a dedicated token, exact workspace lock, stable opaque ID, local audit receipt, 10-per-hour cap, and no contact semantics. It is not deployed, configured, or live-tested yet.
+The hardening branches now contain a separate research-only prospect intake. A privileged owner or administrator can explicitly move one audited lead into SMIRK's operator review queue. That path has a dedicated token, exact workspace lock, stable opaque ID, local audit receipt, 10-per-hour cap, and no contact semantics. It has passed a local HTTP and disposable-database proof, but is not deployed, production-configured, or live-tested.
 
 The branches also contain a signed, idempotent outcome contract. SMIRK writes
 callbacks to a durable outbox and now has a full-operator, one-record dispatch
 path that remains disabled by default. Velvet verifies a dedicated API key,
 HMAC signature, fresh timestamp, owner/lead identity, exact payload hash, and
-idempotency key before writing an outcome event. No deployed callback has been
+idempotency key before writing an outcome event. The receiver has passed a
+local signed-HTTP and disposable-database proof, including forgery, replay,
+changed replay, and wrong-workspace rejection. No deployed callback has been
 verified.
 
 The paired SMIRK source also contains a guarded, one-recipient Resend lane with
@@ -189,14 +191,19 @@ verifiedOwnerEmail VARCHAR(320) NULL
 ```
 
 **Important:** do not use `pnpm db:push` against production while the migration
-journal drift remains unresolved. The new outcome and sourcing-candidate tables are isolated in
-`drizzle/0022_smirk_outcome_events.sql`; review it against a current schema
-snapshot. That migration uses idempotent `ADD COLUMN IF NOT EXISTS` statements
-for the four historical SMIRK columns so an approved migration can reconcile
-either target shape. The reviewed-batch tables are isolated in
-`drizzle/0023_high_loners.sql`. Neither migration is proven applied.
-Back up the exact target and require explicit migration approval before
-applying either file.
+journal drift remains unresolved. The new outcome and sourcing-candidate
+tables are isolated in `drizzle/0022_smirk_outcome_events.sql`. A fresh
+disposable MySQL database now applies the full migration journal successfully,
+and the repository rejects the unsupported
+`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` form that previously broke a clean
+migration. The four historical SMIRK columns in `0022` now use
+`information_schema`-guarded prepared DDL. The full journal passes both a clean
+local database and a simulated pre-journal drift shape where those four
+columns already exist while `0022` through `0024` are absent. The
+reviewed-batch and discovery tables are isolated in
+`drizzle/0023_high_loners.sql` and `drizzle/0024_known_talisman.sql`. None is
+proven applied in production. Review the exact target column types, back up the
+target, and require explicit migration approval before applying them.
 
 ---
 
@@ -257,8 +264,10 @@ There are four separate contracts. Their credentials and semantics must never be
 
 ### SMIRK Requests Bounded Discovery
 
-Source-complete on the Velvet hardening branch; not migrated, deployed,
-configured, or provider-tested.
+Source-complete on the Velvet hardening branch. Its state machine and durable
+receipts pass against disposable local MySQL with a deterministic injected
+Maps adapter. It is not production-migrated, deployed, configured, or
+provider-tested.
 
 ```
 POST https://velvetalchemy.manus.space/api/v1/smirk/discovery-requests
@@ -292,8 +301,9 @@ ID; Velvet requires the same API-key owner and SMIRK workspace and exports only
 
 ### SMIRK Pulls Reviewed Velvet Inventory
 
-Source-complete on the hardening branches; not deployed, configured, migrated,
-or live-tested.
+Source-complete on the hardening branches. Owner-scoped export, exact replay,
+and learning-candidate application pass against disposable local MySQL. It is
+not production-migrated, deployed, configured, or live-tested.
 
 ```
 POST https://velvetalchemy.manus.space/api/v1/smirk/lead-batches
@@ -333,7 +343,9 @@ authority.
 
 ### Research-Only Prospect Intake
 
-Implemented on the current Velvet and SMIRK hardening branches. Not deployed, configured, or live-tested.
+Implemented on the current Velvet and SMIRK hardening branches. Local HTTP and
+database proof covers import, exact replay, and changed-payload conflict. It is
+not deployed, production-configured, or live-tested.
 
 ```
 POST https://smirkcalls.com/api/integrations/velvet/prospects
@@ -432,9 +444,11 @@ The existing `/api/integrations/velvet/handoffs` contract is synthetic-test only
 
 ### Outcome Callback
 
-Implemented on both hardening branches but not deployed, configured, or
-live-tested. SMIRK source commit `c53df589` adds one-record callback dispatch;
-the default remains disabled and an outbox row never dispatches itself.
+Implemented on both hardening branches but not deployed or
+production-configured. Local signed-HTTP and database proof covers
+`RECORDED`, exact `DUPLICATE`, changed-event conflict, forged signature, and
+wrong-workspace rejection. SMIRK one-record callback dispatch remains disabled
+by default and an outbox row never dispatches itself.
 
 `POST /api/v1/leads/:id/outcome` requires a dedicated Velvet API key with
 `outcome:write`, `X-SMIRK-Timestamp`, and `X-SMIRK-Signature`. The body contract
@@ -518,7 +532,7 @@ Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` auth
 
 | Issue                                                     | Impact                                          | Fix                                                                                                     |
 | --------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Outcome, reviewed-batch, and discovery migrations are generated but not applied | Callback, sourcing-learning, batch-reservation, and discovery storage are not live | Review `drizzle/0022_smirk_outcome_events.sql`, `drizzle/0023_high_loners.sql`, and `drizzle/0024_known_talisman.sql`; back up the target DB, then approve exact migrations |
+| Outcome, reviewed-batch, and discovery migrations pass on fresh and simulated-drift local MySQL databases but are not production-inspected or applied | Callback, sourcing-learning, batch-reservation, and discovery storage are not live | Capture the exact production schema, verify the four pre-journal SMIRK column types, back up the target DB, then approve exact migrations |
 | Google AI key (`AQ.*`) is a short-lived OAuth token       | High — Gemini fallback will die                 | Get permanent `AIzaSy*` key from aistudio.google.com/apikey                                             |
 | Builder JSX-location plugin expects Vite 4/5, not Vite 7  | Low — install warning; current build passes     | Upgrade or remove the development-only plugin before the next Vite upgrade                              |
 | Research receiver/client exist only on hardening branches | Real prospect registration is not active        | Approve exact commits, deploy both sides, configure dedicated credentials, then run one synthetic proof |
@@ -546,16 +560,31 @@ Historical checkpoint `e9f88818` reported `88/88` in the Manus runtime with inje
 
 Current gates:
 
-| Command                 | Boundary                                           | Credential-free result on 2026-07-30      |
+| Command                 | Boundary                                           | Result on 2026-07-30                      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 147 passed, 0 failed, 0 skipped            |
-| `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 59 explicitly skipped |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 153 passed, 0 failed, 0 skipped           |
+| `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 62 explicitly skipped |
+| `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence` | Discovery, outcome, and human-reviewed learning persistence | 3 passed, 0 failed, 0 skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
 | `pnpm audit --prod --audit-level high` | Production dependency advisories       | 0 known vulnerabilities                   |
 
 `pnpm test:live` only executes when `RUN_LIVE_TESTS=1` and all three SMIRK variables are present. Running it writes a fake handoff to production and therefore requires explicit approval.
 
 Integration credentials do not authorize execution by themselves. `RUN_INTEGRATION_TESTS=1` is required for every integration suite. Suites that mutate the database additionally require `RUN_DB_WRITE_TESTS=1` and must target a disposable test database. Provider/network and Stripe suites additionally require `RUN_COSTED_TESTS=1`, `RUN_NETWORK_TESTS=1`, or `RUN_STRIPE_TESTS=1` as applicable. Set only the exact gate that Cameron has approved.
+
+`pnpm test:smirk:persistence` is narrower and refuses a non-loopback
+`DATABASE_URL`. It uses real local HTTP and MySQL persistence, but injects the
+Maps response and uses synthetic leads and outcomes. It proves:
+
+- bounded discovery state and audit receipts;
+- owner/workspace-scoped lead export and exact replay;
+- signed outcome persistence with forgery, conflict, and isolation defenses;
+- 20 synthetic outcomes producing an evidence-backed candidate;
+- an explicit administrator decision before candidate use; and
+- one later zero-spend batch narrowed by that approved candidate.
+
+It does not prove a production migration, provider response, email, SMS, call,
+prospect interaction, conversion, or revenue.
 
 The paired SMIRK branch provides a credential-free cross-repository contract
 gate:
