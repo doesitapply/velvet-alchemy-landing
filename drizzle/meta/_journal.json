@@ -176,6 +176,13 @@
       "when": 1785430676393,
       "tag": "0024_known_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1785495717039,
+      "tag": "0025_acquisition_learning_policy_releases",
+      "breakpoints": true
     }
   ]
 }

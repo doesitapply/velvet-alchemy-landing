@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-31
 
-**Current local proof:** TypeScript clean; 167/167 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the email-provider adapter intercepted, and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; 171/171 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the email-provider adapter intercepted, and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -109,7 +109,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/paymentRouter.ts`            | Stripe checkout session creation                                   |
 | `server/apiRouter.ts`                | Public REST API (`/api/v1/*`)                                      |
 | `server/apiKeyRouter.ts`             | API key management (create/revoke/list)                            |
-| `server/acquisitionLearningRouter.ts` | Human-reviewed trade/metro feedback candidates                    |
+| `server/acquisitionLearningRouter.ts` | Human-reviewed trade/metro candidates and separate release receipts |
 | `server/governor.ts`                 | Rate limits, kill-switch, system config                            |
 | `server/worker.ts`                   | Opt-in FIFO worker (polls every 5 min, 1 job/batch)                |
 | `server/apiCostTracker.ts`           | Per-call cost tracking + daily kill-switch ($10/day)               |
@@ -127,6 +127,8 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/smirkDiscoveryWorker.ts`     | Default-disabled one-job discovery worker                          |
 | `server/lib/smirkOutcome.ts`         | Signed callback verification and research-receipt binding          |
 | `server/lib/acquisitionLearning.ts`  | Outcome-linked sourcing scorecards and bounded proposals           |
+| `server/lib/acquisitionLearningPolicy.ts` | Hash-bound release/deactivation contracts with no contact or spend authority |
+| `server/lib/acquisitionLearningPolicyStore.ts` | Fail-closed loader for the current append-only released sourcing policy |
 | `server/lib/emailEnrichment.ts`      | Budget-reserved Hunter.io verified-owner lookup                    |
 | `server/lib/smsOutreach.ts`          | Fail-closed cold-SMS compatibility adapter                         |
 | `server/lib/emailOutreach.ts`        | Review-only copy + fail-closed delivery adapter                    |
@@ -158,7 +160,7 @@ The system is designed to be operated by a single person or a small team, with e
 
 | File                | Purpose                  |
 | ------------------- | ------------------------ |
-| `drizzle/schema.ts` | All 28 table definitions |
+| `drizzle/schema.ts` | All 29 table definitions |
 
 ---
 
@@ -175,6 +177,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `outreach_drafts` | Historical Charmer drafts retained for audit/cleanup only     |
 | `smirk_outcome_events` | Signed, idempotent SMIRK feedback facts; no action trigger |
 | `acquisition_learning_candidates` | Human-reviewed trade/metro sourcing proposals |
+| `acquisition_learning_policy_releases` | Append-only apply/deactivate authority receipts |
 | `smirk_lead_batches` | Immutable SMIRK reviewed-lead export requests and responses |
 | `smirk_lead_batch_items` | One-time owner-scoped lead reservations for those exports |
 | `smirk_discovery_requests` | Immutable request, quote, approval, lease, and result receipts |
@@ -345,17 +348,21 @@ Content-Type: application/json
 
 Only an administrator can grant the `smirk:research` scope. The endpoint
 accepts one opaque request ID, one configured SMIRK workspace, a 1-20 limit,
-and either manual category/metro filters or `latest_approved` learning mode.
+and either manual category/metro filters or `latest_released` learning mode.
+The legacy wire value `latest_approved` remains accepted for compatibility,
+but it has the same fail-closed requirement for a separately released policy.
 The `Idempotency-Key` header must exactly match the request ID.
 The request must literally contain `contactActionAllowed: false` and
 `maxSpendCents: 0`.
 
 Velvet selects only the key owner's `audited` records with a phone or verified
 owner email. Each lead is reserved once in `smirk_lead_batch_items`; the full
-response and hashes are retained for exact `200 DUPLICATE` replay. An approved
-learning candidate can narrow only that one request and can only reduce the
-batch cap. The endpoint does not call scrape, pipeline, LLM, email, SMS, or
-telephony providers.
+response and hashes are retained for exact `200 DUPLICATE` replay. Approval
+alone cannot change sourcing. A privileged operator must separately release
+the exact proposal and evidence hashes through an append-only policy receipt.
+That released candidate can narrow only the requested research batch and can
+only reduce the batch cap. The endpoint does not call scrape, pipeline, LLM,
+email, SMS, or telephony providers.
 
 The request may include additive `sourceDiscoveryRequestId` provenance. When
 present, manual category, city, and state are required; learned mode is
@@ -602,7 +609,7 @@ Current gates:
 
 | Command                 | Boundary                                           | Result on 2026-07-31                      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 167 passed, 0 failed, 0 skipped           |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 171 passed, 0 failed, 0 skipped           |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 62 explicitly skipped |
 | `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence` | Discovery, outcome, and human-reviewed learning persistence | 3 passed, 0 failed, 0 skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
@@ -621,8 +628,11 @@ Maps response and uses synthetic leads and outcomes. It proves:
 - signed outcome persistence with forgery, conflict, and isolation defenses;
 - 21 synthetic lifecycle events across 20 prospects producing an
   evidence-backed candidate without inflating the sample denominator;
-- an explicit administrator decision before candidate use; and
-- one later zero-spend batch narrowed by that approved candidate.
+- an explicit administrator approval that still cannot change sourcing;
+- a separate hash-bound release before candidate use;
+- stale evidence, altered receipts, and replay conflicts failing closed;
+- deactivation blocking future learned requests; and
+- one later zero-spend batch narrowed by that released candidate.
 
 It does not prove a production migration, provider response, email, SMS, call,
 prospect interaction, conversion, or revenue.

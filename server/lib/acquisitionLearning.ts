@@ -1,5 +1,15 @@
+import { createHash } from "node:crypto";
+import { z } from "zod";
+
 export const MINIMUM_ACQUISITION_SEGMENT_SAMPLE = 10;
 export const MINIMUM_ACQUISITION_LIFT = 0.05;
+export const ACQUISITION_LEARNING_STUDY_DESIGN =
+  "observational-segment-comparison-v1" as const;
+export const ACQUISITION_LEARNING_STATISTICAL_TEST =
+  "fisher-exact-one-sided-v1" as const;
+export const MAXIMUM_ACQUISITION_FISHER_P_VALUE = 0.05;
+export const ACQUISITION_LEARNING_INTERPRETATION =
+  "Outcome-linked segment association only. Operator selection and market mix remain possible confounders; this receipt may support a bounded human release but does not establish causation or authorize contact, provider execution, or spend." as const;
 
 export type AcquisitionOutcome =
   | "delivered"
@@ -42,6 +52,66 @@ export type AcquisitionLearningSummary = {
   segments: AcquisitionSegmentScore[];
 };
 
+const acquisitionSegmentScoreSchema = z
+  .object({
+    dimension: z.enum(["category", "metro"]),
+    value: z.string().trim().min(1).max(160),
+    sampleSize: z.number().int().min(MINIMUM_ACQUISITION_SEGMENT_SAMPLE),
+    eventCount: z.number().int().positive(),
+    positive: z.number().int().nonnegative(),
+    positiveRate: z.number().min(0).max(1),
+  })
+  .strict()
+  .refine(value => value.positive <= value.sampleSize, {
+    message: "Positive outcomes cannot exceed the segment sample size.",
+  });
+
+export const acquisitionLearningProposalSchema = z
+  .object({
+    action: z.literal("prioritize_for_next_research_batch"),
+    dimension: z.enum(["category", "metro"]),
+    value: z.string().trim().min(2).max(160),
+    maximumNextBatchSize: z.literal(20),
+  })
+  .strict();
+
+export const acquisitionLearningEvidenceSchema = z
+  .object({
+    studyDesign: z.literal(ACQUISITION_LEARNING_STUDY_DESIGN),
+    interpretation: z.literal(ACQUISITION_LEARNING_INTERPRETATION),
+    segment: acquisitionSegmentScoreSchema,
+    comparisonSampleSize: z
+      .number()
+      .int()
+      .min(MINIMUM_ACQUISITION_SEGMENT_SAMPLE),
+    comparisonPositive: z.number().int().nonnegative(),
+    comparisonPositiveRate: z.number().min(0).max(1),
+    absoluteLift: z.number().min(MINIMUM_ACQUISITION_LIFT).max(1),
+    statisticalTest: z.literal(ACQUISITION_LEARNING_STATISTICAL_TEST),
+    oneSidedFisherPValue: z
+      .number()
+      .min(0)
+      .max(MAXIMUM_ACQUISITION_FISHER_P_VALUE),
+    maximumOneSidedFisherPValue: z.literal(
+      MAXIMUM_ACQUISITION_FISHER_P_VALUE
+    ),
+  })
+  .strict()
+  .refine(
+    value => value.comparisonPositive <= value.comparisonSampleSize,
+    {
+      message:
+        "Comparison positives cannot exceed the comparison sample size.",
+    }
+  );
+
+export type AcquisitionLearningProposal = z.infer<
+  typeof acquisitionLearningProposalSchema
+>;
+export type AcquisitionLearningEvidence = z.infer<
+  typeof acquisitionLearningEvidenceSchema
+>;
+
 const POSITIVE_OUTCOMES = new Set<AcquisitionOutcome>([
   "replied",
   "qualified",
@@ -52,6 +122,130 @@ const POSITIVE_OUTCOMES = new Set<AcquisitionOutcome>([
 
 function stableRate(value: number): number {
   return Math.round(value * 10_000) / 10_000;
+}
+
+function stableProbability(value: number): number {
+  return Math.ceil(value * 1_000_000) / 1_000_000;
+}
+
+export function calculateAcquisitionFisherExactPValue(input: {
+  comparisonPositive: number;
+  comparisonSampleSize: number;
+  segmentPositive: number;
+  segmentSampleSize: number;
+}): number {
+  const values = [
+    input.comparisonPositive,
+    input.comparisonSampleSize,
+    input.segmentPositive,
+    input.segmentSampleSize,
+  ];
+  if (
+    values.some(value => !Number.isSafeInteger(value) || value < 0) ||
+    input.comparisonPositive > input.comparisonSampleSize ||
+    input.segmentPositive > input.segmentSampleSize ||
+    input.comparisonSampleSize + input.segmentSampleSize === 0
+  ) {
+    throw new Error("Fisher exact inputs must be valid binary counts.");
+  }
+
+  const totalSampleSize =
+    input.comparisonSampleSize + input.segmentSampleSize;
+  const totalPositive =
+    input.comparisonPositive + input.segmentPositive;
+  const logFactorials = new Array<number>(totalSampleSize + 1).fill(0);
+  for (let value = 2; value <= totalSampleSize; value += 1) {
+    logFactorials[value] = logFactorials[value - 1] + Math.log(value);
+  }
+  const logCombination = (n: number, k: number): number => {
+    if (k < 0 || k > n) return Number.NEGATIVE_INFINITY;
+    return logFactorials[n] - logFactorials[k] - logFactorials[n - k];
+  };
+  const denominator = logCombination(totalSampleSize, totalPositive);
+  const maximumSegmentPositive = Math.min(
+    input.segmentSampleSize,
+    totalPositive
+  );
+  let probability = 0;
+  for (
+    let segmentPositive = input.segmentPositive;
+    segmentPositive <= maximumSegmentPositive;
+    segmentPositive += 1
+  ) {
+    const comparisonPositive = totalPositive - segmentPositive;
+    if (
+      comparisonPositive < 0 ||
+      comparisonPositive > input.comparisonSampleSize
+    ) {
+      continue;
+    }
+    probability += Math.exp(
+      logCombination(input.segmentSampleSize, segmentPositive) +
+        logCombination(input.comparisonSampleSize, comparisonPositive) -
+        denominator
+    );
+  }
+  return stableProbability(Math.min(1, Math.max(0, probability)));
+}
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalize(nested)])
+    );
+  }
+  return value;
+}
+
+export function hashAcquisitionLearningValue(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(value)))
+    .digest("hex");
+}
+
+export function verifyAcquisitionLearningCandidateSnapshot(input: {
+  proposal: unknown;
+  evidence: unknown;
+  sampleSize: number;
+}): {
+  proposal: AcquisitionLearningProposal;
+  evidence: AcquisitionLearningEvidence;
+} {
+  const proposal = acquisitionLearningProposalSchema.parse(input.proposal);
+  const evidence = acquisitionLearningEvidenceSchema.parse(input.evidence);
+  const expectedSegmentRate = stableRate(
+    evidence.segment.positive / evidence.segment.sampleSize
+  );
+  const expectedComparisonRate = stableRate(
+    evidence.comparisonPositive / evidence.comparisonSampleSize
+  );
+  const expectedLift = stableRate(
+    expectedSegmentRate - expectedComparisonRate
+  );
+  const expectedPValue = calculateAcquisitionFisherExactPValue({
+    comparisonPositive: evidence.comparisonPositive,
+    comparisonSampleSize: evidence.comparisonSampleSize,
+    segmentPositive: evidence.segment.positive,
+    segmentSampleSize: evidence.segment.sampleSize,
+  });
+  const valid =
+    proposal.dimension === evidence.segment.dimension &&
+    proposal.value === evidence.segment.value &&
+    input.sampleSize ===
+      evidence.segment.sampleSize + evidence.comparisonSampleSize &&
+    evidence.segment.positiveRate === expectedSegmentRate &&
+    evidence.comparisonPositiveRate === expectedComparisonRate &&
+    evidence.absoluteLift === expectedLift &&
+    evidence.oneSidedFisherPValue === expectedPValue;
+  if (!valid) {
+    throw new Error(
+      "The acquisition-learning candidate evidence is internally inconsistent."
+    );
+  }
+  return { proposal, evidence };
 }
 
 function normalizedSegmentValue(
@@ -247,15 +441,25 @@ export function evaluateAcquisitionLearningCandidate(input: {
         maximumNextBatchSize: 20;
       };
       evidence: {
+        studyDesign: typeof ACQUISITION_LEARNING_STUDY_DESIGN;
+        interpretation: typeof ACQUISITION_LEARNING_INTERPRETATION;
         segment: AcquisitionSegmentScore;
         comparisonSampleSize: number;
+        comparisonPositive: number;
         comparisonPositiveRate: number;
         absoluteLift: number;
+        statisticalTest: typeof ACQUISITION_LEARNING_STATISTICAL_TEST;
+        oneSidedFisherPValue: number;
+        maximumOneSidedFisherPValue:
+          typeof MAXIMUM_ACQUISITION_FISHER_P_VALUE;
       };
     }
   | {
       ready: false;
-      code: "INSUFFICIENT_SAMPLE" | "NO_MEASURED_LIFT";
+      code:
+        | "INSUFFICIENT_SAMPLE"
+        | "NO_MEASURED_LIFT"
+        | "INSUFFICIENT_CONFIDENCE";
       sampleSize: number;
     } {
   const normalizedValue =
@@ -300,6 +504,22 @@ export function evaluateAcquisitionLearningCandidate(input: {
   if (absoluteLift < MINIMUM_ACQUISITION_LIFT) {
     return { ready: false, code: "NO_MEASURED_LIFT", sampleSize };
   }
+  const oneSidedFisherPValue =
+    calculateAcquisitionFisherExactPValue({
+      comparisonPositive,
+      comparisonSampleSize,
+      segmentPositive: segment.positive,
+      segmentSampleSize: segment.sampleSize,
+    });
+  if (
+    oneSidedFisherPValue > MAXIMUM_ACQUISITION_FISHER_P_VALUE
+  ) {
+    return {
+      ready: false,
+      code: "INSUFFICIENT_CONFIDENCE",
+      sampleSize,
+    };
+  }
   return {
     ready: true,
     sampleSize,
@@ -310,10 +530,17 @@ export function evaluateAcquisitionLearningCandidate(input: {
       maximumNextBatchSize: 20,
     },
     evidence: {
+      studyDesign: ACQUISITION_LEARNING_STUDY_DESIGN,
+      interpretation: ACQUISITION_LEARNING_INTERPRETATION,
       segment,
       comparisonSampleSize,
+      comparisonPositive,
       comparisonPositiveRate,
       absoluteLift,
+      statisticalTest: ACQUISITION_LEARNING_STATISTICAL_TEST,
+      oneSidedFisherPValue,
+      maximumOneSidedFisherPValue:
+        MAXIMUM_ACQUISITION_FISHER_P_VALUE,
     },
   };
 }

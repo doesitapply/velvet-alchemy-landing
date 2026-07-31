@@ -118,7 +118,7 @@ describe("SMIRK discovery contract", () => {
     ).toThrow("exact operator-approved");
   });
 
-  it("combines an approved category candidate with an operator-selected metro", () => {
+  it("combines a released category candidate with an operator-selected metro", () => {
     const candidate: AppliedLearningCandidate = {
       id: 7,
       candidateKey: "category:plumbing",
@@ -129,6 +129,8 @@ describe("SMIRK discovery contract", () => {
         value: "plumbing",
         maximumNextBatchSize: 4,
       },
+      policyReleaseId: "b5e9f085-f6c6-4b7f-bde8-b94d3b63de90",
+      policyReleaseReceiptHash: "b".repeat(64),
     };
     const request = smirkDiscoveryRequestSchema.parse({
       contractVersion: SMIRK_DISCOVERY_REQUEST_CONTRACT,
@@ -138,7 +140,7 @@ describe("SMIRK discovery contract", () => {
         limit: 10,
         city: "Reno",
         state: "NV",
-        learningMode: "latest_approved",
+        learningMode: "latest_released",
       },
       contactActionAllowed: false,
       spendAuthorized: false,
@@ -153,7 +155,7 @@ describe("SMIRK discovery contract", () => {
     });
   });
 
-  it("combines an approved metro candidate with an operator-selected category", () => {
+  it("combines a released metro candidate with an operator-selected category", () => {
     const candidate: AppliedLearningCandidate = {
       id: 8,
       candidateKey: "metro:reno-nv",
@@ -164,6 +166,8 @@ describe("SMIRK discovery contract", () => {
         value: "Reno, NV",
         maximumNextBatchSize: 8,
       },
+      policyReleaseId: "e05f13b8-1850-46a6-9b59-afd41bfb2f8d",
+      policyReleaseReceiptHash: "c".repeat(64),
     };
     const request = smirkDiscoveryRequestSchema.parse({
       contractVersion: SMIRK_DISCOVERY_REQUEST_CONTRACT,
@@ -172,7 +176,7 @@ describe("SMIRK discovery contract", () => {
       criteria: {
         limit: 6,
         category: "hvac",
-        learningMode: "latest_approved",
+        learningMode: "latest_released",
       },
       contactActionAllowed: false,
       spendAuthorized: false,

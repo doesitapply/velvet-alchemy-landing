@@ -52,6 +52,10 @@ export default function CommandCenter() {
     trpc.acquisitionLearning.createCandidate.useMutation();
   const decideLearningCandidateMutation =
     trpc.acquisitionLearning.decideCandidate.useMutation();
+  const releaseLearningCandidateMutation =
+    trpc.acquisitionLearning.releaseCandidate.useMutation();
+  const deactivateLearningPolicyMutation =
+    trpc.acquisitionLearning.deactivatePolicy.useMutation();
   const approveSmirkDiscoveryMutation =
     trpc.smirkDiscovery.approve.useMutation();
   const executeSmirkDiscoveryMutation =
@@ -98,6 +102,71 @@ export default function CommandCenter() {
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Unable to record decision."
+      );
+    }
+  };
+
+  const releaseLearningCandidate = async (
+    candidate: NonNullable<
+      typeof learningCandidatesQuery.data
+    >["candidates"][number]
+  ) => {
+    const confirmed = confirm(
+      "Release this observational segment only for future bounded lead research? This does not authorize contact, provider execution, or spend."
+    );
+    if (!confirmed) return;
+    const reason = prompt(
+      "Record why this measured segment should guide the next research batch:"
+    )?.trim();
+    if (!reason) return;
+    try {
+      await releaseLearningCandidateMutation.mutateAsync({
+        candidateId: candidate.id,
+        releaseId: crypto.randomUUID(),
+        proposalHash: candidate.proposalHash,
+        evidenceHash: candidate.evidenceHash,
+        confirmation: "release-one-approved-acquisition-candidate-v1",
+        attestations: {
+          evidenceReviewed: true,
+          observationalNotCausal: true,
+          noContactOrSpendApproved: true,
+        },
+        reason,
+      });
+      toast.success("Sourcing policy released for future research only.");
+      learningCandidatesQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to release the sourcing policy."
+      );
+    }
+  };
+
+  const deactivateLearningPolicy = async (currentReleaseId: string) => {
+    const confirmed = confirm(
+      "Deactivate the current learned sourcing policy? Future learned requests will fail closed until another candidate is released."
+    );
+    if (!confirmed) return;
+    const reason = prompt(
+      "Record why this sourcing policy is being deactivated:"
+    )?.trim();
+    if (!reason) return;
+    try {
+      await deactivateLearningPolicyMutation.mutateAsync({
+        currentReleaseId,
+        releaseId: crypto.randomUUID(),
+        confirmation: "deactivate-current-acquisition-policy-v1",
+        reason,
+      });
+      toast.success("Learned sourcing policy deactivated.");
+      learningCandidatesQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to deactivate the sourcing policy."
       );
     }
   };
@@ -517,6 +586,13 @@ export default function CommandCenter() {
                           value?: string;
                           maximumNextBatchSize?: number;
                         };
+                        const evidence = candidate.evidence as {
+                          oneSidedFisherPValue?: number;
+                        };
+                        const currentPolicy =
+                          learningCandidatesQuery.data?.currentPolicy;
+                        const isReleased =
+                          currentPolicy?.activeCandidate?.id === candidate.id;
                         return (
                           <div
                             key={candidate.id}
@@ -531,6 +607,10 @@ export default function CommandCenter() {
                                 {proposal.maximumNextBatchSize || 20} ·{" "}
                                 {candidate.sampleSize} prospects · v
                                 {candidate.version}
+                                {typeof evidence.oneSidedFisherPValue ===
+                                "number"
+                                  ? ` · Fisher p=${evidence.oneSidedFisherPValue.toFixed(6)}`
+                                  : ""}
                               </p>
                             </div>
                             {candidate.state === "CANDIDATE" ? (
@@ -566,6 +646,42 @@ export default function CommandCenter() {
                                 >
                                   <Check className="h-4 w-4" />
                                 </Button>
+                              </div>
+                            ) : candidate.state === "APPROVED" ? (
+                              <div className="flex items-center gap-2">
+                                <span className="rounded border border-white/10 px-2 py-1 text-xs text-muted-foreground">
+                                  {isReleased ? "RELEASED" : "APPROVED"}
+                                </span>
+                                {isReleased && currentPolicy ? (
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    title="Deactivate learned sourcing policy"
+                                    disabled={
+                                      deactivateLearningPolicyMutation.isPending
+                                    }
+                                    onClick={() =>
+                                      deactivateLearningPolicy(
+                                        currentPolicy.releaseId
+                                      )
+                                    }
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="icon"
+                                    title="Release for future research"
+                                    disabled={
+                                      releaseLearningCandidateMutation.isPending
+                                    }
+                                    onClick={() =>
+                                      releaseLearningCandidate(candidate)
+                                    }
+                                  >
+                                    <Play className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             ) : (
                               <span className="rounded border border-white/10 px-2 py-1 text-xs text-muted-foreground">

@@ -96,7 +96,7 @@ describe("SMIRK lead batch request", () => {
         ...request,
         criteria: {
           ...request.criteria,
-          learningMode: "latest_approved",
+          learningMode: "latest_released",
         },
       }).success
     ).toBe(false);
@@ -117,7 +117,7 @@ describe("SMIRK lead batch request", () => {
         sourceDiscoveryRequestId,
         criteria: {
           limit: 8,
-          learningMode: "latest_approved",
+          learningMode: "latest_released",
         },
       }).success
     ).toBe(false);
@@ -125,7 +125,7 @@ describe("SMIRK lead batch request", () => {
 });
 
 describe("SMIRK lead batch learning gate", () => {
-  it("uses only a valid approved proposal and honors its smaller cap", () => {
+  it("uses only a valid released proposal and honors its smaller cap", () => {
     const candidate = parseApprovedSourcingCandidate({
       id: 17,
       candidateKey: "category:plumbing",
@@ -136,13 +136,15 @@ describe("SMIRK lead batch learning gate", () => {
         value: "plumbing",
         maximumNextBatchSize: 5,
       }),
+      policyReleaseId: "a630721e-2213-40a5-af3a-d19b31714bf0",
+      policyReleaseReceiptHash: "a".repeat(64),
     });
     expect(candidate).not.toBeNull();
     const learnedRequest = smirkLeadBatchRequestSchema.parse({
       ...request,
       criteria: {
         limit: 12,
-        learningMode: "latest_approved",
+        learningMode: "latest_released",
       },
     });
     expect(sourcingFiltersForRequest(learnedRequest, candidate)).toEqual({
@@ -163,6 +165,8 @@ describe("SMIRK lead batch learning gate", () => {
           value: "plumbing",
           maximumNextBatchSize: 20,
         }),
+        policyReleaseId: "a630721e-2213-40a5-af3a-d19b31714bf0",
+        policyReleaseReceiptHash: "a".repeat(64),
       })
     ).toBeNull();
   });

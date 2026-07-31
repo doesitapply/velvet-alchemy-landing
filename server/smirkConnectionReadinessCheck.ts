@@ -7,6 +7,7 @@ import {
 
 const REQUIRED_TABLES = [
   "acquisition_learning_candidates",
+  "acquisition_learning_policy_releases",
   "api_keys",
   "smirk_discovery_events",
   "smirk_discovery_lead_items",

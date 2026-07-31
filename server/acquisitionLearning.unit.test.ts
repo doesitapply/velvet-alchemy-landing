@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildAcquisitionLearningSummary,
   buildAcquisitionSegmentScorecard,
+  calculateAcquisitionFisherExactPValue,
   evaluateAcquisitionLearningCandidate,
+  verifyAcquisitionLearningCandidateSnapshot,
   type AcquisitionObservation,
 } from "./lib/acquisitionLearning";
 
@@ -32,7 +34,7 @@ const dataset = [
     city: "Reno",
     state: "NV",
     count: 10,
-    positives: 4,
+    positives: 6,
   }),
   ...observations({
     category: "hvac",
@@ -49,8 +51,8 @@ describe("Velvet acquisition learning", () => {
       value: "plumbing",
       sampleSize: 10,
       eventCount: 10,
-      positive: 4,
-      positiveRate: 0.4,
+      positive: 6,
+      positiveRate: 0.6,
     });
     expect(buildAcquisitionSegmentScorecard(dataset, "metro")[0].value).toBe(
       "Reno, NV"
@@ -204,10 +206,80 @@ describe("Velvet acquisition learning", () => {
       },
       evidence: {
         comparisonSampleSize: 10,
+        comparisonPositive: 1,
         comparisonPositiveRate: 0.1,
-        absoluteLift: 0.3,
+        absoluteLift: 0.5,
+        statisticalTest: "fisher-exact-one-sided-v1",
+        oneSidedFisherPValue: 0.028638,
+        maximumOneSidedFisherPValue: 0.05,
       },
     });
+  });
+
+  it("requires exact statistical confidence before proposing a source change", () => {
+    expect(
+      calculateAcquisitionFisherExactPValue({
+        comparisonPositive: 1,
+        comparisonSampleSize: 10,
+        segmentPositive: 6,
+        segmentSampleSize: 10,
+      })
+    ).toBe(0.028638);
+    expect(
+      evaluateAcquisitionLearningCandidate({
+        observations: [
+          ...observations({
+            category: "plumbing",
+            city: "Reno",
+            state: "NV",
+            count: 10,
+            positives: 2,
+          }),
+          ...observations({
+            category: "hvac",
+            city: "Sacramento",
+            state: "CA",
+            count: 10,
+            positives: 1,
+          }),
+        ],
+        dimension: "category",
+        value: "plumbing",
+      })
+    ).toMatchObject({
+      ready: false,
+      code: "INSUFFICIENT_CONFIDENCE",
+    });
+  });
+
+  it("rejects internally inconsistent candidate confidence evidence", () => {
+    const candidate = evaluateAcquisitionLearningCandidate({
+      observations: dataset,
+      dimension: "category",
+      value: "plumbing",
+    });
+    expect(candidate.ready).toBe(true);
+    if (candidate.ready === false) return;
+    expect(
+      verifyAcquisitionLearningCandidateSnapshot({
+        proposal: candidate.proposal,
+        evidence: candidate.evidence,
+        sampleSize: candidate.sampleSize,
+      })
+    ).toEqual({
+      proposal: candidate.proposal,
+      evidence: candidate.evidence,
+    });
+    expect(() =>
+      verifyAcquisitionLearningCandidateSnapshot({
+        proposal: candidate.proposal,
+        evidence: {
+          ...candidate.evidence,
+          oneSidedFisherPValue: 0.000001,
+        },
+        sampleSize: candidate.sampleSize,
+      })
+    ).toThrow(/internally inconsistent/);
   });
 
   it("refuses low-sample or no-lift sourcing changes", () => {

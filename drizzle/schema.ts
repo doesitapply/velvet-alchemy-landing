@@ -446,6 +446,44 @@ export type InsertAcquisitionLearningCandidate =
   typeof acquisitionLearningCandidates.$inferInsert;
 
 /**
+ * Append-only authority receipts for the sourcing policy used by SMIRK.
+ * Candidate approval alone never changes discovery or lead-batch filters.
+ */
+export const acquisitionLearningPolicyReleases = mysqlTable(
+  "acquisition_learning_policy_releases",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    releaseId: varchar("releaseId", { length: 64 }).notNull(),
+    action: mysqlEnum("action", ["APPLY", "DEACTIVATE"]).notNull(),
+    activeCandidateId: int("activeCandidateId"),
+    previousCandidateId: int("previousCandidateId"),
+    candidateKey: varchar("candidateKey", { length: 180 }),
+    candidateVersion: int("candidateVersion"),
+    proposalHash: varchar("proposalHash", { length: 64 }),
+    evidenceHash: varchar("evidenceHash", { length: 64 }),
+    requestHash: varchar("requestHash", { length: 64 }).notNull(),
+    receiptHash: varchar("receiptHash", { length: 64 }).notNull(),
+    reason: text("reason").notNull(),
+    createdBy: int("createdBy").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    releaseIdUnique: uniqueIndex(
+      "acquisition_learning_policy_releases_release_id_unique"
+    ).on(table.releaseId),
+    userReleaseIndex: index(
+      "acquisition_learning_policy_releases_user_id_idx"
+    ).on(table.userId, table.id),
+  })
+);
+
+export type AcquisitionLearningPolicyRelease =
+  typeof acquisitionLearningPolicyReleases.$inferSelect;
+export type InsertAcquisitionLearningPolicyRelease =
+  typeof acquisitionLearningPolicyReleases.$inferInsert;
+
+/**
  * Assets table for The Visionary
  */
 export const assets = mysqlTable("assets", {

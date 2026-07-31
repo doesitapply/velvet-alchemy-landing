@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gt, lte } from "drizzle-orm";
 import {
-  acquisitionLearningCandidates,
   smirkDiscoveryEvents,
   smirkDiscoveryRequests,
   systemConfig,
@@ -26,9 +25,10 @@ import {
 } from "./smirkDiscovery";
 import {
   appliedLearningCandidateSchema,
-  parseApprovedSourcingCandidate,
+  isReleasedAcquisitionLearningMode,
   type AppliedLearningCandidate,
 } from "./smirkLeadBatch";
+import { loadCurrentReleasedAcquisitionPolicy } from "./acquisitionLearningPolicyStore";
 
 const DISCOVERY_LEASE_MS = 15 * 60 * 1_000;
 const DISCOVERY_WORKER_LOCK_KEY = "smirk_discovery_worker_lock";
@@ -169,36 +169,6 @@ async function appendEvent(
       500
     );
   }
-}
-
-async function latestApprovedCandidate(
-  tx: any,
-  userId: number
-): Promise<AppliedLearningCandidate | null> {
-  const rows = await tx
-    .select({
-      id: acquisitionLearningCandidates.id,
-      candidateKey: acquisitionLearningCandidates.candidateKey,
-      version: acquisitionLearningCandidates.version,
-      proposal: acquisitionLearningCandidates.proposal,
-    })
-    .from(acquisitionLearningCandidates)
-    .where(
-      and(
-        eq(acquisitionLearningCandidates.userId, userId),
-        eq(acquisitionLearningCandidates.state, "APPROVED")
-      )
-    )
-    .orderBy(
-      desc(acquisitionLearningCandidates.decidedAt),
-      desc(acquisitionLearningCandidates.generatedAt)
-    )
-    .limit(25);
-  for (const row of rows) {
-    const candidate = parseApprovedSourcingCandidate(row);
-    if (candidate) return candidate;
-  }
-  return null;
 }
 
 function preparedResponse(
@@ -357,19 +327,31 @@ export async function prepareSmirkDiscovery(
         };
       }
 
-      const candidate =
-        request.criteria.learningMode === "latest_approved"
-          ? await latestApprovedCandidate(tx, actor.userId)
-          : null;
+      let candidate: AppliedLearningCandidate | null = null;
       if (
-        request.criteria.learningMode === "latest_approved" &&
-        !candidate
+        isReleasedAcquisitionLearningMode(
+          request.criteria.learningMode
+        )
       ) {
-        throw new SmirkDiscoveryStoreError(
-          "No valid approved sourcing candidate is available.",
-          "SMIRK_DISCOVERY_LEARNING_CANDIDATE_REQUIRED",
-          412
+        const policy = await loadCurrentReleasedAcquisitionPolicy(
+          tx,
+          actor.userId
         );
+        if (policy.state === "INVALID") {
+          throw new SmirkDiscoveryStoreError(
+            "The released sourcing policy failed integrity verification.",
+            "SMIRK_DISCOVERY_LEARNING_POLICY_INVALID",
+            412
+          );
+        }
+        if (policy.state !== "ACTIVE") {
+          throw new SmirkDiscoveryStoreError(
+            "No released sourcing policy is available.",
+            "SMIRK_DISCOVERY_LEARNING_RELEASE_REQUIRED",
+            412
+          );
+        }
+        candidate = policy.candidate;
       }
       let effectiveCriteria;
       let quote;

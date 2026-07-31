@@ -3,6 +3,7 @@ import { z } from "zod";
 import { readMapsRequestCostConfig } from "../_core/map";
 import {
   appliedLearningCandidateSchema,
+  isReleasedAcquisitionLearningMode,
   type AppliedLearningCandidate,
 } from "./smirkLeadBatch";
 
@@ -33,7 +34,11 @@ export const smirkDiscoveryCriteriaSchema = z
     category: z.string().trim().min(2).max(120).optional(),
     city: z.string().trim().min(1).max(120).optional(),
     state: z.string().trim().min(2).max(80).optional(),
-    learningMode: z.enum(["none", "latest_approved"]),
+    learningMode: z.enum([
+      "none",
+      "latest_released",
+      "latest_approved",
+    ]),
   })
   .strict()
   .superRefine((criteria, ctx) => {
@@ -44,7 +49,7 @@ export const smirkDiscoveryCriteriaSchema = z
       });
     }
     if (
-      criteria.learningMode === "latest_approved" &&
+      isReleasedAcquisitionLearningMode(criteria.learningMode) &&
       Boolean(criteria.category) === Boolean(criteria.city && criteria.state)
     ) {
       ctx.addIssue({
@@ -204,7 +209,7 @@ export function buildSmirkDiscoveryEffectiveCriteria(input: {
   }
   if (!candidate) {
     throw new Error(
-      "A valid approved sourcing candidate is required for learned discovery."
+      "A valid released sourcing candidate is required for learned discovery."
     );
   }
   const limit = Math.min(
@@ -214,7 +219,7 @@ export function buildSmirkDiscoveryEffectiveCriteria(input: {
   if (candidate.proposal.dimension === "category") {
     if (!request.criteria.city || !request.criteria.state) {
       throw new Error(
-        "The approved category candidate requires an operator-selected city and state."
+        "The released category candidate requires an operator-selected city and state."
       );
     }
     return smirkDiscoveryEffectiveCriteriaSchema.parse({
@@ -229,12 +234,12 @@ export function buildSmirkDiscoveryEffectiveCriteria(input: {
   const state = candidate.proposal.value.slice(separator + 1).trim();
   if (!city || !state) {
     throw new Error(
-      "The approved metro candidate is not formatted as City, State."
+      "The released metro candidate is not formatted as City, State."
     );
   }
   if (!request.criteria.category) {
     throw new Error(
-      "The approved metro candidate requires an operator-selected category."
+      "The released metro candidate requires an operator-selected category."
     );
   }
   return smirkDiscoveryEffectiveCriteriaSchema.parse({

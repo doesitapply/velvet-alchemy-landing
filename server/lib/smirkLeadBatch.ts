@@ -28,7 +28,11 @@ export const smirkLeadBatchRequestSchema = z
         category: z.string().trim().min(2).max(120).optional(),
         city: z.string().trim().min(1).max(120).optional(),
         state: z.string().trim().min(2).max(80).optional(),
-        learningMode: z.enum(["none", "latest_approved"]),
+        learningMode: z.enum([
+          "none",
+          "latest_released",
+          "latest_approved",
+        ]),
       })
       .strict()
       .superRefine((criteria, ctx) => {
@@ -39,13 +43,13 @@ export const smirkLeadBatchRequestSchema = z
           });
         }
         if (
-          criteria.learningMode === "latest_approved" &&
+          isReleasedAcquisitionLearningMode(criteria.learningMode) &&
           (criteria.category || criteria.city || criteria.state)
         ) {
           ctx.addIssue({
             code: "custom",
             message:
-              "An approved learning candidate and manual segment filters cannot be combined.",
+              "A released learning policy and manual segment filters cannot be combined.",
           });
         }
       }),
@@ -88,6 +92,8 @@ export const appliedLearningCandidateSchema = z
     candidateKey: z.string().min(3).max(180),
     version: z.number().int().positive(),
     proposal: acquisitionSourcingProposalSchema,
+    policyReleaseId: z.string().uuid(),
+    policyReleaseReceiptHash: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
 
@@ -151,6 +157,12 @@ export type SmirkLeadBatchResponse = z.infer<
   typeof smirkLeadBatchResponseSchema
 >;
 
+export function isReleasedAcquisitionLearningMode(
+  mode: SmirkLeadBatchRequest["criteria"]["learningMode"]
+): boolean {
+  return mode === "latest_released" || mode === "latest_approved";
+}
+
 export function hashSmirkLeadBatchValue(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
@@ -160,6 +172,8 @@ export function parseApprovedSourcingCandidate(input: {
   candidateKey: string;
   version: number;
   proposal: string;
+  policyReleaseId: string;
+  policyReleaseReceiptHash: string;
 }): AppliedLearningCandidate | null {
   let rawProposal: unknown;
   try {
@@ -172,6 +186,8 @@ export function parseApprovedSourcingCandidate(input: {
     candidateKey: input.candidateKey,
     version: input.version,
     proposal: rawProposal,
+    policyReleaseId: input.policyReleaseId,
+    policyReleaseReceiptHash: input.policyReleaseReceiptHash,
   });
   return parsed.success ? parsed.data : null;
 }
@@ -185,10 +201,10 @@ export function sourcingFiltersForRequest(
   state?: string;
   limit: number;
 } {
-  if (request.criteria.learningMode === "latest_approved") {
+  if (isReleasedAcquisitionLearningMode(request.criteria.learningMode)) {
     if (!candidate) {
       throw new Error(
-        "A valid approved sourcing candidate is required for this request."
+        "A valid released sourcing candidate is required for this request."
       );
     }
     const limit = Math.min(
@@ -206,7 +222,7 @@ export function sourcingFiltersForRequest(
     const state = candidate.proposal.value.slice(separator + 1).trim();
     if (!city || !state) {
       throw new Error(
-        "The approved metro candidate is not formatted as City, State."
+        "The released metro candidate is not formatted as City, State."
       );
     }
     return { city, state: state.toUpperCase(), limit };

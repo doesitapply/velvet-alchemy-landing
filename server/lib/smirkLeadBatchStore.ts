@@ -9,7 +9,6 @@ import {
   sql,
 } from "drizzle-orm";
 import {
-  acquisitionLearningCandidates,
   audits,
   leads,
   smirkDiscoveryLeadItems,
@@ -27,12 +26,13 @@ import {
 import {
   appliedLearningCandidateSchema,
   hashSmirkLeadBatchValue,
+  isReleasedAcquisitionLearningMode,
   MAX_SMIRK_LEAD_BATCH_SIZE,
-  parseApprovedSourcingCandidate,
   sourcingFiltersForRequest,
   type AppliedLearningCandidate,
   type SmirkLeadBatchRequest,
 } from "./smirkLeadBatch";
+import { loadCurrentReleasedAcquisitionPolicy } from "./acquisitionLearningPolicyStore";
 import { z } from "zod";
 
 export class SmirkLeadBatchStoreError extends Error {
@@ -218,36 +218,6 @@ function batchName(input: {
   ).slice(0, 160);
 }
 
-async function latestApprovedCandidate(
-  tx: any,
-  userId: number
-): Promise<AppliedLearningCandidate | null> {
-  const rows = await tx
-    .select({
-      id: acquisitionLearningCandidates.id,
-      candidateKey: acquisitionLearningCandidates.candidateKey,
-      version: acquisitionLearningCandidates.version,
-      proposal: acquisitionLearningCandidates.proposal,
-    })
-    .from(acquisitionLearningCandidates)
-    .where(
-      and(
-        eq(acquisitionLearningCandidates.userId, userId),
-        eq(acquisitionLearningCandidates.state, "APPROVED")
-      )
-    )
-    .orderBy(
-      desc(acquisitionLearningCandidates.decidedAt),
-      desc(acquisitionLearningCandidates.generatedAt)
-    )
-    .limit(25);
-  for (const row of rows) {
-    const candidate = parseApprovedSourcingCandidate(row);
-    if (candidate) return candidate;
-  }
-  return null;
-}
-
 export async function exportSmirkLeadBatch(
   request: SmirkLeadBatchRequest,
   actor: BatchActor
@@ -338,19 +308,27 @@ export async function exportSmirkLeadBatch(
       );
     }
 
-    const candidate =
-      request.criteria.learningMode === "latest_approved"
-        ? await latestApprovedCandidate(tx, actor.userId)
-        : null;
-    if (
-      request.criteria.learningMode === "latest_approved" &&
-      !candidate
-    ) {
-      throw new SmirkLeadBatchStoreError(
-        "No valid approved sourcing candidate is available.",
-        "SMIRK_LEAD_BATCH_LEARNING_CANDIDATE_REQUIRED",
-        412
+    let candidate: AppliedLearningCandidate | null = null;
+    if (isReleasedAcquisitionLearningMode(request.criteria.learningMode)) {
+      const policy = await loadCurrentReleasedAcquisitionPolicy(
+        tx,
+        actor.userId
       );
+      if (policy.state === "INVALID") {
+        throw new SmirkLeadBatchStoreError(
+          "The released sourcing policy failed integrity verification.",
+          "SMIRK_LEAD_BATCH_LEARNING_POLICY_INVALID",
+          412
+        );
+      }
+      if (policy.state !== "ACTIVE") {
+        throw new SmirkLeadBatchStoreError(
+          "No released sourcing policy is available.",
+          "SMIRK_LEAD_BATCH_LEARNING_RELEASE_REQUIRED",
+          412
+        );
+      }
+      candidate = policy.candidate;
     }
 
     let filters;
