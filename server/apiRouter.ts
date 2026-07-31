@@ -49,6 +49,7 @@ import { apiScopeMaySpend } from "./lib/apiScopePolicy";
 import {
   hashSmirkOutcomePayload,
   isDuplicateOutcomeStorageError,
+  selectCanonicalSmirkOutcomeEvent,
   smirkOutcomePayloadSchema,
   validateSmirkOutcomeBatchReceipt,
   validateSmirkOutcomeResearchReceipt,
@@ -1044,13 +1045,31 @@ export function createApiRouter(): Router {
             notes: parsed.data.notes,
             occurredAt: new Date(parsed.data.occurredAt),
           });
+          const leadOutcomeRows = await tx
+            .select({
+              externalEventId:
+                smirkOutcomeEvents.externalEventId,
+              channel: smirkOutcomeEvents.channel,
+              outcome: smirkOutcomeEvents.outcome,
+              occurredAt: smirkOutcomeEvents.occurredAt,
+              notes: smirkOutcomeEvents.notes,
+            })
+            .from(smirkOutcomeEvents)
+            .where(
+              and(
+                eq(smirkOutcomeEvents.userId, userId),
+                eq(smirkOutcomeEvents.leadId, leadId)
+              )
+            );
+          const canonicalOutcome =
+            selectCanonicalSmirkOutcomeEvent(leadOutcomeRows);
           const leadUpdate = await tx
             .update(leads)
             .set({
-              smirkCallOutcome: parsed.data.outcome,
+              smirkCallOutcome: canonicalOutcome.outcome,
               smirkCallSummary:
-                parsed.data.notes ||
-                `Signed SMIRK ${parsed.data.channel} outcome recorded.`,
+                canonicalOutcome.notes ||
+                `Signed SMIRK ${canonicalOutcome.channel} outcome recorded.`,
               smirkWorkspaceId: String(parsed.data.workspaceId),
             })
             .where(and(eq(leads.id, leadId), eq(leads.userId, userId)));

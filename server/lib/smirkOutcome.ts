@@ -47,6 +47,86 @@ export const smirkOutcomePayloadSchema = z
   .strict();
 
 export type SmirkOutcomePayload = z.infer<typeof smirkOutcomePayloadSchema>;
+export type SmirkOutcome = SmirkOutcomePayload["outcome"];
+
+export type SmirkOutcomeEventCandidate = {
+  outcome: SmirkOutcome;
+  occurredAt: string | Date;
+  externalEventId: string;
+  notes?: string | null;
+};
+
+const SMIRK_OUTCOME_STAGE: Record<SmirkOutcome, number> = {
+  delivered: 1,
+  bounced: 1,
+  voicemail: 1,
+  no_answer: 1,
+  failed: 1,
+  replied: 2,
+  call_connected: 2,
+  qualified: 3,
+  demo_booked: 3,
+  converted: 3,
+  not_interested: 3,
+  dnc: 4,
+};
+
+const SMIRK_OUTCOME_TIE_BREAKER: SmirkOutcome[] = [
+  "failed",
+  "delivered",
+  "voicemail",
+  "no_answer",
+  "bounced",
+  "replied",
+  "call_connected",
+  "qualified",
+  "demo_booked",
+  "converted",
+  "not_interested",
+  "dnc",
+];
+
+function smirkOutcomeTime(value: string | Date): number {
+  const milliseconds = new Date(value).getTime();
+  if (!Number.isFinite(milliseconds)) {
+    throw new Error("SMIRK outcome occurrence time is invalid.");
+  }
+  return milliseconds;
+}
+
+export function selectCanonicalSmirkOutcomeEvent<
+  T extends SmirkOutcomeEventCandidate,
+>(events: T[]): T {
+  if (events.length === 0) {
+    throw new Error("At least one SMIRK outcome event is required.");
+  }
+  return events.reduce((current, candidate) => {
+    const currentStage = SMIRK_OUTCOME_STAGE[current.outcome];
+    const candidateStage = SMIRK_OUTCOME_STAGE[candidate.outcome];
+    if (candidateStage !== currentStage) {
+      return candidateStage > currentStage ? candidate : current;
+    }
+    const currentTime = smirkOutcomeTime(current.occurredAt);
+    const candidateTime = smirkOutcomeTime(candidate.occurredAt);
+    if (candidateTime !== currentTime) {
+      return candidateTime > currentTime ? candidate : current;
+    }
+    const currentOutcomeRank =
+      SMIRK_OUTCOME_TIE_BREAKER.indexOf(current.outcome);
+    const candidateOutcomeRank =
+      SMIRK_OUTCOME_TIE_BREAKER.indexOf(candidate.outcome);
+    if (candidateOutcomeRank !== currentOutcomeRank) {
+      return candidateOutcomeRank > currentOutcomeRank
+        ? candidate
+        : current;
+    }
+    return candidate.externalEventId.localeCompare(
+      current.externalEventId
+    ) > 0
+      ? candidate
+      : current;
+  });
+}
 
 export function isDuplicateOutcomeStorageError(error: unknown): boolean {
   let current: unknown = error;

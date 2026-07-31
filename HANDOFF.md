@@ -2,7 +2,7 @@
 
 **Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
 
-**Current local proof:** TypeScript clean; 158/158 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; 159/159 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the email-provider adapter intercepted, and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -572,7 +572,7 @@ Current gates:
 
 | Command                 | Boundary                                           | Result on 2026-07-30                      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 158 passed, 0 failed, 0 skipped           |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 159 passed, 0 failed, 0 skipped           |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 62 explicitly skipped |
 | `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence` | Discovery, outcome, and human-reviewed learning persistence | 3 passed, 0 failed, 0 skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
@@ -609,12 +609,17 @@ VELVET_REPO_PATH=/path/to/velvet-alchemy-landing \
 It creates fresh loopback MySQL and Postgres databases, applies this
 repository's tracked migrations, runs the real Velvet discovery/export/outcome
 API and SMIRK source/QC/approval/outcome routes, verifies exact replay and
-workspace denial, then drops both databases. Maps results and the manual-call
-receipt are synthetic. All production-bound HTTP is trapped and rewritten to
-the loopback fixture; any unexpected path fails. The passing local run
-observed zero email, SMS, phone, paid-provider, production-network, and
-production-write actions. This remains local integration evidence, not deploy
-or commercial proof.
+workspace denial, then drops both databases. One synthetic Velvet discovery
+produces a verified fake owner email. SMIRK separately prepares and receives
+human approval for one manual-call record and one email, executes the email
+through an in-memory Resend adapter, and accepts signed delivery and reply
+webhooks. The resulting three callbacks are deliberately dispatched out of
+order; both databases retain the canonical `replied` outcome. Maps results and
+the manual-call receipt are synthetic. All production-bound HTTP is trapped;
+any unexpected path fails. The passing local run observed one intercepted
+provider-adapter request but zero external email, SMS, phone,
+paid-provider, production-network, and production-write actions. This remains
+local integration evidence, not deploy or commercial proof.
 
 The paired SMIRK branch provides a credential-free cross-repository contract
 gate:

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hashSmirkOutcomePayload,
   isDuplicateOutcomeStorageError,
+  selectCanonicalSmirkOutcomeEvent,
   signSmirkOutcome,
   smirkOutcomePayloadSchema,
   validateSmirkOutcomeBatchReceipt,
@@ -28,6 +29,47 @@ const timestamp = String(
 );
 
 describe("SMIRK outcome signature", () => {
+  it("keeps canonical lead outcomes stable when callbacks arrive out of order", () => {
+    const events = [
+      {
+        externalEventId: "event-reply-0001",
+        outcome: "replied" as const,
+        occurredAt: "2026-07-30T16:02:00.000Z",
+        notes: "Owner replied.",
+      },
+      {
+        externalEventId: "event-delivery-0001",
+        outcome: "delivered" as const,
+        occurredAt: "2026-07-30T16:01:00.000Z",
+        notes: "Provider delivered.",
+      },
+    ];
+    expect(selectCanonicalSmirkOutcomeEvent(events)).toEqual(events[0]);
+    expect(selectCanonicalSmirkOutcomeEvent([...events].reverse())).toEqual(
+      events[0]
+    );
+    expect(
+      selectCanonicalSmirkOutcomeEvent([
+        ...events,
+        {
+          externalEventId: "event-dnc-0001",
+          outcome: "dnc" as const,
+          occurredAt: "2026-07-30T15:59:00.000Z",
+          notes: "Recipient opted out.",
+        },
+        {
+          externalEventId: "event-converted-after-dnc-0001",
+          outcome: "converted" as const,
+          occurredAt: "2026-07-30T16:05:00.000Z",
+          notes: "Stale conversion event.",
+        },
+      ]).outcome
+    ).toBe("dnc");
+    expect(() => selectCanonicalSmirkOutcomeEvent([])).toThrow(
+      "At least one SMIRK outcome event is required."
+    );
+  });
+
   it("recognizes direct and wrapped duplicate-key races", () => {
     expect(isDuplicateOutcomeStorageError({ code: "ER_DUP_ENTRY" })).toBe(
       true

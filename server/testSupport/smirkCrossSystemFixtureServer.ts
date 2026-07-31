@@ -264,6 +264,18 @@ async function prepareSyntheticDiscovery(): Promise<{
     .limit(1);
   const leadId = Number(leadRows[0]?.id || 0);
   if (!leadId) throw new Error("The synthetic discovered lead is missing.");
+  await db
+    .update(leads)
+    .set({
+      verifiedOwnerEmail: `owner-${runId}@example.invalid`,
+      outreachChannel: "email",
+    })
+    .where(
+      and(
+        eq(leads.id, leadId),
+        eq(leads.userId, userId)
+      )
+    );
 
   return {
     userId,
