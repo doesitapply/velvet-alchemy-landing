@@ -115,6 +115,8 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/apiCostTracker.ts`           | Per-call cost tracking + daily kill-switch ($10/day)               |
 | `server/lib/smirkHandoff.ts`         | Review brief builder + synthetic-only SMIRK contract client        |
 | `server/lib/smirkResearch.ts`        | Research-only SMIRK client, payload validation, and response proof |
+| `server/lib/smirkConnectionReadiness.ts` | Redacted Velvet runtime and database prerequisite contract     |
+| `server/smirkConnectionReadinessCheck.ts` | Read-only SMIRK connection preflight CLI                       |
 | `server/lib/smirkLeadBatch.ts`       | SMIRK pull contract, zero-spend/no-contact validation, learning filter proof |
 | `server/lib/smirkLeadBatchStore.ts`  | Owner-scoped audited-lead reservation and exact replay receipts    |
 | `server/lib/smirkDiscovery.ts`       | SMIRK discovery request, quote, status, and exact spend-cap contracts |
@@ -234,6 +236,18 @@ VITE_FRONTEND_FORGE_API_URL  Frontend Manus API URL
 ### Operator-Configured
 
 Repository contents do not prove whether a runtime secret is currently installed. Verify variable presence in the responsible provider without printing values.
+
+Run `pnpm check:smirk-connections` inside the intended Manus runtime for one
+redacted, read-only preflight. It checks the canonical pull-loop variable
+shape, required SMIRK schema tables, and exactly one active admin-owned
+`smirk:research` key plus one separate `outcome:write` key. It returns only
+booleans, counts, the workspace ID, unit-cost caps, and missing requirement
+names. It does not print connection strings, tokens, key prefixes, owner IDs,
+or mailbox data, and it performs no provider request or database mutation.
+Its `ok` field covers only Velvet runtime prerequisites; `endToEndReady`,
+contact authorization, and spend authorization remain explicitly false.
+The optional Velvet-to-SMIRK push client remains separate from the canonical
+SMIRK pull loop.
 
 | Variable                      | Purpose                                                                                         |
 | ----------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -572,7 +586,7 @@ Current gates:
 
 | Command                 | Boundary                                           | Result on 2026-07-30                      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 159 passed, 0 failed, 0 skipped           |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 164 passed, 0 failed, 0 skipped           |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 62 explicitly skipped |
 | `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence` | Discovery, outcome, and human-reviewed learning persistence | 3 passed, 0 failed, 0 skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
