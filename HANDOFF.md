@@ -1,8 +1,8 @@
 # Velvet Alchemy — Operator Handoff Document
 
-**Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-30
+**Hardening baseline:** `2d11ddc` plus current discovery work | **Date:** 2026-07-31
 
-**Current local proof:** TypeScript clean; 159/159 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the email-provider adapter intercepted, and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; 167/167 portable unit tests pass; three explicit SMIRK persistence tests pass against a disposable loopback MySQL database; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the email-provider adapter intercepted, and both databases removed afterward; the production build completes with known analytics-placeholder and bundle-size warnings. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -116,6 +116,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/lib/smirkHandoff.ts`         | Review brief builder + synthetic-only SMIRK contract client        |
 | `server/lib/smirkResearch.ts`        | Research-only SMIRK client, payload validation, and response proof |
 | `server/lib/smirkConnectionReadiness.ts` | Redacted Velvet runtime and database prerequisite contract     |
+| `server/lib/smirkConnectionProof.ts` | Signed no-write proof for exact SMIRK scopes, owner, workspace, and shared secret |
 | `server/smirkConnectionReadinessCheck.ts` | Read-only SMIRK connection preflight CLI                       |
 | `server/lib/smirkLeadBatch.ts`       | SMIRK pull contract, zero-spend/no-contact validation, learning filter proof |
 | `server/lib/smirkLeadBatchStore.ts`  | Owner-scoped audited-lead reservation and exact replay receipts    |
@@ -248,6 +249,18 @@ Its `ok` field covers only Velvet runtime prerequisites; `endToEndReady`,
 contact authorization, and spend authorization remain explicitly false.
 The optional Velvet-to-SMIRK push client remains separate from the canonical
 SMIRK pull loop.
+
+After both reviewed commits are deployed and the two dedicated keys are
+installed in SMIRK, run
+`npm run -s check:prospect-acquisition-connections:remote` from the SMIRK
+repository. It calls Velvet's `GET /api/v1/smirk/connection-proof` exactly
+twice, once per key, and verifies exact `smirk:research` / `outcome:write`
+scopes, one privileged owner, distinct credentials, aligned workspace IDs, and
+the shared HMAC secret. The endpoint is registered before API-key usage
+tracking and authorizes no contact, spend, provider work, or database mutation.
+Its response is redacted and domain-separated from outcome signatures. This
+proves credential authority only, not providers, delivery, deployment parity,
+customer response, or revenue.
 
 | Variable                      | Purpose                                                                                         |
 | ----------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -510,6 +523,7 @@ All endpoints require `Authorization: Bearer <api_key>`.
 | POST   | `/api/v1/smirk/lead-batches` | `smirk:research` | Reserve 1-20 audited records for SMIRK review; no contact or spend |
 | POST   | `/api/v1/smirk/discovery-requests` | `smirk:research` | Prepare one bounded discovery quote; no provider call |
 | GET    | `/api/v1/smirk/discovery-requests/:requestId` | `smirk:research` | Read owner-scoped discovery status; no external action |
+| GET    | `/api/v1/smirk/connection-proof` | exact `smirk:research` or `outcome:write` | Signed, no-write credential/owner/workspace proof; no usage update |
 | GET    | `/api/v1/leads/ready`       | `leads:read`    | Get audited leads for human review; no contact authorization |
 | POST   | `/api/v1/leads/:id/handoff` | `handoff:write` | Compatibility route; returns a policy block                  |
 | POST   | `/api/v1/leads/:id/outcome` | `outcome:write` | Signed, owner-scoped, idempotent feedback event               |
@@ -543,6 +557,7 @@ The intended admin/owner loop is:
 | `audit`         | Trigger audits                                          |
 | `pipeline`      | Run full pipeline                                       |
 | `handoff:write` | Reserved compatibility scope; real handoffs are blocked |
+| `smirk:research`| Prepare/read bounded SMIRK discovery and reserve reviewed records; admin grant only |
 | `outcome:write` | Write signed, owner-scoped, idempotent SMIRK outcomes   |
 | `*`             | All scopes                                              |
 
@@ -560,6 +575,7 @@ Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` auth
 | Google AI key (`AQ.*`) is a short-lived OAuth token       | High — Gemini fallback will die                 | Get permanent `AIzaSy*` key from aistudio.google.com/apikey                                             |
 | Builder JSX-location plugin expects Vite 4/5, not Vite 7  | Low — install warning; current build passes     | Upgrade or remove the development-only plugin before the next Vite upgrade                              |
 | Research receiver/client exist only on hardening branches | Real prospect registration is not active        | Approve exact commits, deploy both sides, configure dedicated credentials, then run one synthetic proof |
+| Signed SMIRK connection proof exists only on the hardening branches; the 2026-07-31 production check made zero requests because required SMIRK variables were absent | Production key scopes, owner alignment, workspace binding, and shared-secret match remain unproven | Deploy both exact commits with every execution switch false, configure the two dedicated keys and workspace/secret bindings, then require the remote no-write proof to pass |
 | SMIRK callback sender is source-complete but default-disabled and unverified live | Closed-loop dispatch is inactive | Deploy both exact commits, configure dedicated secrets, then run one synthetic callback and replay |
 | SMIRK guarded prospect email is source-complete but default-disabled | No provider email is active | Back up and review schema changes, deploy the exact SMIRK commit, configure a separate Resend key and signed webhook, then run one harmless synthetic recipient test |
 
@@ -584,9 +600,9 @@ Historical checkpoint `e9f88818` reported `88/88` in the Manus runtime with inje
 
 Current gates:
 
-| Command                 | Boundary                                           | Result on 2026-07-30                      |
+| Command                 | Boundary                                           | Result on 2026-07-31                      |
 | ----------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 164 passed, 0 failed, 0 skipped           |
+| `pnpm test:unit`        | Pure logic and fail-closed route policy            | 167 passed, 0 failed, 0 skipped           |
 | `pnpm test:integration` | Database, LLM, storage, Stripe, and network suites | 0 passed, 0 failed, 62 explicitly skipped |
 | `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence` | Discovery, outcome, and human-reviewed learning persistence | 3 passed, 0 failed, 0 skipped |
 | `pnpm test:live`        | Synthetic production SMIRK write                   | 0 passed, 0 failed, 2 explicitly skipped  |
@@ -623,7 +639,11 @@ VELVET_REPO_PATH=/path/to/velvet-alchemy-landing \
 It creates fresh loopback MySQL and Postgres databases, applies this
 repository's tracked migrations, runs the real Velvet discovery/export/outcome
 API and SMIRK source/QC/approval/outcome routes, verifies exact replay and
-workspace denial, then drops both databases. One synthetic Velvet discovery
+workspace denial, then drops both databases. Before the transaction loop, two
+generated dedicated keys call the actual no-write connection-proof route. The
+gate verifies exact scopes, one admin owner, distinct credentials, workspace
+alignment, matching domain-separated signatures, and unchanged API-key
+`lastUsedAt` values. One synthetic Velvet discovery
 produces a verified fake owner email. SMIRK separately prepares and receives
 human approval for one manual-call record and one email, executes the email
 through an in-memory Resend adapter, and accepts signed delivery and reply

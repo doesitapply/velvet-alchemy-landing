@@ -336,12 +336,21 @@ async function fixtureState(input: {
     })
     .from(smirkDiscoveryRequests)
     .where(eq(smirkDiscoveryRequests.userId, input.userId));
+  const keyRows = await db
+    .select({
+      id: apiKeys.id,
+      scopes: apiKeys.scopes,
+      lastUsedAt: apiKeys.lastUsedAt,
+    })
+    .from(apiKeys)
+    .where(eq(apiKeys.userId, input.userId));
   return {
     mode: FIXTURE_MODE,
     lead: leadRows[0] || null,
     outcomes: outcomeRows,
     batches: batchRows,
     discoveries: discoveryRows,
+    apiKeys: keyRows,
   };
 }
 

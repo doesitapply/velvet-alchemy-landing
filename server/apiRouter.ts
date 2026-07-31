@@ -74,6 +74,10 @@ import {
   getSmirkDiscoveryStatus,
   prepareSmirkDiscovery,
 } from "./lib/smirkDiscoveryStore";
+import {
+  buildVelvetSmirkConnectionProof,
+  velvetSmirkConnectionProofRequestSchema,
+} from "./lib/smirkConnectionProof";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -101,76 +105,101 @@ export function parseBoundedInteger(
   return Math.min(maximum, Math.max(minimum, parsed));
 }
 
-async function requireApiKey(
-  req: AuthedRequest,
-  res: Response,
-  next: NextFunction
-) {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({
-      error: "Missing or invalid Authorization header. Use: Bearer <api_key>",
-    });
-  }
-
-  const rawKey = authHeader.slice(7).trim();
-  if (!rawKey) {
-    return res.status(401).json({ error: "Empty API key" });
-  }
-
-  const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
-
-  try {
-    const orm = await getDb();
-    if (!orm) return res.status(503).json({ error: "Database unavailable" });
-
-    const rows = await orm
-      .select()
-      .from(apiKeys)
-      .where(eq(apiKeys.keyHash, keyHash))
-      .limit(1);
-    const key = rows[0];
-
-    if (!key) return res.status(401).json({ error: "Invalid API key" });
-    if (!key.isActive)
-      return res.status(401).json({ error: "API key is disabled" });
-    if (key.expiresAt && new Date(key.expiresAt) < new Date()) {
-      return res.status(401).json({ error: "API key has expired" });
-    }
-    const [owner] = await orm
-      .select({
-        id: users.id,
-        openId: users.openId,
-        role: users.role,
-      })
-      .from(users)
-      .where(eq(users.id, key.userId))
-      .limit(1);
-    if (!owner) {
-      return res.status(401).json({ error: "API key owner no longer exists" });
+function createApiKeyAuth(recordLastUsed: boolean) {
+  return async (
+    req: AuthedRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const authHeader = req.headers["authorization"];
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        error:
+          "Missing or invalid Authorization header. Use: Bearer <api_key>",
+      });
     }
 
-    // Update last used (fire-and-forget)
-    orm
-      .update(apiKeys)
-      .set({ lastUsedAt: new Date() })
-      .where(eq(apiKeys.id, key.id))
-      .catch(() => {});
+    const rawKey = authHeader.slice(7).trim();
+    if (!rawKey) {
+      return res.status(401).json({ error: "Empty API key" });
+    }
 
-    req.apiKey = {
-      id: key.id,
-      userId: key.userId,
-      name: key.name,
-      scopes: JSON.parse(key.scopes || "[]"),
-      privileged: isPrivilegedUser(owner),
-    };
+    const keyHash = crypto
+      .createHash("sha256")
+      .update(rawKey)
+      .digest("hex");
 
-    next();
-  } catch (err: any) {
-    console.error("[API Auth] Error:", err.message);
-    return res.status(500).json({ error: "Internal server error" });
-  }
+    try {
+      const orm = await getDb();
+      if (!orm) {
+        return res
+          .status(503)
+          .json({ error: "Database unavailable" });
+      }
+
+      const rows = await orm
+        .select()
+        .from(apiKeys)
+        .where(eq(apiKeys.keyHash, keyHash))
+        .limit(1);
+      const key = rows[0];
+
+      if (!key) {
+        return res.status(401).json({ error: "Invalid API key" });
+      }
+      if (!key.isActive) {
+        return res
+          .status(401)
+          .json({ error: "API key is disabled" });
+      }
+      if (key.expiresAt && new Date(key.expiresAt) < new Date()) {
+        return res
+          .status(401)
+          .json({ error: "API key has expired" });
+      }
+      const [owner] = await orm
+        .select({
+          id: users.id,
+          openId: users.openId,
+          role: users.role,
+        })
+        .from(users)
+        .where(eq(users.id, key.userId))
+        .limit(1);
+      if (!owner) {
+        return res
+          .status(401)
+          .json({ error: "API key owner no longer exists" });
+      }
+
+      if (recordLastUsed) {
+        orm
+          .update(apiKeys)
+          .set({ lastUsedAt: new Date() })
+          .where(eq(apiKeys.id, key.id))
+          .catch(() => {});
+      }
+
+      req.apiKey = {
+        id: key.id,
+        userId: key.userId,
+        name: key.name,
+        scopes: JSON.parse(key.scopes || "[]"),
+        privileged: isPrivilegedUser(owner),
+      };
+
+      next();
+    } catch (err: any) {
+      console.error("[API Auth] Error:", err.message);
+      return res
+        .status(500)
+        .json({ error: "Internal server error" });
+    }
+  };
 }
+
+const requireApiKey = createApiKeyAuth(true);
+const requireApiKeyWithoutUsageWrite = createApiKeyAuth(false);
 
 function requireScope(scope: string) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
@@ -193,6 +222,55 @@ function requireScope(scope: string) {
 
 export function createApiRouter(): Router {
   const r = Router();
+
+  // This challenge endpoint authenticates the two dedicated SMIRK keys
+  // without changing last-used state or authorizing any external action.
+  r.get(
+    "/smirk/connection-proof",
+    requireApiKeyWithoutUsageWrite,
+    (req: AuthedRequest, res: Response) => {
+      const request =
+        velvetSmirkConnectionProofRequestSchema.safeParse({
+          workspaceId: Number(req.query.workspaceId),
+          challenge:
+            typeof req.query.challenge === "string"
+              ? req.query.challenge
+              : "",
+        });
+      if (!request.success) {
+        return res.status(400).json({
+          error: "Invalid SMIRK connection proof request.",
+          code: "VELVET_SMIRK_CONNECTION_PROOF_INVALID_REQUEST",
+        });
+      }
+      const rawWorkspaceId = String(
+        process.env.SMIRK_RESEARCH_WORKSPACE_ID || ""
+      ).trim();
+      const parsedWorkspaceId = Number(rawWorkspaceId);
+      const configuredWorkspaceId =
+        /^\d+$/.test(rawWorkspaceId) &&
+        Number.isSafeInteger(parsedWorkspaceId) &&
+        parsedWorkspaceId > 0
+          ? parsedWorkspaceId
+          : null;
+      const result = buildVelvetSmirkConnectionProof({
+        request: request.data,
+        apiKey: req.apiKey!,
+        configuredWorkspaceId,
+        signingSecret: String(
+          process.env.SMIRK_OUTCOME_SIGNING_SECRET || ""
+        ).trim(),
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({
+          error: "SMIRK connection proof is unavailable.",
+          code: result.code,
+        });
+      }
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).json(result.response);
+    }
+  );
 
   r.use(requireApiKey);
 
