@@ -3,8 +3,12 @@ import { createServer, type Server } from "node:http";
 import express from "express";
 import { and, eq } from "drizzle-orm";
 import {
+  acquisitionLearningCandidates,
+  acquisitionSourcingExperimentEvents,
+  acquisitionSourcingExperiments,
   apiKeys,
   leads,
+  smirkDiscoveryLeadItems,
   smirkDiscoveryRequests,
   smirkLeadBatches,
   smirkOutcomeEvents,
@@ -13,6 +17,12 @@ import {
 } from "../../drizzle/schema";
 import { createApiRouter } from "../apiRouter";
 import { getDb } from "../db";
+import {
+  activateAcquisitionSourcingExperiment,
+  closeAcquisitionSourcingExperiment,
+  prepareAcquisitionSourcingExperiment,
+  AcquisitionSourcingExperimentStoreError,
+} from "../lib/acquisitionSourcingExperimentStore";
 import { executeClaimedSmirkDiscovery } from "../lib/smirkDiscoveryExecutor";
 import {
   approveSmirkDiscovery,
@@ -20,6 +30,7 @@ import {
   getSmirkDiscoveryStatus,
   prepareSmirkDiscovery,
   queueSmirkDiscovery,
+  SmirkDiscoveryStoreError,
 } from "../lib/smirkDiscoveryStore";
 import { smirkDiscoveryRequestSchema } from "../lib/smirkDiscovery";
 import { requireDisposableLoopbackDatabase } from "./disposableDatabase";
@@ -68,6 +79,7 @@ const openId = `codex-cross-db-owner-${runId}`;
 const discoveryRequestId = `smirk-discovery-${runId}`;
 const placeId = `synthetic-place-${runId}`;
 const expectedCompanyName = "Synthetic Silver State Plumbing";
+const experimentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function hashApiKey(rawKey: string): string {
   return crypto.createHash("sha256").update(rawKey).digest("hex");
@@ -116,6 +128,8 @@ async function prepareSyntheticDiscovery(): Promise<{
   leadId: number;
   externalProspectId: string;
   providerRequests: number;
+  experimentId: string;
+  experimentDefinitionHash: string;
 }> {
   const db = await getDb();
   if (!db) throw new Error("The disposable Velvet database is unavailable.");
@@ -277,12 +291,187 @@ async function prepareSyntheticDiscovery(): Promise<{
       )
     );
 
+  const preparedExperiment = await prepareAcquisitionSourcingExperiment({
+    experimentId,
+    workspaceId: 1,
+    dimension: "category",
+    control: {
+      label: "Reno plumbing",
+      criteria: {
+        category: "Plumbing",
+        city: "Reno",
+        state: "NV",
+      },
+    },
+    challenger: {
+      label: "Reno HVAC",
+      criteria: {
+        category: "HVAC",
+        city: "Reno",
+        state: "NV",
+      },
+    },
+    requestsPerArm: 1,
+    leadsPerRequest: 10,
+    userId,
+    actorId: userId,
+  });
+  const activatedExperiment = await activateAcquisitionSourcingExperiment({
+    experimentId,
+    definitionHash: preparedExperiment.experiment.definitionHash,
+    userId,
+    actorId: userId,
+  });
+  if (
+    activatedExperiment.state !== "ACTIVE" ||
+    activatedExperiment.assignedRequests !== 0 ||
+    activatedExperiment.contactActionAllowed !== false ||
+    activatedExperiment.spendAuthorized !== false ||
+    activatedExperiment.policyChanged !== false
+  ) {
+    throw new Error("The synthetic sourcing experiment was not activated safely.");
+  }
+
   return {
     userId,
     sourceApiKeyId,
     leadId,
     externalProspectId: `velvet-owner-${userId}-lead-${leadId}`,
     providerRequests: adapterCalls,
+    experimentId,
+    experimentDefinitionHash: activatedExperiment.definitionHash,
+  };
+}
+
+async function executeSyntheticExperimentDiscovery(input: {
+  userId: number;
+  requestId: string;
+  assignmentHash: string;
+}): Promise<Record<string, unknown>> {
+  const db = await getDb();
+  if (!db) throw new Error("The disposable Velvet database is unavailable.");
+  const before = await getSmirkDiscoveryStatus(input.requestId, input.userId);
+  if (
+    before.state !== "PREPARED" ||
+    before.acquisitionExperimentAssignment?.experimentId !== experimentId ||
+    before.acquisitionExperimentAssignment.assignmentHash !==
+      input.assignmentHash ||
+    before.effectiveCriteria.limit !== 10
+  ) {
+    throw new Error("The experiment discovery assignment is not exact.");
+  }
+  const approved = await approveSmirkDiscovery({
+    discoveryId: before.discoveryId,
+    userId: input.userId,
+    actorId: input.userId,
+    requestPayloadHash: before.requestPayloadHash,
+    quotePayloadHash: before.quotePayloadHash,
+    approvedMaxSpendCents: before.quote.maximumCostCents,
+  });
+  if (approved.state !== "APPROVED") {
+    throw new Error("The experiment discovery was not approved.");
+  }
+  const queued = await queueSmirkDiscovery({
+    discoveryId: before.discoveryId,
+    userId: input.userId,
+    actorId: input.userId,
+    requestPayloadHash: before.requestPayloadHash,
+    quotePayloadHash: before.quotePayloadHash,
+  });
+  if (queued.state !== "QUEUED") {
+    throw new Error("The experiment discovery was not queued.");
+  }
+  const claim = await claimNextSmirkDiscovery();
+  if (!claim || claim.requestId !== input.requestId) {
+    throw new Error("The exact experiment discovery was not claimed.");
+  }
+
+  const arm = before.acquisitionExperimentAssignment.arm;
+  const placeIds = Array.from(
+    { length: 10 },
+    (_, index) => `synthetic-${arm}-${index + 1}-${runId}`
+  );
+  let adapterCalls = 0;
+  let detailIndex = 0;
+  await executeClaimedSmirkDiscovery(claim, {
+    requestMaps: async <T = unknown>(path: string): Promise<T> => {
+      adapterCalls += 1;
+      if (path.includes("textsearch")) {
+        return {
+          status: "OK",
+          results: placeIds.map(value => ({ place_id: value })),
+        } as T;
+      }
+      const index = detailIndex;
+      detailIndex += 1;
+      return {
+        status: "OK",
+        result: {
+          name: `Synthetic ${arm} Trade ${index + 1}`,
+          website: `https://example.invalid/${arm}-${index + 1}`,
+          formatted_address: `${200 + index} Example Avenue, Reno, NV 89501`,
+          formatted_phone_number: `+1202555${String(100 + index).padStart(4, "0")}`,
+          rating: 4.5,
+          user_ratings_total: 20 + index,
+          business_status: "OPERATIONAL",
+          reviews: [{ text: "Synthetic experiment fixture review only." }],
+        },
+      } as T;
+    },
+  });
+  const completed = await getSmirkDiscoveryStatus(
+    input.requestId,
+    input.userId
+  );
+  if (
+    completed.state !== "COMPLETED" ||
+    completed.createdLeadCount !== 10 ||
+    completed.readyLeadCount !== 10 ||
+    completed.providerRequests !== 11 ||
+    adapterCalls !== 11 ||
+    completed.acquisitionExperimentAssignment?.assignmentHash !==
+      input.assignmentHash
+  ) {
+    throw new Error("The synthetic experiment discovery did not complete exactly.");
+  }
+  const itemRows = await db
+    .select({ leadId: smirkDiscoveryLeadItems.leadId })
+    .from(smirkDiscoveryLeadItems)
+    .where(
+      and(
+        eq(smirkDiscoveryLeadItems.discoveryId, completed.discoveryId),
+        eq(smirkDiscoveryLeadItems.userId, input.userId),
+        eq(smirkDiscoveryLeadItems.state, "READY")
+      )
+    );
+  const leadIds = itemRows
+    .map(item => Number(item.leadId || 0))
+    .filter(value => value > 0);
+  if (leadIds.length !== 10) {
+    throw new Error("The experiment discovery did not persist ten ready leads.");
+  }
+  for (let index = 0; index < leadIds.length; index += 1) {
+    const leadId = leadIds[index];
+    await db
+      .update(leads)
+      .set({
+        verifiedOwnerEmail: `${arm}-${index + 1}-${runId}@example.invalid`,
+        outreachChannel: "email",
+      })
+      .where(
+        and(eq(leads.id, leadId), eq(leads.userId, input.userId))
+      );
+  }
+  return {
+    requestId: input.requestId,
+    state: completed.state,
+    arm,
+    assignmentHash: input.assignmentHash,
+    readyLeadCount: completed.readyLeadCount,
+    providerRequests: completed.providerRequests,
+    contactActionAllowed: false,
+    spendAuthorized: false,
+    externalAction: "synthetic_fixture_only",
   };
 }
 
@@ -333,6 +522,11 @@ async function fixtureState(input: {
       state: smirkDiscoveryRequests.state,
       providerRequests: smirkDiscoveryRequests.providerRequests,
       readyLeadCount: smirkDiscoveryRequests.readyLeadCount,
+      experimentId: smirkDiscoveryRequests.acquisitionSourcingExperimentId,
+      slotOrdinal: smirkDiscoveryRequests.acquisitionSourcingSlotOrdinal,
+      arm: smirkDiscoveryRequests.acquisitionSourcingArm,
+      assignmentHash:
+        smirkDiscoveryRequests.acquisitionSourcingAssignmentHash,
     })
     .from(smirkDiscoveryRequests)
     .where(eq(smirkDiscoveryRequests.userId, input.userId));
@@ -344,6 +538,29 @@ async function fixtureState(input: {
     })
     .from(apiKeys)
     .where(eq(apiKeys.userId, input.userId));
+  const experimentRows = await db
+    .select({
+      id: acquisitionSourcingExperiments.id,
+      experimentId: acquisitionSourcingExperiments.experimentId,
+      state: acquisitionSourcingExperiments.state,
+      definitionHash: acquisitionSourcingExperiments.definitionHash,
+      resultPayload: acquisitionSourcingExperiments.resultPayload,
+      learningCandidateId: acquisitionSourcingExperiments.learningCandidateId,
+    })
+    .from(acquisitionSourcingExperiments)
+    .where(eq(acquisitionSourcingExperiments.userId, input.userId));
+  const experimentEventRows = await db
+    .select({
+      action: acquisitionSourcingExperimentEvents.action,
+      fromState: acquisitionSourcingExperimentEvents.fromState,
+      toState: acquisitionSourcingExperimentEvents.toState,
+    })
+    .from(acquisitionSourcingExperimentEvents)
+    .where(eq(acquisitionSourcingExperimentEvents.userId, input.userId));
+  const candidateRows = await db
+    .select({ id: acquisitionLearningCandidates.id })
+    .from(acquisitionLearningCandidates)
+    .where(eq(acquisitionLearningCandidates.userId, input.userId));
   return {
     mode: FIXTURE_MODE,
     lead: leadRows[0] || null,
@@ -351,6 +568,9 @@ async function fixtureState(input: {
     batches: batchRows,
     discoveries: discoveryRows,
     apiKeys: keyRows,
+    experiments: experimentRows,
+    experimentEvents: experimentEventRows,
+    learningCandidateCount: candidateRows.length,
   };
 }
 
@@ -371,6 +591,73 @@ async function main(): Promise<void> {
       );
     } catch {
       return res.status(503).json({ error: "Fixture state unavailable." });
+    }
+  });
+  app.post("/__fixture/discoveries/:requestId/execute", async (req, res) => {
+    if (req.headers["x-fixture-token"] !== controlToken) {
+      return res.status(401).json({ error: "Unauthorized fixture request." });
+    }
+    const requestId = String(req.params.requestId || "").trim();
+    const assignmentHash = String(req.body?.assignmentHash || "").trim();
+    if (
+      requestId.length < 20 ||
+      !/^[A-Za-z0-9:_-]+$/.test(requestId) ||
+      !/^[a-f0-9]{64}$/.test(assignmentHash)
+    ) {
+      return res.status(400).json({ error: "Invalid fixture execution request." });
+    }
+    try {
+      return res.json(
+        await executeSyntheticExperimentDiscovery({
+          userId: fixture.userId,
+          requestId,
+          assignmentHash,
+        })
+      );
+    } catch (error) {
+      if (error instanceof SmirkDiscoveryStoreError) {
+        return res.status(error.status).json({ error: error.message, code: error.code });
+      }
+      return res.status(503).json({
+        error: error instanceof Error ? error.message : "Fixture execution failed.",
+      });
+    }
+  });
+  app.post("/__fixture/experiments/:experimentId/close", async (req, res) => {
+    if (req.headers["x-fixture-token"] !== controlToken) {
+      return res.status(401).json({ error: "Unauthorized fixture request." });
+    }
+    const requestedExperimentId = String(req.params.experimentId || "").trim();
+    const definitionHash = String(req.body?.definitionHash || "").trim();
+    if (
+      requestedExperimentId !== fixture.experimentId ||
+      definitionHash !== fixture.experimentDefinitionHash ||
+      req.body?.confirmation !== "close-synthetic-experiment-v1"
+    ) {
+      return res.status(400).json({ error: "Invalid fixture close request." });
+    }
+    try {
+      const experiment = await closeAcquisitionSourcingExperiment({
+        experimentId: fixture.experimentId,
+        definitionHash: fixture.experimentDefinitionHash,
+        userId: fixture.userId,
+        actorId: fixture.userId,
+      });
+      return res.json({
+        experiment,
+        candidateCreated: false,
+        policyChanged: false,
+        contactActionAllowed: false,
+        spendAuthorized: false,
+        externalAction: "evaluation_recorded_only",
+      });
+    } catch (error) {
+      if (error instanceof AcquisitionSourcingExperimentStoreError) {
+        return res.status(error.status).json({ error: error.message, code: error.code });
+      }
+      return res.status(503).json({
+        error: error instanceof Error ? error.message : "Fixture close failed.",
+      });
     }
   });
   app.use("/api/v1", createApiRouter());
@@ -394,6 +681,8 @@ async function main(): Promise<void> {
       externalProspectId: fixture.externalProspectId,
       discoveryRequestId,
       providerRequests: fixture.providerRequests,
+      experimentId: fixture.experimentId,
+      experimentDefinitionHash: fixture.experimentDefinitionHash,
     })}\n`
   );
 
