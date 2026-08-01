@@ -78,6 +78,15 @@ import {
   buildVelvetSmirkConnectionProof,
   velvetSmirkConnectionProofRequestSchema,
 } from "./lib/smirkConnectionProof";
+import {
+  ACQUISITION_SOURCING_ACTIVE_RESPONSE_CONTRACT,
+  ACQUISITION_SOURCING_BINDING_CONTRACT,
+  acquisitionSourcingActiveResponseSchema,
+} from "./lib/acquisitionSourcingExperiment";
+import {
+  AcquisitionSourcingExperimentStoreError,
+  getActiveAcquisitionSourcingExperiment,
+} from "./lib/acquisitionSourcingExperimentStore";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -285,6 +294,98 @@ export function createApiRouter(): Router {
     });
   });
 
+  // ── GET /api/v1/smirk/acquisition-sourcing-experiments/active ────────────
+  // Returns one immutable active experiment binding. This read-only route
+  // cannot assign a request, call a provider, change policy, or contact anyone.
+  r.get(
+    "/smirk/acquisition-sourcing-experiments/active",
+    requireScope(SMIRK_DISCOVERY_SCOPE),
+    async (req: AuthedRequest, res: Response) => {
+      if (!req.apiKey?.privileged) {
+        return res.status(403).json({
+          error: "Administrator authorization is required.",
+          code: "ACQUISITION_EXPERIMENT_ADMIN_REQUIRED",
+        });
+      }
+      const workspaceId = parseBoundedInteger(
+        req.query.workspaceId,
+        0,
+        1,
+        Number.MAX_SAFE_INTEGER
+      );
+      const configuredWorkspaceId = Number(
+        String(process.env.SMIRK_RESEARCH_WORKSPACE_ID || "").trim()
+      );
+      if (!workspaceId) {
+        return res.status(400).json({
+          error: "A valid workspaceId query is required.",
+          code: "ACQUISITION_EXPERIMENT_WORKSPACE_INVALID",
+        });
+      }
+      if (
+        !Number.isSafeInteger(configuredWorkspaceId) ||
+        configuredWorkspaceId <= 0
+      ) {
+        return res.status(503).json({
+          error: "SMIRK research export is not configured.",
+          code: "ACQUISITION_EXPERIMENT_NOT_CONFIGURED",
+        });
+      }
+      if (workspaceId !== configuredWorkspaceId) {
+        return res.status(403).json({
+          error: "Workspace is not authorized for this integration.",
+          code: "ACQUISITION_EXPERIMENT_WORKSPACE_MISMATCH",
+        });
+      }
+      try {
+        const active = await getActiveAcquisitionSourcingExperiment(
+          req.apiKey.userId,
+          workspaceId
+        );
+        const definition = active?.definition;
+        return res.json(
+          acquisitionSourcingActiveResponseSchema.parse({
+            ok: true,
+            contractVersion: ACQUISITION_SOURCING_ACTIVE_RESPONSE_CONTRACT,
+            state: active ? "ACTIVE" : "NONE",
+            workspaceId,
+            experiment:
+              active && definition
+                ? {
+                    binding: {
+                      contractVersion: ACQUISITION_SOURCING_BINDING_CONTRACT,
+                      experimentId: active.experimentId,
+                      definitionHash: active.definitionHash,
+                    },
+                    dimension: definition.dimension,
+                    arms: definition.arms,
+                    requestsPerArm: definition.requestsPerArm,
+                    leadsPerRequest: definition.leadsPerRequest,
+                    totalRequestSlots: definition.totalRequestSlots,
+                    assignedRequests: active.assignedRequests,
+                  }
+                : null,
+            contactActionAllowed: false,
+            spendAuthorized: false,
+            policyChanged: false,
+            externalAction: "experiment_status_only",
+          })
+        );
+      } catch (error) {
+        if (error instanceof AcquisitionSourcingExperimentStoreError) {
+          return res.status(error.status).json({
+            error: error.message,
+            code: error.code,
+          });
+        }
+        return res.status(500).json({
+          error: "The active sourcing experiment could not be read.",
+          code: "ACQUISITION_EXPERIMENT_STATUS_FAILED",
+        });
+      }
+    }
+  );
+
   // ── POST /api/v1/smirk/lead-batches ────────────────────────────────────────
   // Reserves audited owner-scoped leads for SMIRK review. This route cannot
   // search, spend, send a message, place a call, or authorize contact.
@@ -354,8 +455,9 @@ export function createApiRouter(): Router {
           prospectsHash: result.prospectsHash,
           prospects: result.prospects,
           appliedLearningCandidate: result.appliedLearningCandidate,
-          sourceDiscoveryRequestId:
-            result.sourceDiscoveryRequestId,
+          acquisitionExperimentAssignment:
+            result.acquisitionExperimentAssignment,
+          sourceDiscoveryRequestId: result.sourceDiscoveryRequestId,
           contactActionAllowed: false,
           spendAuthorized: false,
           externalAction: "research_export_only",

@@ -1,6 +1,7 @@
 import AppHeader from "@/components/AppHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import {
   Activity,
@@ -29,6 +30,19 @@ export default function CommandCenter() {
   const [isAuditingAll, setIsAuditingAll] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [isPreScreening, setIsPreScreening] = useState(false);
+  const [sourcingExperimentDraft, setSourcingExperimentDraft] = useState({
+    dimension: "category" as "category" | "metro",
+    sharedCategory: "plumbing",
+    sharedCity: "Reno",
+    sharedState: "NV",
+    controlValue: "plumbing",
+    challengerValue: "hvac",
+    controlState: "NV",
+    challengerState: "NV",
+    workspaceId: 1,
+    requestsPerArm: 1,
+    leadsPerRequest: 10,
+  });
 
   const metricsQuery = trpc.dashboard.getMetrics.useQuery();
   const pipelineQuery = trpc.dashboard.getPipelineStats.useQuery();
@@ -46,6 +60,8 @@ export default function CommandCenter() {
   const smirkDiscoveryQuery = trpc.smirkDiscovery.list.useQuery({
     limit: 10,
   });
+  const sourcingExperimentsQuery =
+    trpc.acquisitionSourcingExperiments.list.useQuery({ limit: 10 });
   const batchAuditMutation = trpc.orchestrator.batchAuditAll.useMutation();
   const prescreenAllMutation = trpc.prescreener.prescreenAll.useMutation();
   const createLearningCandidateMutation =
@@ -60,10 +76,18 @@ export default function CommandCenter() {
     trpc.smirkDiscovery.approve.useMutation();
   const executeSmirkDiscoveryMutation =
     trpc.smirkDiscovery.execute.useMutation();
-  const rejectSmirkDiscoveryMutation =
-    trpc.smirkDiscovery.reject.useMutation();
-  const cancelSmirkDiscoveryMutation =
-    trpc.smirkDiscovery.cancel.useMutation();
+  const rejectSmirkDiscoveryMutation = trpc.smirkDiscovery.reject.useMutation();
+  const cancelSmirkDiscoveryMutation = trpc.smirkDiscovery.cancel.useMutation();
+  const prepareSourcingExperimentMutation =
+    trpc.acquisitionSourcingExperiments.prepare.useMutation();
+  const activateSourcingExperimentMutation =
+    trpc.acquisitionSourcingExperiments.activate.useMutation();
+  const cancelSourcingExperimentMutation =
+    trpc.acquisitionSourcingExperiments.cancel.useMutation();
+  const closeSourcingExperimentMutation =
+    trpc.acquisitionSourcingExperiments.close.useMutation();
+  const proposeSourcingCandidateMutation =
+    trpc.acquisitionSourcingExperiments.proposeCandidate.useMutation();
 
   const metrics = metricsQuery.data;
   const pipeline = pipelineQuery.data;
@@ -71,6 +95,32 @@ export default function CommandCenter() {
   const scoreDist = scoreDistQuery.data;
 
   const isLoading = metricsQuery.isLoading || pipelineQuery.isLoading;
+  const sourcingCapacity =
+    sourcingExperimentDraft.requestsPerArm *
+    sourcingExperimentDraft.leadsPerRequest *
+    2;
+  const sourcingPerArm =
+    sourcingExperimentDraft.requestsPerArm *
+    sourcingExperimentDraft.leadsPerRequest;
+  const hasOpenSourcingExperiment = Boolean(
+    sourcingExperimentsQuery.data?.some(experiment =>
+      ["PREPARED", "ACTIVE"].includes(experiment.state)
+    )
+  );
+  const sourcingDraftValid =
+    sourcingPerArm >= 10 &&
+    sourcingCapacity <= 40 &&
+    sourcingExperimentDraft.workspaceId > 0 &&
+    sourcingExperimentDraft.controlValue.trim().length >= 2 &&
+    sourcingExperimentDraft.challengerValue.trim().length >= 2 &&
+    sourcingExperimentDraft.controlValue.trim().toLowerCase() !==
+      sourcingExperimentDraft.challengerValue.trim().toLowerCase() &&
+    (sourcingExperimentDraft.dimension === "category"
+      ? sourcingExperimentDraft.sharedCity.trim().length > 0 &&
+        sourcingExperimentDraft.sharedState.trim().length >= 2
+      : sourcingExperimentDraft.sharedCategory.trim().length >= 2 &&
+        sourcingExperimentDraft.controlState.trim().length >= 2 &&
+        sourcingExperimentDraft.challengerState.trim().length >= 2);
 
   const createLearningCandidate = async (
     dimension: "category" | "metro",
@@ -112,7 +162,7 @@ export default function CommandCenter() {
     >["candidates"][number]
   ) => {
     const confirmed = confirm(
-      "Release this observational segment only for future bounded lead research? This does not authorize contact, provider execution, or spend."
+      "Release this measured sourcing candidate only for future bounded lead research? This does not authorize contact, provider execution, or spend."
     );
     if (!confirmed) return;
     const reason = prompt(
@@ -167,6 +217,198 @@ export default function CommandCenter() {
         error instanceof Error
           ? error.message
           : "Unable to deactivate the sourcing policy."
+      );
+    }
+  };
+
+  const prepareSourcingExperiment = async () => {
+    const draft = sourcingExperimentDraft;
+    const categoryExperiment = draft.dimension === "category";
+    const sharedCategory = draft.sharedCategory.trim().toLowerCase();
+    const sharedCity = draft.sharedCity.trim();
+    const sharedState = draft.sharedState.trim().toUpperCase();
+    const controlValue = draft.controlValue.trim();
+    const challengerValue = draft.challengerValue.trim();
+    try {
+      await prepareSourcingExperimentMutation.mutateAsync({
+        experimentId: crypto.randomUUID(),
+        workspaceId: draft.workspaceId,
+        dimension: draft.dimension,
+        control: categoryExperiment
+          ? {
+              label: `${controlValue} in ${sharedCity}`,
+              criteria: {
+                category: controlValue.toLowerCase(),
+                city: sharedCity,
+                state: sharedState,
+              },
+            }
+          : {
+              label: `${sharedCategory} in ${controlValue}`,
+              criteria: {
+                category: sharedCategory,
+                city: controlValue,
+                state: draft.controlState.trim().toUpperCase(),
+              },
+            },
+        challenger: categoryExperiment
+          ? {
+              label: `${challengerValue} in ${sharedCity}`,
+              criteria: {
+                category: challengerValue.toLowerCase(),
+                city: sharedCity,
+                state: sharedState,
+              },
+            }
+          : {
+              label: `${sharedCategory} in ${challengerValue}`,
+              criteria: {
+                category: sharedCategory,
+                city: challengerValue,
+                state: draft.challengerState.trim().toUpperCase(),
+              },
+            },
+        requestsPerArm: draft.requestsPerArm,
+        leadsPerRequest: draft.leadsPerRequest,
+        attestNoContactAuthority: true,
+        attestNoSpendAuthority: true,
+      });
+      toast.success(
+        "Source experiment prepared. It has no provider, contact, or spend authority."
+      );
+      sourcingExperimentsQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to prepare the source experiment."
+      );
+    }
+  };
+
+  const activateSourcingExperiment = async (
+    experiment: NonNullable<typeof sourcingExperimentsQuery.data>[number]
+  ) => {
+    if (
+      !confirm(
+        "Activate this frozen two-arm allocation? This prevents operator arm selection but does not execute a provider search, contact anyone, or approve spend."
+      )
+    ) {
+      return;
+    }
+    try {
+      await activateSourcingExperimentMutation.mutateAsync({
+        experimentId: experiment.experimentId,
+        definitionHash: experiment.definitionHash,
+        confirmation: "activate-one-acquisition-sourcing-experiment-v1",
+        attestFrozenBalancedAssignment: true,
+        attestNoContactAuthority: true,
+        attestNoSpendAuthority: true,
+      });
+      toast.success("Frozen source allocation activated.");
+      sourcingExperimentsQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to activate the source experiment."
+      );
+    }
+  };
+
+  const cancelSourcingExperiment = async (
+    experiment: NonNullable<typeof sourcingExperimentsQuery.data>[number]
+  ) => {
+    if (
+      !confirm(
+        `Cancel this ${experiment.state.toLowerCase()} source experiment? Existing assignments and audit history will be preserved; no recommendation will be produced.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await cancelSourcingExperimentMutation.mutateAsync({
+        experimentId: experiment.experimentId,
+        definitionHash: experiment.definitionHash,
+        confirmation: "cancel-one-open-acquisition-sourcing-experiment-v1",
+      });
+      toast.success("Source experiment cancelled with its audit trail preserved.");
+      sourcingExperimentsQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to cancel the source experiment."
+      );
+    }
+  };
+
+  const closeSourcingExperiment = async (
+    experiment: NonNullable<typeof sourcingExperimentsQuery.data>[number]
+  ) => {
+    if (
+      !confirm(
+        "Close and evaluate this experiment only after every frozen assignment and canonical outcome is present? A result remains a recommendation and will not change policy."
+      )
+    ) {
+      return;
+    }
+    try {
+      await closeSourcingExperimentMutation.mutateAsync({
+        experimentId: experiment.experimentId,
+        definitionHash: experiment.definitionHash,
+        confirmation: "close-one-acquisition-sourcing-experiment-v1",
+        attestAllAssignmentsAndOutcomesReviewed: true,
+        attestNoAutomaticPolicyChange: true,
+      });
+      toast.success(
+        "Experiment evaluated. Any recommendation still requires a separate policy decision."
+      );
+      sourcingExperimentsQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to close the source experiment."
+      );
+    }
+  };
+
+  const proposeSourcingCandidate = async (
+    experiment: NonNullable<typeof sourcingExperimentsQuery.data>[number]
+  ) => {
+    if (
+      !experiment.result ||
+      experiment.result.status !== "RECOMMENDATION_READY"
+    ) {
+      return;
+    }
+    if (
+      !confirm(
+        "Create one review candidate from this exact closed experiment receipt? It will remain inactive until separately approved and released."
+      )
+    ) {
+      return;
+    }
+    try {
+      await proposeSourcingCandidateMutation.mutateAsync({
+        experimentId: experiment.experimentId,
+        definitionHash: experiment.definitionHash,
+        resultHash: experiment.result.resultHash,
+        confirmation: "propose-one-closed-acquisition-sourcing-candidate-v1",
+        attestRecommendationReviewed: true,
+        attestNoAutomaticPolicyChange: true,
+      });
+      toast.success(
+        "Candidate proposed for review. The sourcing policy is unchanged."
+      );
+      sourcingExperimentsQuery.refetch();
+      learningCandidatesQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to propose the experiment candidate."
       );
     }
   };
@@ -313,6 +555,403 @@ export default function CommandCenter() {
 
           {/* Operator Wizard */}
           <OperatorWizard />
+
+          <Card className="bg-black/50 border-white/10">
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-gold">
+                    <Target className="h-5 w-5" />
+                    Frozen source experiment
+                  </CardTitle>
+                  <CardDescription>
+                    Predeclare two equal sourcing arms, then let SMIRK consume
+                    the frozen request slots without operator arm selection.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                  <ShieldCheck className="h-4 w-4" />
+                  Recommendation only
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 border-y border-white/10 py-4 lg:grid-cols-[160px_minmax(0,1fr)_240px]">
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    Compare
+                  </p>
+                  <div className="grid grid-cols-2 rounded-md border border-white/10 p-1">
+                    {(["category", "metro"] as const).map(dimension => (
+                      <Button
+                        key={dimension}
+                        size="sm"
+                        variant={
+                          sourcingExperimentDraft.dimension === dimension
+                            ? "default"
+                            : "ghost"
+                        }
+                        onClick={() =>
+                          setSourcingExperimentDraft(current => ({
+                            ...current,
+                            dimension,
+                            controlValue:
+                              dimension === "category" ? "plumbing" : "Reno",
+                            challengerValue:
+                              dimension === "category" ? "hvac" : "Sacramento",
+                          }))
+                        }
+                      >
+                        {dimension === "category" ? "Trade" : "Metro"}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {sourcingExperimentDraft.dimension === "category" ? (
+                    <>
+                      <label className="space-y-1.5 text-xs">
+                        <span className="text-muted-foreground">
+                          Control trade
+                        </span>
+                        <Input
+                          value={sourcingExperimentDraft.controlValue}
+                          onChange={event =>
+                            setSourcingExperimentDraft(current => ({
+                              ...current,
+                              controlValue: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs">
+                        <span className="text-muted-foreground">
+                          Challenger trade
+                        </span>
+                        <Input
+                          value={sourcingExperimentDraft.challengerValue}
+                          onChange={event =>
+                            setSourcingExperimentDraft(current => ({
+                              ...current,
+                              challengerValue: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs">
+                        <span className="text-muted-foreground">
+                          Fixed city
+                        </span>
+                        <Input
+                          value={sourcingExperimentDraft.sharedCity}
+                          onChange={event =>
+                            setSourcingExperimentDraft(current => ({
+                              ...current,
+                              sharedCity: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs">
+                        <span className="text-muted-foreground">
+                          Fixed state
+                        </span>
+                        <Input
+                          value={sourcingExperimentDraft.sharedState}
+                          onChange={event =>
+                            setSourcingExperimentDraft(current => ({
+                              ...current,
+                              sharedState: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <>
+                      <label className="space-y-1.5 text-xs sm:col-span-2">
+                        <span className="text-muted-foreground">
+                          Fixed trade
+                        </span>
+                        <Input
+                          value={sourcingExperimentDraft.sharedCategory}
+                          onChange={event =>
+                            setSourcingExperimentDraft(current => ({
+                              ...current,
+                              sharedCategory: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs">
+                        <span className="text-muted-foreground">
+                          Control city / state
+                        </span>
+                        <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-2">
+                          <Input
+                            value={sourcingExperimentDraft.controlValue}
+                            onChange={event =>
+                              setSourcingExperimentDraft(current => ({
+                                ...current,
+                                controlValue: event.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            value={sourcingExperimentDraft.controlState}
+                            aria-label="Control state"
+                            onChange={event =>
+                              setSourcingExperimentDraft(current => ({
+                                ...current,
+                                controlState: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </label>
+                      <label className="space-y-1.5 text-xs">
+                        <span className="text-muted-foreground">
+                          Challenger city / state
+                        </span>
+                        <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-2">
+                          <Input
+                            value={sourcingExperimentDraft.challengerValue}
+                            onChange={event =>
+                              setSourcingExperimentDraft(current => ({
+                                ...current,
+                                challengerValue: event.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            value={sourcingExperimentDraft.challengerState}
+                            aria-label="Challenger state"
+                            onChange={event =>
+                              setSourcingExperimentDraft(current => ({
+                                ...current,
+                                challengerState: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </label>
+                    </>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    {
+                      key: "workspaceId",
+                      label: "Workspace",
+                      min: 1,
+                      max: 1_000_000,
+                    },
+                    {
+                      key: "requestsPerArm",
+                      label: "Runs / arm",
+                      min: 1,
+                      max: 10,
+                    },
+                    {
+                      key: "leadsPerRequest",
+                      label: "Leads / run",
+                      min: 1,
+                      max: 20,
+                    },
+                  ].map(field => (
+                    <label key={field.key} className="space-y-1.5 text-xs">
+                      <span className="text-muted-foreground">
+                        {field.label}
+                      </span>
+                      <Input
+                        type="number"
+                        min={field.min}
+                        max={field.max}
+                        value={
+                          sourcingExperimentDraft[
+                            field.key as
+                              | "workspaceId"
+                              | "requestsPerArm"
+                              | "leadsPerRequest"
+                          ]
+                        }
+                        onChange={event =>
+                          setSourcingExperimentDraft(current => ({
+                            ...current,
+                            [field.key]: Math.max(
+                              field.min,
+                              Math.min(
+                                field.max,
+                                Number(event.target.value) || field.min
+                              )
+                            ),
+                          }))
+                        }
+                      />
+                    </label>
+                  ))}
+                  <div className="col-span-3 flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <p className="text-xs text-muted-foreground">
+                      {sourcingPerArm} requested leads per arm ·{" "}
+                      {sourcingCapacity} maximum total
+                    </p>
+                    <Button
+                      size="sm"
+                      disabled={
+                        !sourcingDraftValid ||
+                        hasOpenSourcingExperiment ||
+                        prepareSourcingExperimentMutation.isPending
+                      }
+                      onClick={prepareSourcingExperiment}
+                    >
+                      {prepareSourcingExperimentMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Target className="mr-2 h-4 w-4" />
+                      )}
+                      Prepare
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {sourcingExperimentsQuery.isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : sourcingExperimentsQuery.error ? (
+                <p className="text-sm text-red-300">
+                  Source experiment ledger unavailable.
+                </p>
+              ) : !sourcingExperimentsQuery.data?.length ? (
+                <p className="text-sm text-muted-foreground">
+                  No frozen source experiments have been prepared.
+                </p>
+              ) : (
+                <div className="divide-y divide-white/10 border-y border-white/10">
+                  {sourcingExperimentsQuery.data.slice(0, 5).map(experiment => {
+                    const busy =
+                      activateSourcingExperimentMutation.isPending ||
+                      cancelSourcingExperimentMutation.isPending ||
+                      closeSourcingExperimentMutation.isPending ||
+                      proposeSourcingCandidateMutation.isPending;
+                    return (
+                      <div
+                        key={experiment.experimentId}
+                        className="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              {experiment.definition.arms.control.label}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              vs.
+                            </span>
+                            <span className="text-sm font-semibold">
+                              {experiment.definition.arms.challenger.label}
+                            </span>
+                            <span className="rounded border border-white/10 px-2 py-0.5 text-[11px] text-emerald-300">
+                              {experiment.state}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Workspace {experiment.workspaceId} ·{" "}
+                            {experiment.assignedRequests}/
+                            {experiment.definition.totalRequestSlots} frozen
+                            slots assigned · no policy change
+                          </p>
+                          {experiment.result ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {experiment.result.status} ·{" "}
+                              {experiment.result.code}
+                              {experiment.result.proposal
+                                ? ` · recommends ${experiment.result.proposal.value} for human review`
+                                : ""}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {experiment.state === "PREPARED" ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                title="Cancel prepared source experiment"
+                                disabled={busy}
+                                onClick={() =>
+                                  cancelSourcingExperiment(experiment)
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() =>
+                                  activateSourcingExperiment(experiment)
+                                }
+                              >
+                                <Play className="mr-2 h-4 w-4" />
+                                Activate allocation
+                              </Button>
+                            </>
+                          ) : null}
+                          {experiment.state === "ACTIVE" ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                title="Cancel active source experiment and preserve its audit trail"
+                                disabled={busy}
+                                onClick={() =>
+                                  cancelSourcingExperiment(experiment)
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                title="Evaluate only after complete outcome coverage"
+                                disabled={busy}
+                                onClick={() =>
+                                  closeSourcingExperiment(experiment)
+                                }
+                              >
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Evaluate
+                              </Button>
+                            </>
+                          ) : null}
+                          {experiment.state === "CLOSED" &&
+                          experiment.result?.status ===
+                            "RECOMMENDATION_READY" ? (
+                            experiment.learningCandidateId ? (
+                              <span className="rounded border border-white/10 px-2 py-1 text-xs text-muted-foreground">
+                                Candidate #{experiment.learningCandidateId}
+                              </span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() =>
+                                  proposeSourcingCandidate(experiment)
+                                }
+                              >
+                                <Target className="mr-2 h-4 w-4" />
+                                Propose candidate
+                              </Button>
+                            )
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="bg-black/50 border-white/10">
             <CardHeader>

@@ -24,6 +24,14 @@ import {
   type SmirkDiscoveryStatusResponse,
 } from "./smirkDiscovery";
 import {
+  acquisitionSourcingExperimentAssignmentSchema,
+  type AcquisitionSourcingExperimentAssignment,
+} from "./acquisitionSourcingExperiment";
+import {
+  AcquisitionSourcingExperimentStoreError,
+  assignAcquisitionSourcingExperimentDiscovery,
+} from "./acquisitionSourcingExperimentStore";
+import {
   appliedLearningCandidateSchema,
   isReleasedAcquisitionLearningMode,
   type AppliedLearningCandidate,
@@ -58,6 +66,11 @@ type StoredDiscovery = {
   requestPayloadHash: string;
   effectiveCriteria: string;
   effectiveCriteriaHash: string;
+  acquisitionSourcingExperimentId: number | null;
+  acquisitionSourcingSlotOrdinal: number | null;
+  acquisitionSourcingArm: "control" | "challenger" | null;
+  acquisitionSourcingAssignmentPayload: string | null;
+  acquisitionSourcingAssignmentHash: string | null;
   appliedLearningCandidatePayload: string | null;
   quotePayload: string;
   quotePayloadHash: string;
@@ -99,6 +112,7 @@ function parseStoredDiscovery(row: StoredDiscovery): {
     typeof smirkDiscoveryEffectiveCriteriaSchema.parse
   >;
   candidate: AppliedLearningCandidate | null;
+  experimentAssignment: AcquisitionSourcingExperimentAssignment | null;
   quote: ReturnType<typeof smirkDiscoveryQuoteSchema.parse>;
 } {
   try {
@@ -113,18 +127,36 @@ function parseStoredDiscovery(row: StoredDiscovery): {
           JSON.parse(row.appliedLearningCandidatePayload)
         )
       : null;
-    const quote = smirkDiscoveryQuoteSchema.parse(
-      JSON.parse(row.quotePayload)
-    );
+    const experimentAssignment = row.acquisitionSourcingAssignmentPayload
+      ? acquisitionSourcingExperimentAssignmentSchema.parse(
+          JSON.parse(row.acquisitionSourcingAssignmentPayload)
+        )
+      : null;
+    const quote = smirkDiscoveryQuoteSchema.parse(JSON.parse(row.quotePayload));
     if (
       hashSmirkDiscoveryValue(request) !== row.requestPayloadHash ||
       hashSmirkDiscoveryValue(effectiveCriteria) !==
         row.effectiveCriteriaHash ||
-      hashSmirkDiscoveryValue(quote) !== row.quotePayloadHash
+      hashSmirkDiscoveryValue(quote) !== row.quotePayloadHash ||
+      Boolean(experimentAssignment) !==
+        Boolean(row.acquisitionSourcingExperimentId) ||
+      (experimentAssignment &&
+        (experimentAssignment.assignmentHash !==
+          row.acquisitionSourcingAssignmentHash ||
+          experimentAssignment.slotOrdinal !==
+            row.acquisitionSourcingSlotOrdinal ||
+          experimentAssignment.arm !== row.acquisitionSourcingArm ||
+          experimentAssignment.requestId !== row.requestId))
     ) {
       throw new Error("stored hash mismatch");
     }
-    return { request, effectiveCriteria, candidate, quote };
+    return {
+      request,
+      effectiveCriteria,
+      candidate,
+      experimentAssignment,
+      quote,
+    };
   } catch {
     throw new SmirkDiscoveryStoreError(
       "The stored discovery request is not verifiable.",
@@ -196,6 +228,7 @@ function preparedResponse(
     discoveryId: row.id,
     effectiveCriteria: stored.effectiveCriteria,
     appliedLearningCandidate: stored.candidate,
+    acquisitionExperimentAssignment: stored.experimentAssignment,
     quote: stored.quote,
     approvalRequired: row.state === "PREPARED",
     executionStarted,
@@ -218,6 +251,7 @@ function statusResponse(row: StoredDiscovery): SmirkDiscoveryStatusResponse {
     state: row.state,
     effectiveCriteria: stored.effectiveCriteria,
     appliedLearningCandidate: stored.candidate,
+    acquisitionExperimentAssignment: stored.experimentAssignment,
     quote: stored.quote,
     createdLeadCount: row.createdLeadCount,
     readyLeadCount: row.readyLeadCount,
@@ -241,6 +275,15 @@ function selection() {
     requestPayloadHash: smirkDiscoveryRequests.requestPayloadHash,
     effectiveCriteria: smirkDiscoveryRequests.effectiveCriteria,
     effectiveCriteriaHash: smirkDiscoveryRequests.effectiveCriteriaHash,
+    acquisitionSourcingExperimentId:
+      smirkDiscoveryRequests.acquisitionSourcingExperimentId,
+    acquisitionSourcingSlotOrdinal:
+      smirkDiscoveryRequests.acquisitionSourcingSlotOrdinal,
+    acquisitionSourcingArm: smirkDiscoveryRequests.acquisitionSourcingArm,
+    acquisitionSourcingAssignmentPayload:
+      smirkDiscoveryRequests.acquisitionSourcingAssignmentPayload,
+    acquisitionSourcingAssignmentHash:
+      smirkDiscoveryRequests.acquisitionSourcingAssignmentHash,
     appliedLearningCandidatePayload:
       smirkDiscoveryRequests.appliedLearningCandidatePayload,
     quotePayload: smirkDiscoveryRequests.quotePayload,
@@ -328,11 +371,10 @@ export async function prepareSmirkDiscovery(
       }
 
       let candidate: AppliedLearningCandidate | null = null;
-      if (
-        isReleasedAcquisitionLearningMode(
-          request.criteria.learningMode
-        )
-      ) {
+      let experimentRowId: number | null = null;
+      let experimentAssignment: AcquisitionSourcingExperimentAssignment | null =
+        null;
+      if (isReleasedAcquisitionLearningMode(request.criteria.learningMode)) {
         const policy = await loadCurrentReleasedAcquisitionPolicy(
           tx,
           actor.userId
@@ -353,12 +395,43 @@ export async function prepareSmirkDiscovery(
         }
         candidate = policy.candidate;
       }
+      if (request.criteria.learningMode === "experiment") {
+        if (!request.acquisitionExperiment) {
+          throw new SmirkDiscoveryStoreError(
+            "Experiment discovery requires an immutable experiment binding.",
+            "SMIRK_DISCOVERY_EXPERIMENT_BINDING_REQUIRED",
+            412
+          );
+        }
+        let assigned;
+        try {
+          assigned = await assignAcquisitionSourcingExperimentDiscovery(tx, {
+            binding: request.acquisitionExperiment,
+            requestId: request.requestId,
+            userId: actor.userId,
+            workspaceId: request.workspaceId,
+            apiKeyId: actor.apiKeyId,
+          });
+        } catch (error) {
+          if (!(error instanceof AcquisitionSourcingExperimentStoreError)) {
+            throw error;
+          }
+          throw new SmirkDiscoveryStoreError(
+            error.message,
+            error.code,
+            error.status
+          );
+        }
+        experimentRowId = assigned.experimentRowId;
+        experimentAssignment = assigned.assignment;
+      }
       let effectiveCriteria;
       let quote;
       try {
         effectiveCriteria = buildSmirkDiscoveryEffectiveCriteria({
           request,
           candidate,
+          experimentAssignment,
         });
         quote = buildSmirkDiscoveryQuote(effectiveCriteria);
       } catch (error) {
@@ -385,6 +458,14 @@ export async function prepareSmirkDiscovery(
           requestPayloadHash,
           effectiveCriteria: JSON.stringify(effectiveCriteria),
           effectiveCriteriaHash,
+          acquisitionSourcingExperimentId: experimentRowId,
+          acquisitionSourcingSlotOrdinal: experimentAssignment?.slotOrdinal,
+          acquisitionSourcingArm: experimentAssignment?.arm,
+          acquisitionSourcingAssignmentPayload: experimentAssignment
+            ? JSON.stringify(experimentAssignment)
+            : null,
+          acquisitionSourcingAssignmentHash:
+            experimentAssignment?.assignmentHash,
           appliedLearningCandidateId: candidate?.id,
           appliedLearningCandidatePayload: candidate
             ? JSON.stringify(candidate)
@@ -417,6 +498,9 @@ export async function prepareSmirkDiscovery(
           requestPayloadHash,
           effectiveCriteriaHash,
           quotePayloadHash,
+          acquisitionExperimentAssignmentHash:
+            experimentAssignment?.assignmentHash || null,
+          acquisitionExperimentArm: experimentAssignment?.arm || null,
           contactActionAllowed: false,
           spendAuthorized: false,
         },

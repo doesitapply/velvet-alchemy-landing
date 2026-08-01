@@ -10,6 +10,12 @@ import {
   smirkDiscoveryStatusResponseSchema,
 } from "./lib/smirkDiscovery";
 import type { AppliedLearningCandidate } from "./lib/smirkLeadBatch";
+import {
+  ACQUISITION_SOURCING_BINDING_CONTRACT,
+  buildAcquisitionSourcingExperimentAssignment,
+  buildAcquisitionSourcingExperimentDefinition,
+  hashAcquisitionSourcingValue,
+} from "./lib/acquisitionSourcingExperiment";
 
 function manualRequest() {
   return smirkDiscoveryRequestSchema.parse({
@@ -191,6 +197,59 @@ describe("SMIRK discovery contract", () => {
     });
   });
 
+  it("uses only the exact frozen experiment assignment for experiment discovery", () => {
+    const definition = buildAcquisitionSourcingExperimentDefinition({
+      experimentId: "4763e0d1-21c0-4a99-bd28-401d0fccdfe4",
+      workspaceId: 1,
+      dimension: "category",
+      control: {
+        label: "Reno plumbing",
+        criteria: { category: "plumbing", city: "Reno", state: "NV" },
+      },
+      challenger: {
+        label: "Reno HVAC",
+        criteria: { category: "hvac", city: "Reno", state: "NV" },
+      },
+      requestsPerArm: 1,
+      leadsPerRequest: 10,
+      preparedAt: new Date("2026-08-01T12:00:00.000Z"),
+    });
+    const definitionHash = hashAcquisitionSourcingValue(definition);
+    const request = smirkDiscoveryRequestSchema.parse({
+      contractVersion: SMIRK_DISCOVERY_REQUEST_CONTRACT,
+      requestId: "smirk_discovery_experiment_20260801_001",
+      workspaceId: 1,
+      criteria: { limit: 10, learningMode: "experiment" },
+      acquisitionExperiment: {
+        contractVersion: ACQUISITION_SOURCING_BINDING_CONTRACT,
+        experimentId: definition.experimentId,
+        definitionHash,
+      },
+      contactActionAllowed: false,
+      spendAuthorized: false,
+    });
+    const assignment = buildAcquisitionSourcingExperimentAssignment({
+      definition,
+      definitionHash,
+      requestId: request.requestId,
+      slotOrdinal: 1,
+    });
+
+    expect(
+      buildSmirkDiscoveryEffectiveCriteria({
+        request,
+        candidate: null,
+        experimentAssignment: assignment,
+      })
+    ).toEqual(assignment.effectiveCriteria);
+    expect(
+      smirkDiscoveryRequestSchema.safeParse({
+        ...request,
+        acquisitionExperiment: undefined,
+      }).success
+    ).toBe(false);
+  });
+
   it("validates prepared and status receipts without granting execution", () => {
     const request = manualRequest();
     const criteria = buildSmirkDiscoveryEffectiveCriteria({
@@ -219,6 +278,7 @@ describe("SMIRK discovery contract", () => {
         discoveryId: 11,
         effectiveCriteria: criteria,
         appliedLearningCandidate: null,
+        acquisitionExperimentAssignment: null,
         quote,
         approvalRequired: true,
         executionStarted: false,
@@ -238,6 +298,7 @@ describe("SMIRK discovery contract", () => {
         state: "PREPARED",
         effectiveCriteria: criteria,
         appliedLearningCandidate: null,
+        acquisitionExperimentAssignment: null,
         quote,
         createdLeadCount: 0,
         readyLeadCount: 0,

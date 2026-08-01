@@ -6,6 +6,11 @@ import {
   isReleasedAcquisitionLearningMode,
   type AppliedLearningCandidate,
 } from "./smirkLeadBatch";
+import {
+  acquisitionSourcingExperimentAssignmentSchema,
+  acquisitionSourcingExperimentBindingSchema,
+  type AcquisitionSourcingExperimentAssignment,
+} from "./acquisitionSourcingExperiment";
 
 export const SMIRK_DISCOVERY_REQUEST_CONTRACT =
   "smirk-velvet.discovery-request.v1" as const;
@@ -38,6 +43,7 @@ export const smirkDiscoveryCriteriaSchema = z
       "none",
       "latest_released",
       "latest_approved",
+      "experiment",
     ]),
   })
   .strict()
@@ -68,6 +74,16 @@ export const smirkDiscoveryCriteriaSchema = z
           "Manual discovery requires category, city, and state filters.",
       });
     }
+    if (
+      criteria.learningMode === "experiment" &&
+      (criteria.category || criteria.city || criteria.state)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Experiment discovery criteria come only from the frozen assignment.",
+      });
+    }
   });
 
 export const smirkDiscoveryRequestSchema = z
@@ -76,10 +92,25 @@ export const smirkDiscoveryRequestSchema = z
     requestId: z.string().min(20).max(160).regex(SAFE_EXTERNAL_ID),
     workspaceId: z.number().int().positive(),
     criteria: smirkDiscoveryCriteriaSchema,
+    acquisitionExperiment:
+      acquisitionSourcingExperimentBindingSchema.optional(),
     contactActionAllowed: z.literal(false),
     spendAuthorized: z.literal(false),
   })
-  .strict();
+  .strict()
+  .superRefine((request, ctx) => {
+    if (
+      (request.criteria.learningMode === "experiment") !==
+      Boolean(request.acquisitionExperiment)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["acquisitionExperiment"],
+        message:
+          "Experiment mode requires exactly one immutable experiment binding.",
+      });
+    }
+  });
 
 export const smirkDiscoveryEffectiveCriteriaSchema = z
   .object({
@@ -135,6 +166,8 @@ export const smirkDiscoveryPreparedResponseSchema = z
     discoveryId: z.number().int().positive(),
     effectiveCriteria: smirkDiscoveryEffectiveCriteriaSchema,
     appliedLearningCandidate: appliedLearningCandidateSchema.nullable(),
+    acquisitionExperimentAssignment:
+      acquisitionSourcingExperimentAssignmentSchema.nullable().default(null),
     quote: smirkDiscoveryQuoteSchema,
     approvalRequired: z.boolean(),
     executionStarted: z.boolean(),
@@ -155,6 +188,8 @@ export const smirkDiscoveryStatusResponseSchema = z
     state: smirkDiscoveryStateSchema,
     effectiveCriteria: smirkDiscoveryEffectiveCriteriaSchema,
     appliedLearningCandidate: appliedLearningCandidateSchema.nullable(),
+    acquisitionExperimentAssignment:
+      acquisitionSourcingExperimentAssignmentSchema.nullable().default(null),
     quote: smirkDiscoveryQuoteSchema,
     createdLeadCount: z.number().int().nonnegative(),
     readyLeadCount: z.number().int().nonnegative(),
@@ -197,8 +232,32 @@ export function hashSmirkDiscoveryValue(value: unknown): string {
 export function buildSmirkDiscoveryEffectiveCriteria(input: {
   request: SmirkDiscoveryRequest;
   candidate: AppliedLearningCandidate | null;
+  experimentAssignment?: AcquisitionSourcingExperimentAssignment | null;
 }): SmirkDiscoveryEffectiveCriteria {
-  const { request, candidate } = input;
+  const { request, candidate, experimentAssignment = null } = input;
+  if (request.criteria.learningMode === "experiment") {
+    if (
+      !request.acquisitionExperiment ||
+      !experimentAssignment ||
+      experimentAssignment.experimentId !==
+        request.acquisitionExperiment.experimentId ||
+      experimentAssignment.definitionHash !==
+        request.acquisitionExperiment.definitionHash ||
+      experimentAssignment.requestId !== request.requestId
+    ) {
+      throw new Error(
+        "A valid frozen sourcing assignment is required for experiment discovery."
+      );
+    }
+    return smirkDiscoveryEffectiveCriteriaSchema.parse(
+      experimentAssignment.effectiveCriteria
+    );
+  }
+  if (experimentAssignment || request.acquisitionExperiment) {
+    throw new Error(
+      "A sourcing experiment assignment cannot alter a non-experiment discovery."
+    );
+  }
   if (request.criteria.learningMode === "none") {
     return smirkDiscoveryEffectiveCriteriaSchema.parse({
       limit: request.criteria.limit,

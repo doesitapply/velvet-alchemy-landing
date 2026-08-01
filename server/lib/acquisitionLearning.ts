@@ -10,6 +10,10 @@ export const ACQUISITION_LEARNING_STATISTICAL_TEST =
 export const MAXIMUM_ACQUISITION_FISHER_P_VALUE = 0.05;
 export const ACQUISITION_LEARNING_INTERPRETATION =
   "Outcome-linked segment association only. Operator selection and market mix remain possible confounders; this receipt may support a bounded human release but does not establish causation or authorize contact, provider execution, or spend." as const;
+export const ACQUISITION_SOURCING_EXPERIMENT_EVIDENCE_STUDY_DESIGN =
+  "deterministic-balanced-source-allocation-v1" as const;
+export const ACQUISITION_SOURCING_EXPERIMENT_EVIDENCE_INTERPRETATION =
+  "Predeclared equal source allocation with immutable request assignment. It removes operator arm selection after activation, but provider yield, market composition, and nonresponse can still confound results. The receipt can support human review only and authorizes no contact, provider execution, or spend." as const;
 
 export type AcquisitionOutcome =
   | "delivered"
@@ -75,7 +79,7 @@ export const acquisitionLearningProposalSchema = z
   })
   .strict();
 
-export const acquisitionLearningEvidenceSchema = z
+const acquisitionObservationalLearningEvidenceSchema = z
   .object({
     studyDesign: z.literal(ACQUISITION_LEARNING_STUDY_DESIGN),
     interpretation: z.literal(ACQUISITION_LEARNING_INTERPRETATION),
@@ -105,6 +109,47 @@ export const acquisitionLearningEvidenceSchema = z
     }
   );
 
+const acquisitionSourcingExperimentLearningEvidenceSchema = z
+  .object({
+    studyDesign: z.literal(
+      ACQUISITION_SOURCING_EXPERIMENT_EVIDENCE_STUDY_DESIGN
+    ),
+    interpretation: z.literal(
+      ACQUISITION_SOURCING_EXPERIMENT_EVIDENCE_INTERPRETATION
+    ),
+    source: z
+      .object({
+        experimentId: z.string().uuid(),
+        definitionHash: z.string().regex(/^[a-f0-9]{64}$/),
+        resultHash: z.string().regex(/^[a-f0-9]{64}$/),
+        winner: z.enum(["control", "challenger"]),
+      })
+      .strict(),
+    segment: acquisitionSegmentScoreSchema,
+    comparisonSampleSize: z
+      .number()
+      .int()
+      .min(MINIMUM_ACQUISITION_SEGMENT_SAMPLE),
+    comparisonPositive: z.number().int().nonnegative(),
+    comparisonPositiveRate: z.number().min(0).max(1),
+    absoluteLift: z.number().min(MINIMUM_ACQUISITION_LIFT).max(1),
+    statisticalTest: z.literal(ACQUISITION_LEARNING_STATISTICAL_TEST),
+    oneSidedFisherPValue: z
+      .number()
+      .min(0)
+      .max(MAXIMUM_ACQUISITION_FISHER_P_VALUE),
+    maximumOneSidedFisherPValue: z.literal(MAXIMUM_ACQUISITION_FISHER_P_VALUE),
+  })
+  .strict()
+  .refine(value => value.comparisonPositive <= value.comparisonSampleSize, {
+    message: "Comparison positives cannot exceed the comparison sample size.",
+  });
+
+export const acquisitionLearningEvidenceSchema = z.union([
+  acquisitionObservationalLearningEvidenceSchema,
+  acquisitionSourcingExperimentLearningEvidenceSchema,
+]);
+
 export type AcquisitionLearningProposal = z.infer<
   typeof acquisitionLearningProposalSchema
 >;
@@ -119,6 +164,12 @@ const POSITIVE_OUTCOMES = new Set<AcquisitionOutcome>([
   "converted",
   "call_connected",
 ]);
+
+export function isPositiveAcquisitionOutcome(
+  outcome: AcquisitionOutcome
+): boolean {
+  return POSITIVE_OUTCOMES.has(outcome);
+}
 
 function stableRate(value: number): number {
   return Math.round(value * 10_000) / 10_000;
@@ -204,6 +255,18 @@ export function hashAcquisitionLearningValue(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(canonicalize(value)))
     .digest("hex");
+}
+
+export function buildAcquisitionLearningCandidateKey(
+  dimension: AcquisitionDimension,
+  value: string
+): string {
+  return `${dimension}:${value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 150)}`;
 }
 
 export function verifyAcquisitionLearningCandidateSnapshot(input: {
@@ -334,7 +397,7 @@ function sourceIdentity(observation: AcquisitionObservation): string {
   });
 }
 
-function canonicalizeAcquisitionObservations(
+export function canonicalizeAcquisitionObservations(
   observations: AcquisitionObservation[]
 ): Array<AcquisitionObservation & { eventCount: number }> {
   const prospects = new Map<
@@ -396,7 +459,9 @@ export function buildAcquisitionLearningSummary(
       } satisfies AcquisitionSegmentScore);
     score.sampleSize += 1;
     score.eventCount += observation.eventCount;
-    if (POSITIVE_OUTCOMES.has(observation.outcome)) score.positive += 1;
+    if (isPositiveAcquisitionOutcome(observation.outcome)) {
+      score.positive += 1;
+    }
     score.positiveRate = stableRate(score.positive / score.sampleSize);
     segments.set(value, score);
   }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   acquisitionLearningCandidates,
   acquisitionLearningPolicyReleases,
+  acquisitionSourcingExperiments,
   leads,
   smirkOutcomeEvents,
   users,
@@ -11,13 +12,20 @@ import {
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import {
+  ACQUISITION_SOURCING_EXPERIMENT_EVIDENCE_STUDY_DESIGN,
+  buildAcquisitionLearningCandidateKey,
   buildAcquisitionLearningSummary,
   evaluateAcquisitionLearningCandidate,
   hashAcquisitionLearningValue,
   verifyAcquisitionLearningCandidateSnapshot,
-  type AcquisitionDimension,
   type AcquisitionObservation,
 } from "./lib/acquisitionLearning";
+import {
+  acquisitionSourcingExperimentDefinitionSchema,
+  acquisitionSourcingExperimentEvaluationSchema,
+  buildAcquisitionLearningSnapshotFromSourcingExperiment,
+  hashAcquisitionSourcingValue,
+} from "./lib/acquisitionSourcingExperiment";
 import {
   acquisitionLearningPolicyDeactivateInputSchema,
   acquisitionLearningPolicyReleaseInputSchema,
@@ -81,12 +89,13 @@ function parseStoredJson(value: string): unknown {
   }
 }
 
-function requireCurrentCandidateEvidence(input: {
+async function requireCurrentCandidateEvidence(input: {
+  db: any;
+  userId: number;
   proposal: string;
   evidence: string;
   sampleSize: number;
-  observations: AcquisitionObservation[];
-}): ReturnType<typeof verifyAcquisitionLearningCandidateSnapshot> {
+}): Promise<ReturnType<typeof verifyAcquisitionLearningCandidateSnapshot>> {
   let stored;
   try {
     stored = verifyAcquisitionLearningCandidateSnapshot({
@@ -101,8 +110,76 @@ function requireCurrentCandidateEvidence(input: {
         "The acquisition-learning candidate evidence is invalid or no longer meets the release gate.",
     });
   }
+  if (
+    stored.evidence.studyDesign ===
+    ACQUISITION_SOURCING_EXPERIMENT_EVIDENCE_STUDY_DESIGN
+  ) {
+    const experimentRows = await input.db
+      .select()
+      .from(acquisitionSourcingExperiments)
+      .where(
+        and(
+          eq(acquisitionSourcingExperiments.userId, input.userId),
+          eq(
+            acquisitionSourcingExperiments.experimentId,
+            stored.evidence.source.experimentId
+          )
+        )
+      )
+      .limit(1)
+      .for("update");
+    const experiment = experimentRows[0];
+    try {
+      if (
+        !experiment ||
+        experiment.state !== "CLOSED" ||
+        experiment.definitionHash !== stored.evidence.source.definitionHash ||
+        !experiment.resultPayload ||
+        !experiment.resultPayloadHash
+      ) {
+        throw new Error("closed experiment missing");
+      }
+      const definition = acquisitionSourcingExperimentDefinitionSchema.parse(
+        JSON.parse(experiment.definition)
+      );
+      const evaluation = acquisitionSourcingExperimentEvaluationSchema.parse(
+        JSON.parse(experiment.resultPayload)
+      );
+      if (
+        hashAcquisitionSourcingValue(definition) !==
+          experiment.definitionHash ||
+        hashAcquisitionSourcingValue(evaluation) !==
+          experiment.resultPayloadHash ||
+        evaluation.resultHash !== stored.evidence.source.resultHash
+      ) {
+        throw new Error("experiment receipt mismatch");
+      }
+      const current = buildAcquisitionLearningSnapshotFromSourcingExperiment({
+        definition,
+        definitionHash: experiment.definitionHash,
+        evaluation,
+      });
+      if (
+        current.sampleSize !== input.sampleSize ||
+        hashAcquisitionLearningValue(current.proposal) !==
+          hashAcquisitionLearningValue(stored.proposal) ||
+        hashAcquisitionLearningValue(current.evidence) !==
+          hashAcquisitionLearningValue(stored.evidence)
+      ) {
+        throw new Error("candidate snapshot mismatch");
+      }
+      return stored;
+    } catch {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message:
+          "The closed source-experiment receipt no longer matches this candidate.",
+      });
+    }
+  }
+  const observations = await loadObservationsFromDb(input.db, input.userId);
   const current = evaluateAcquisitionLearningCandidate({
-    observations: input.observations,
+    observations,
     dimension: stored.proposal.dimension,
     value: stored.proposal.value,
   });
@@ -121,18 +198,6 @@ function requireCurrentCandidateEvidence(input: {
     });
   }
   return stored;
-}
-
-function candidateKey(
-  dimension: AcquisitionDimension,
-  value: string
-): string {
-  return `${dimension}:${value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 150)}`;
 }
 
 async function lockAcquisitionPolicyOwner(
@@ -260,41 +325,49 @@ export const acquisitionLearningRouter = router({
                 : "The candidate segment has no measured positive lift.",
         });
       }
-      const key = candidateKey(input.dimension, evaluation.proposal.value);
-      const versions = await db
-        .select({ version: acquisitionLearningCandidates.version })
-        .from(acquisitionLearningCandidates)
-        .where(
-          and(
-            eq(acquisitionLearningCandidates.userId, ctx.user.id),
-            eq(acquisitionLearningCandidates.candidateKey, key)
+      const key = buildAcquisitionLearningCandidateKey(
+        input.dimension,
+        evaluation.proposal.value
+      );
+      const created = await db.transaction(async tx => {
+        await lockAcquisitionPolicyOwner(tx, ctx.user.id);
+        const versions = await tx
+          .select({ version: acquisitionLearningCandidates.version })
+          .from(acquisitionLearningCandidates)
+          .where(
+            and(
+              eq(acquisitionLearningCandidates.userId, ctx.user.id),
+              eq(acquisitionLearningCandidates.candidateKey, key)
+            )
           )
-        )
-        .orderBy(desc(acquisitionLearningCandidates.version))
-        .limit(1);
-      const version = Number(versions[0]?.version || 0) + 1;
-      const inserted = await db
-        .insert(acquisitionLearningCandidates)
-        .values({
-          userId: ctx.user.id,
-          candidateKey: key,
-          version,
-          state: "CANDIDATE",
-          proposal: JSON.stringify(evaluation.proposal),
-          evidence: JSON.stringify(evaluation.evidence),
-          sampleSize: evaluation.sampleSize,
-        })
-        .$returningId();
-      if (!inserted[0]?.id) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "The sourcing candidate was not durably recorded.",
-        });
-      }
+          .orderBy(desc(acquisitionLearningCandidates.version))
+          .limit(1)
+          .for("update");
+        const version = Number(versions[0]?.version || 0) + 1;
+        const inserted = await tx
+          .insert(acquisitionLearningCandidates)
+          .values({
+            userId: ctx.user.id,
+            candidateKey: key,
+            version,
+            state: "CANDIDATE",
+            proposal: JSON.stringify(evaluation.proposal),
+            evidence: JSON.stringify(evaluation.evidence),
+            sampleSize: evaluation.sampleSize,
+          })
+          .$returningId();
+        if (!inserted[0]?.id) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "The sourcing candidate was not durably recorded.",
+          });
+        }
+        return { id: inserted[0].id, version };
+      });
       return {
-        id: inserted[0].id,
+        id: created.id,
         candidateKey: key,
-        version,
+        version: created.version,
         state: "CANDIDATE" as const,
         proposal: evaluation.proposal,
         evidence: evaluation.evidence,
@@ -320,6 +393,7 @@ export const acquisitionLearningRouter = router({
         });
       }
       await db.transaction(async tx => {
+        await lockAcquisitionPolicyOwner(tx, ctx.user.id);
         const candidates = await tx
           .select()
           .from(acquisitionLearningCandidates)
@@ -339,15 +413,12 @@ export const acquisitionLearningRouter = router({
           });
         }
         if (input.decision === "APPROVED") {
-          const observations = await loadObservationsFromDb(
-            tx,
-            ctx.user.id
-          );
-          requireCurrentCandidateEvidence({
+          await requireCurrentCandidateEvidence({
+            db: tx,
+            userId: ctx.user.id,
             proposal: candidate.proposal,
             evidence: candidate.evidence,
             sampleSize: candidate.sampleSize,
-            observations,
           });
         }
         const updated = await tx
@@ -449,12 +520,12 @@ export const acquisitionLearningRouter = router({
               "Only an approved acquisition-learning candidate can be released.",
           });
         }
-        const observations = await loadObservationsFromDb(tx, ctx.user.id);
-        const snapshot = requireCurrentCandidateEvidence({
+        const snapshot = await requireCurrentCandidateEvidence({
+          db: tx,
+          userId: ctx.user.id,
           proposal: candidate.proposal,
           evidence: candidate.evidence,
           sampleSize: candidate.sampleSize,
-          observations,
         });
         const proposalHash = hashAcquisitionLearningValue(snapshot.proposal);
         const evidenceHash = hashAcquisitionLearningValue(snapshot.evidence);

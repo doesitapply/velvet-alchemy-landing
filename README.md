@@ -95,6 +95,15 @@ candidate applied to one later zero-spend batch. Its Maps boundary is injected
 with a deterministic fake. It sends no email or SMS, places no call, contacts
 no provider or prospect, and does not prove deployment or revenue.
 
+The hardening branch also supports one frozen two-arm sourcing experiment per
+owner/workspace. SMIRK reads the active definition, Velvet assigns immutable
+balanced request slots, and exact assignment provenance survives the reviewed
+lead pull. Closing an experiment creates only a recommendation. Candidate
+proposal, candidate approval, and research-policy release remain three separate
+human actions, and none authorizes contact, provider execution, or spend.
+An active experiment can be cancelled without deleting its assignments or audit
+history, so provider attrition cannot permanently block the workspace.
+
 The live SMIRK test writes a synthetic handoff to production. It is disabled
 unless `RUN_LIVE_TESTS=1` and the dedicated SMIRK variables are present, and it
 still requires explicit approval for that exact run.

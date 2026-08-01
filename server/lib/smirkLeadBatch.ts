@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { smirkResearchPayloadSchema } from "./smirkResearch";
+import {
+  acquisitionSourcingExperimentAssignmentBindingSchema,
+  acquisitionSourcingExperimentAssignmentSchema,
+} from "./acquisitionSourcingExperiment";
 
 export const SMIRK_LEAD_BATCH_REQUEST_CONTRACT =
   "smirk-velvet.lead-batch-request.v1" as const;
@@ -22,6 +26,8 @@ export const smirkLeadBatchRequestSchema = z
       .max(160)
       .regex(SAFE_EXTERNAL_ID)
       .optional(),
+    sourceAcquisitionExperimentAssignment:
+      acquisitionSourcingExperimentAssignmentBindingSchema.optional(),
     criteria: z
       .object({
         limit: z.number().int().min(1).max(MAX_SMIRK_LEAD_BATCH_SIZE),
@@ -71,6 +77,18 @@ export const smirkLeadBatchRequestSchema = z
           "A discovery-bound batch requires the exact manual category, city, and state returned by that discovery.",
       });
     }
+    if (
+      request.sourceAcquisitionExperimentAssignment &&
+      request.sourceAcquisitionExperimentAssignment.sourceDiscoveryRequestId !==
+        request.sourceDiscoveryRequestId
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sourceAcquisitionExperimentAssignment"],
+        message:
+          "The experiment assignment binding must match the source discovery request.",
+      });
+    }
   });
 
 export const acquisitionSourcingProposalSchema = z
@@ -111,6 +129,8 @@ export const smirkLeadBatchResponseSchema = z
       .array(smirkResearchPayloadSchema)
       .max(MAX_SMIRK_LEAD_BATCH_SIZE),
     appliedLearningCandidate: appliedLearningCandidateSchema.nullable(),
+    acquisitionExperimentAssignment:
+      acquisitionSourcingExperimentAssignmentSchema.nullable().default(null),
     sourceDiscoveryRequestId: z
       .string()
       .min(20)
@@ -158,7 +178,7 @@ export type SmirkLeadBatchResponse = z.infer<
 >;
 
 export function isReleasedAcquisitionLearningMode(
-  mode: SmirkLeadBatchRequest["criteria"]["learningMode"]
+  mode: SmirkLeadBatchRequest["criteria"]["learningMode"] | "experiment"
 ): boolean {
   return mode === "latest_released" || mode === "latest_approved";
 }

@@ -34,6 +34,11 @@ import {
 } from "./smirkLeadBatch";
 import { loadCurrentReleasedAcquisitionPolicy } from "./acquisitionLearningPolicyStore";
 import { z } from "zod";
+import {
+  acquisitionSourcingExperimentAssignmentSchema,
+  assignmentMatchesSourceBinding,
+  type AcquisitionSourcingExperimentAssignment,
+} from "./acquisitionSourcingExperiment";
 
 export class SmirkLeadBatchStoreError extends Error {
   constructor(
@@ -53,6 +58,7 @@ export type SmirkLeadBatchStoreResult = {
   prospectsHash: string;
   prospects: SmirkResearchPayload[];
   appliedLearningCandidate: AppliedLearningCandidate | null;
+  acquisitionExperimentAssignment: AcquisitionSourcingExperimentAssignment | null;
   sourceDiscoveryRequestId: string | null;
 };
 
@@ -65,6 +71,7 @@ type BatchActor = {
 type StoredResponse = {
   prospects: SmirkResearchPayload[];
   appliedLearningCandidate: AppliedLearningCandidate | null;
+  acquisitionExperimentAssignment: AcquisitionSourcingExperimentAssignment | null;
   prospectsHash: string;
   sourceDiscoveryRequestId?: string | null;
 };
@@ -75,6 +82,8 @@ const storedResponseSchema = z
       .array(smirkResearchPayloadSchema)
       .max(MAX_SMIRK_LEAD_BATCH_SIZE),
     appliedLearningCandidate: appliedLearningCandidateSchema.nullable(),
+    acquisitionExperimentAssignment:
+      acquisitionSourcingExperimentAssignmentSchema.nullable().optional(),
     prospectsHash: z.string().regex(/^[a-f0-9]{64}$/),
     sourceDiscoveryRequestId: z
       .string()
@@ -104,7 +113,11 @@ export function parseStoredSmirkLeadBatchResponse(
     ) {
       throw new Error("invalid stored response");
     }
-    return parsed;
+    return {
+      ...parsed,
+      acquisitionExperimentAssignment:
+        parsed.acquisitionExperimentAssignment ?? null,
+    };
   } catch {
     throw new SmirkLeadBatchStoreError(
       "The existing lead batch response is not readable.",
@@ -189,6 +202,8 @@ async function replayExistingBatch(
     prospectsHash: stored.prospectsHash,
     prospects: stored.prospects,
     appliedLearningCandidate: stored.appliedLearningCandidate,
+    acquisitionExperimentAssignment:
+      stored.acquisitionExperimentAssignment,
     sourceDiscoveryRequestId:
       stored.sourceDiscoveryRequestId || null,
   };
@@ -281,6 +296,8 @@ export async function exportSmirkLeadBatch(
         prospectsHash: stored.prospectsHash,
         prospects: stored.prospects,
         appliedLearningCandidate: stored.appliedLearningCandidate,
+        acquisitionExperimentAssignment:
+          stored.acquisitionExperimentAssignment,
         sourceDiscoveryRequestId:
           stored.sourceDiscoveryRequestId || null,
       };
@@ -345,6 +362,8 @@ export async function exportSmirkLeadBatch(
     }
 
     let discoveryLeadIds: number[] | null = null;
+    let acquisitionExperimentAssignment: AcquisitionSourcingExperimentAssignment | null =
+      null;
     if (request.sourceDiscoveryRequestId) {
       const discoveries = await tx
         .select({
@@ -352,6 +371,10 @@ export async function exportSmirkLeadBatch(
           userId: smirkDiscoveryRequests.userId,
           workspaceId: smirkDiscoveryRequests.workspaceId,
           state: smirkDiscoveryRequests.state,
+          acquisitionSourcingAssignmentPayload:
+            smirkDiscoveryRequests.acquisitionSourcingAssignmentPayload,
+          acquisitionSourcingAssignmentHash:
+            smirkDiscoveryRequests.acquisitionSourcingAssignmentHash,
         })
         .from(smirkDiscoveryRequests)
         .where(
@@ -378,6 +401,44 @@ export async function exportSmirkLeadBatch(
           `The source discovery is ${discovery.state}, not ready for export.`,
           "SMIRK_LEAD_BATCH_DISCOVERY_NOT_READY",
           412
+        );
+      }
+      if (discovery.acquisitionSourcingAssignmentPayload) {
+        try {
+          acquisitionExperimentAssignment =
+            acquisitionSourcingExperimentAssignmentSchema.parse(
+              JSON.parse(discovery.acquisitionSourcingAssignmentPayload)
+            );
+        } catch {
+          throw new SmirkLeadBatchStoreError(
+            "The source discovery experiment assignment is invalid.",
+            "SMIRK_LEAD_BATCH_EXPERIMENT_ASSIGNMENT_INVALID",
+            500
+          );
+        }
+        if (
+          acquisitionExperimentAssignment.assignmentHash !==
+            discovery.acquisitionSourcingAssignmentHash ||
+          acquisitionExperimentAssignment.requestId !==
+            request.sourceDiscoveryRequestId
+        ) {
+          throw new SmirkLeadBatchStoreError(
+            "The source discovery experiment assignment changed.",
+            "SMIRK_LEAD_BATCH_EXPERIMENT_ASSIGNMENT_INVALID",
+            500
+          );
+        }
+      }
+      if (
+        !assignmentMatchesSourceBinding({
+          assignment: acquisitionExperimentAssignment,
+          binding: request.sourceAcquisitionExperimentAssignment,
+        })
+      ) {
+        throw new SmirkLeadBatchStoreError(
+          "The lead-batch request does not match the source discovery experiment assignment.",
+          "SMIRK_LEAD_BATCH_EXPERIMENT_BINDING_MISMATCH",
+          409
         );
       }
       const discoveryItems = await tx
@@ -561,6 +622,7 @@ export async function exportSmirkLeadBatch(
     const storedResponse: StoredResponse = {
       prospects,
       appliedLearningCandidate: candidate,
+      acquisitionExperimentAssignment,
       prospectsHash,
       sourceDiscoveryRequestId:
         request.sourceDiscoveryRequestId || null,
@@ -613,6 +675,7 @@ export async function exportSmirkLeadBatch(
       prospectsHash,
       prospects,
       appliedLearningCandidate: candidate,
+      acquisitionExperimentAssignment,
       sourceDiscoveryRequestId:
         request.sourceDiscoveryRequestId || null,
     };

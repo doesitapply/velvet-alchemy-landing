@@ -272,6 +272,77 @@ export type InsertSmirkLeadBatchItem =
   typeof smirkLeadBatchItems.$inferInsert;
 
 /**
+ * Frozen, owner-scoped source-allocation experiments. Preparing or activating
+ * one only governs future discovery assignment; it grants no provider spend or
+ * prospect-contact authority.
+ */
+export const acquisitionSourcingExperiments = mysqlTable(
+  "acquisition_sourcing_experiments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    experimentId: varchar("experimentId", { length: 64 }).notNull(),
+    workspaceId: int("workspaceId").notNull(),
+    state: mysqlEnum("state", ["PREPARED", "ACTIVE", "CLOSED", "CANCELLED"])
+      .default("PREPARED")
+      .notNull(),
+    definition: mediumtext("definition").notNull(),
+    definitionHash: varchar("definitionHash", { length: 64 }).notNull(),
+    resultPayload: mediumtext("resultPayload"),
+    resultPayloadHash: varchar("resultPayloadHash", { length: 64 }),
+    learningCandidateId: int("learningCandidateId"),
+    preparedBy: int("preparedBy").notNull(),
+    activatedBy: int("activatedBy"),
+    activatedAt: timestamp("activatedAt"),
+    closedBy: int("closedBy"),
+    closedAt: timestamp("closedAt"),
+    cancelledBy: int("cancelledBy"),
+    cancelledAt: timestamp("cancelledAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    experimentIdUnique: uniqueIndex(
+      "acquisition_sourcing_experiments_experiment_id_unique"
+    ).on(table.experimentId),
+    ownerWorkspaceStateIndex: index(
+      "acquisition_sourcing_experiments_owner_workspace_state_idx"
+    ).on(table.userId, table.workspaceId, table.state),
+  })
+);
+
+export type AcquisitionSourcingExperiment =
+  typeof acquisitionSourcingExperiments.$inferSelect;
+export type InsertAcquisitionSourcingExperiment =
+  typeof acquisitionSourcingExperiments.$inferInsert;
+
+export const acquisitionSourcingExperimentEvents = mysqlTable(
+  "acquisition_sourcing_experiment_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    experimentRowId: int("experimentRowId").notNull(),
+    userId: int("userId").notNull(),
+    actorId: int("actorId").notNull(),
+    action: varchar("action", { length: 80 }).notNull(),
+    fromState: varchar("fromState", { length: 32 }),
+    toState: varchar("toState", { length: 32 }).notNull(),
+    payloadHash: varchar("payloadHash", { length: 64 }).notNull(),
+    details: text("details").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    experimentCreatedIndex: index(
+      "acquisition_sourcing_experiment_events_experiment_created_idx"
+    ).on(table.experimentRowId, table.createdAt),
+  })
+);
+
+export type AcquisitionSourcingExperimentEvent =
+  typeof acquisitionSourcingExperimentEvents.$inferSelect;
+export type InsertAcquisitionSourcingExperimentEvent =
+  typeof acquisitionSourcingExperimentEvents.$inferInsert;
+
+/**
  * Approval-gated discovery requests originating from SMIRK.
  * The external request can only prepare a quote. A Velvet administrator must
  * separately approve and queue the exact request before any provider call.
@@ -295,6 +366,19 @@ export const smirkDiscoveryRequests = mysqlTable(
     effectiveCriteriaHash: varchar("effectiveCriteriaHash", {
       length: 64,
     }).notNull(),
+    acquisitionSourcingExperimentId: int("acquisitionSourcingExperimentId"),
+    acquisitionSourcingSlotOrdinal: int("acquisitionSourcingSlotOrdinal"),
+    acquisitionSourcingArm: mysqlEnum("acquisitionSourcingArm", [
+      "control",
+      "challenger",
+    ]),
+    acquisitionSourcingAssignmentPayload: text(
+      "acquisitionSourcingAssignmentPayload"
+    ),
+    acquisitionSourcingAssignmentHash: varchar(
+      "acquisitionSourcingAssignmentHash",
+      { length: 64 }
+    ),
     appliedLearningCandidateId: int("appliedLearningCandidateId"),
     appliedLearningCandidatePayload: text("appliedLearningCandidatePayload"),
     quotePayload: text("quotePayload").notNull(),
@@ -339,9 +423,16 @@ export const smirkDiscoveryRequests = mysqlTable(
     requestUnique: uniqueIndex("smirk_discovery_requests_request_unique").on(
       table.requestId
     ),
-    stateCreatedIndex: index(
-      "smirk_discovery_requests_state_created_idx"
-    ).on(table.state, table.createdAt),
+    stateCreatedIndex: index("smirk_discovery_requests_state_created_idx").on(
+      table.state,
+      table.createdAt
+    ),
+    experimentSlotUnique: uniqueIndex(
+      "smirk_discovery_requests_experiment_slot_unique"
+    ).on(
+      table.acquisitionSourcingExperimentId,
+      table.acquisitionSourcingSlotOrdinal
+    ),
   })
 );
 

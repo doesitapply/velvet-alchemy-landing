@@ -253,7 +253,16 @@ describe("SMIRK lead batch response", () => {
         JSON.stringify(stored),
         hashSmirkLeadBatchValue(stored)
       )
-    ).toEqual(stored);
+    ).toEqual({ ...stored, acquisitionExperimentAssignment: null });
+    expect(() =>
+      parseStoredSmirkLeadBatchResponse(
+        JSON.stringify({
+          ...stored,
+          acquisitionExperimentAssignment: null,
+        }),
+        hashSmirkLeadBatchValue(stored)
+      )
+    ).toThrowError(SmirkLeadBatchStoreError);
     expect(() =>
       parseStoredSmirkLeadBatchResponse(
         JSON.stringify({ ...stored, prospects: [] }),

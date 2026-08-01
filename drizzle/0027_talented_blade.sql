@@ -1,0 +1,1 @@
+ALTER TABLE `acquisition_sourcing_experiments` ADD `learningCandidateId` int;
