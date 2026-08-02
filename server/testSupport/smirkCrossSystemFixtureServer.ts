@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
 import { createServer, type Server } from "node:http";
+import { TRPCError } from "@trpc/server";
 import express from "express";
 import { and, eq } from "drizzle-orm";
 import {
   acquisitionLearningCandidates,
+  acquisitionLearningPolicyReleases,
   acquisitionSourcingExperimentEvents,
   acquisitionSourcingExperiments,
   apiKeys,
@@ -14,7 +16,9 @@ import {
   smirkOutcomeEvents,
   systemConfig,
   users,
+  type User,
 } from "../../drizzle/schema";
+import type { TrpcContext } from "../_core/context";
 import { createApiRouter } from "../apiRouter";
 import { getDb } from "../db";
 import {
@@ -33,6 +37,7 @@ import {
   SmirkDiscoveryStoreError,
 } from "../lib/smirkDiscoveryStore";
 import { smirkDiscoveryRequestSchema } from "../lib/smirkDiscovery";
+import { appRouter } from "../routers";
 import { requireDisposableLoopbackDatabase } from "./disposableDatabase";
 
 const FIXTURE_MODE = "smirk-cross-db-v1";
@@ -126,6 +131,7 @@ async function seedApiKey(input: {
 }
 
 async function prepareSyntheticDiscovery(): Promise<{
+  owner: User;
   userId: number;
   sourceApiKeyId: number;
   leadId: number;
@@ -153,12 +159,15 @@ async function prepareSyntheticDiscovery(): Promise<{
       },
     });
   const ownerRows = await db
-    .select({ id: users.id })
+    .select()
     .from(users)
     .where(eq(users.openId, openId))
     .limit(1);
-  const userId = Number(ownerRows[0]?.id || 0);
-  if (!userId) throw new Error("The synthetic owner was not persisted.");
+  const owner = ownerRows[0];
+  const userId = Number(owner?.id || 0);
+  if (!owner || !userId) {
+    throw new Error("The synthetic owner was not persisted.");
+  }
 
   const sourceApiKeyId = await seedApiKey({
     userId,
@@ -339,6 +348,7 @@ async function prepareSyntheticDiscovery(): Promise<{
   }
 
   return {
+    owner,
     userId,
     sourceApiKeyId,
     leadId,
@@ -347,6 +357,46 @@ async function prepareSyntheticDiscovery(): Promise<{
     experimentId,
     experimentDefinitionHash: activatedExperiment.definitionHash,
   };
+}
+
+function fixtureCaller(owner: User) {
+  return appRouter.createCaller({
+    user: owner,
+    req: { protocol: "http", headers: {} } as TrpcContext["req"],
+    res: {} as TrpcContext["res"],
+  });
+}
+
+function fixtureErrorResponse(
+  res: express.Response,
+  error: unknown,
+  fallback: string
+) {
+  if (error instanceof TRPCError) {
+    const status =
+      error.code === "BAD_REQUEST"
+        ? 400
+        : error.code === "UNAUTHORIZED"
+          ? 401
+          : error.code === "FORBIDDEN"
+            ? 403
+            : error.code === "NOT_FOUND"
+              ? 404
+              : error.code === "CONFLICT"
+                ? 409
+                : error.code === "PRECONDITION_FAILED"
+                  ? 412
+                  : error.code === "SERVICE_UNAVAILABLE"
+                    ? 503
+                    : 500;
+    return res.status(status).json({
+      error: error.message,
+      code: error.code,
+    });
+  }
+  return res.status(503).json({
+    error: error instanceof Error ? error.message : fallback,
+  });
 }
 
 async function executeSyntheticExperimentDiscovery(input: {
@@ -534,6 +584,7 @@ async function fixtureState(input: {
       state: smirkDiscoveryRequests.state,
       providerRequests: smirkDiscoveryRequests.providerRequests,
       readyLeadCount: smirkDiscoveryRequests.readyLeadCount,
+      learningCandidateId: smirkDiscoveryRequests.appliedLearningCandidateId,
       experimentId: smirkDiscoveryRequests.acquisitionSourcingExperimentId,
       slotOrdinal: smirkDiscoveryRequests.acquisitionSourcingSlotOrdinal,
       arm: smirkDiscoveryRequests.acquisitionSourcingArm,
@@ -569,9 +620,27 @@ async function fixtureState(input: {
     .from(acquisitionSourcingExperimentEvents)
     .where(eq(acquisitionSourcingExperimentEvents.userId, input.userId));
   const candidateRows = await db
-    .select({ id: acquisitionLearningCandidates.id })
+    .select({
+      id: acquisitionLearningCandidates.id,
+      candidateKey: acquisitionLearningCandidates.candidateKey,
+      version: acquisitionLearningCandidates.version,
+      state: acquisitionLearningCandidates.state,
+      sampleSize: acquisitionLearningCandidates.sampleSize,
+    })
     .from(acquisitionLearningCandidates)
     .where(eq(acquisitionLearningCandidates.userId, input.userId));
+  const policyReleaseRows = await db
+    .select({
+      id: acquisitionLearningPolicyReleases.id,
+      releaseId: acquisitionLearningPolicyReleases.releaseId,
+      action: acquisitionLearningPolicyReleases.action,
+      activeCandidateId: acquisitionLearningPolicyReleases.activeCandidateId,
+      proposalHash: acquisitionLearningPolicyReleases.proposalHash,
+      evidenceHash: acquisitionLearningPolicyReleases.evidenceHash,
+      receiptHash: acquisitionLearningPolicyReleases.receiptHash,
+    })
+    .from(acquisitionLearningPolicyReleases)
+    .where(eq(acquisitionLearningPolicyReleases.userId, input.userId));
   return {
     mode: FIXTURE_MODE,
     lead: leadRows[0] || null,
@@ -581,7 +650,9 @@ async function fixtureState(input: {
     apiKeys: keyRows,
     experiments: experimentRows,
     experimentEvents: experimentEventRows,
+    learningCandidates: candidateRows,
     learningCandidateCount: candidateRows.length,
+    policyReleases: policyReleaseRows,
   };
 }
 
@@ -678,6 +749,105 @@ async function main(): Promise<void> {
       });
     }
   });
+  app.post(
+    "/__fixture/experiments/:experimentId/propose-candidate",
+    async (req, res) => {
+      if (req.headers["x-fixture-token"] !== controlToken) {
+        return res.status(401).json({ error: "Unauthorized fixture request." });
+      }
+      const requestedExperimentId = String(
+        req.params.experimentId || ""
+      ).trim();
+      if (requestedExperimentId !== fixture.experimentId) {
+        return res.status(400).json({
+          error: "Invalid fixture candidate proposal request.",
+        });
+      }
+      try {
+        const proposed = await fixtureCaller(
+          fixture.owner
+        ).acquisitionSourcingExperiments.proposeCandidate({
+          experimentId: requestedExperimentId,
+          definitionHash: req.body?.definitionHash,
+          resultHash: req.body?.resultHash,
+          confirmation: req.body?.confirmation,
+          attestRecommendationReviewed: req.body?.attestRecommendationReviewed,
+          attestNoAutomaticPolicyChange:
+            req.body?.attestNoAutomaticPolicyChange,
+        });
+        return res.json(proposed);
+      } catch (error) {
+        return fixtureErrorResponse(
+          res,
+          error,
+          "Fixture candidate proposal failed."
+        );
+      }
+    }
+  );
+  app.post(
+    "/__fixture/learning-candidates/:candidateId/decide",
+    async (req, res) => {
+      if (req.headers["x-fixture-token"] !== controlToken) {
+        return res.status(401).json({ error: "Unauthorized fixture request." });
+      }
+      const candidateId = Number(req.params.candidateId);
+      if (!Number.isSafeInteger(candidateId) || candidateId <= 0) {
+        return res.status(400).json({
+          error: "Invalid fixture candidate decision request.",
+        });
+      }
+      try {
+        const decided = await fixtureCaller(
+          fixture.owner
+        ).acquisitionLearning.decideCandidate({
+          id: candidateId,
+          decision: req.body?.decision,
+        });
+        return res.json(decided);
+      } catch (error) {
+        return fixtureErrorResponse(
+          res,
+          error,
+          "Fixture candidate decision failed."
+        );
+      }
+    }
+  );
+  app.post(
+    "/__fixture/learning-candidates/:candidateId/release",
+    async (req, res) => {
+      if (req.headers["x-fixture-token"] !== controlToken) {
+        return res.status(401).json({ error: "Unauthorized fixture request." });
+      }
+      const candidateId = Number(req.params.candidateId);
+      if (!Number.isSafeInteger(candidateId) || candidateId <= 0) {
+        return res.status(400).json({
+          error: "Invalid fixture candidate release request.",
+        });
+      }
+      try {
+        const released = await fixtureCaller(
+          fixture.owner
+        ).acquisitionLearning.releaseCandidate({
+          candidateId,
+          releaseId: req.body?.releaseId,
+          proposalHash: req.body?.proposalHash,
+          evidenceHash: req.body?.evidenceHash,
+          confirmation: req.body?.confirmation,
+          attestations: req.body?.attestations,
+          reason: req.body?.reason,
+        });
+        return res.json(released);
+      } catch (error) {
+        return fixtureErrorResponse(
+          res,
+          error,
+          "Fixture candidate release failed."
+        );
+      }
+    }
+  );
   app.use("/api/v1", createApiRouter());
 
   const server = createServer(app);

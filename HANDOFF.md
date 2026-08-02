@@ -712,7 +712,14 @@ human approval for one manual-call record and one email, executes the email
 through an in-memory Resend adapter, and accepts signed delivery and reply
 webhooks. The resulting three callbacks are deliberately dispatched out of
 order; both databases retain the canonical `replied` outcome. Maps results and
-the manual-call receipt are synthetic. All production-bound HTTP is trapped;
+the manual-call receipt are synthetic. The same gate now closes one balanced
+20-lead source experiment to a recommendation without automatic promotion,
+proposes the exact result through the real privileged procedure, blocks release
+before approval, records a separate approval, and applies an exact hash-bound
+future-research-only release. Proposal and release replays are idempotent. One
+later `latest_released` discovery is narrowed to `hvac` but remains `PREPARED`
+with zero provider requests, contact authority, or spend authority. All
+production-bound HTTP is trapped;
 any unexpected path fails. The passing local run observed one intercepted
 provider-adapter request but zero external email, SMS, phone,
 paid-provider, production-network, and production-write actions. This remains
