@@ -25,6 +25,7 @@ import {
 } from "./smirkResearch";
 import {
   appliedLearningCandidateSchema,
+  buildSmirkAcquisitionExperimentCampaignBinding,
   hashSmirkLeadBatchValue,
   isReleasedAcquisitionLearningMode,
   MAX_SMIRK_LEAD_BATCH_SIZE,
@@ -565,13 +566,11 @@ export async function exportSmirkLeadBatch(
         filters.city && filters.state
           ? `${filters.city}, ${filters.state}`
           : undefined;
-      let prospect: SmirkResearchPayload;
-      try {
-        prospect = buildSmirkResearchPayload(
-          lead,
-          request.workspaceId,
-          auditRows[0] || null,
-          {
+      const batchOverride = acquisitionExperimentAssignment
+        ? buildSmirkAcquisitionExperimentCampaignBinding(
+            acquisitionExperimentAssignment
+          )
+        : {
             externalId: request.requestId,
             name: batchName({
               candidate,
@@ -581,7 +580,14 @@ export async function exportSmirkLeadBatch(
             }),
             targetIndustry: filters.category,
             targetLocation,
-          }
+          };
+      let prospect: SmirkResearchPayload;
+      try {
+        prospect = buildSmirkResearchPayload(
+          lead,
+          request.workspaceId,
+          auditRows[0] || null,
+          batchOverride
         );
       } catch {
         await tx

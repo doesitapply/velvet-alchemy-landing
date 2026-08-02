@@ -1,8 +1,8 @@
 # Velvet Alchemy — Operator Handoff Document
 
-**Hardening branch:** `codex/revenue-loop-hardening-2026-07-29` | **Date:** 2026-08-01
+**Hardening branch:** `codex/revenue-loop-hardening-2026-07-29` | **Date:** 2026-08-02
 
-**Current local proof:** TypeScript clean; 181/181 portable unit tests pass; three canonical SMIRK persistence tests and two sourcing-experiment persistence tests pass against disposable loopback MySQL; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the model and email-provider adapters intercepted, and both databases removed afterward. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; the portable unit gate passes; three canonical SMIRK persistence tests and two sourcing-experiment persistence tests pass against disposable loopback MySQL; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the model and email-provider adapters intercepted, and both databases removed afterward. That loop now imports all four immutable sourcing slots, binds their 40 leads to one stable SMIRK campaign, closes a 20-lead message cohort on synthetic historical outcomes, returns 20 signed feedback receipts to Velvet, and proves the separately released winner controls only a second untouched 20-lead cohort. Provider, production-migration, deployment, real delivery, real calls, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -56,6 +56,7 @@ The system is designed to be operated by a single person or a small team, with e
 [Bounded discovery + enrichment] -> audited records + verified owner emails; no contact
 [Discovery-bound reviewed pull] -> exact READY discovery receipts only
 [Frozen two-arm source test]    -> PREPARED -> ACTIVE -> CLOSED recommendation
+[Experiment campaign binding]  -> all immutable source arms -> one SMIRK campaign
 [Cancellation escape]           -> PREPARED/ACTIVE -> CANCELLED; audit preserved
 [Policy promotion]              -> PROPOSE -> APPROVE -> RELEASE (three human actions)
 [Admin-reviewed research]       -> POST /api/integrations/velvet/prospects
@@ -122,8 +123,8 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/lib/smirkConnectionReadiness.ts`              | Redacted Velvet runtime and database prerequisite contract                        |
 | `server/lib/smirkConnectionProof.ts`                  | Signed no-write proof for exact SMIRK scopes, owner, workspace, and shared secret |
 | `server/smirkConnectionReadinessCheck.ts`             | Read-only SMIRK connection preflight CLI                                          |
-| `server/lib/smirkLeadBatch.ts`                        | SMIRK pull contract, zero-spend/no-contact validation, learning filter proof      |
-| `server/lib/smirkLeadBatchStore.ts`                   | Owner-scoped audited-lead reservation and exact replay receipts                   |
+| `server/lib/smirkLeadBatch.ts`                        | SMIRK pull contract, zero-spend/no-contact validation, learning filter proof, stable experiment-campaign binding |
+| `server/lib/smirkLeadBatchStore.ts`                   | Owner-scoped audited-lead reservation, exact replay receipts, and one campaign per immutable sourcing experiment |
 | `server/lib/smirkDiscovery.ts`                        | SMIRK discovery request, quote, status, and exact spend-cap contracts             |
 | `server/lib/smirkDiscoveryStore.ts`                   | Approval state machine, immutable hashes, audit events, and leases                |
 | `server/lib/smirkDiscoveryExecutor.ts`                | Sequential Maps + Hunter research under one exact quote; no contact providers     |

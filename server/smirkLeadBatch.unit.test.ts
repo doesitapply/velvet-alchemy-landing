@@ -3,12 +3,18 @@ import fs from "node:fs";
 import {
   SMIRK_LEAD_BATCH_REQUEST_CONTRACT,
   SMIRK_LEAD_BATCH_RESPONSE_CONTRACT,
+  buildSmirkAcquisitionExperimentCampaignBinding,
   hashSmirkLeadBatchValue,
   parseApprovedSourcingCandidate,
   smirkLeadBatchRequestSchema,
   smirkLeadBatchResponseSchema,
   sourcingFiltersForRequest,
 } from "./lib/smirkLeadBatch";
+import {
+  buildAcquisitionSourcingExperimentAssignment,
+  buildAcquisitionSourcingExperimentDefinition,
+  hashAcquisitionSourcingValue,
+} from "./lib/acquisitionSourcingExperiment";
 import {
   parseStoredSmirkLeadBatchResponse,
   SmirkLeadBatchStoreError,
@@ -121,6 +127,60 @@ describe("SMIRK lead batch request", () => {
         },
       }).success
     ).toBe(false);
+  });
+});
+
+describe("SMIRK acquisition experiment campaign binding", () => {
+  it("groups every immutable arm assignment under one stable SMIRK campaign", () => {
+    const definition = buildAcquisitionSourcingExperimentDefinition({
+      experimentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      workspaceId: 1,
+      dimension: "category",
+      control: {
+        label: "Reno plumbing",
+        criteria: {
+          category: "plumbing",
+          city: "Reno",
+          state: "NV",
+        },
+      },
+      challenger: {
+        label: "Reno HVAC",
+        criteria: {
+          category: "hvac",
+          city: "Reno",
+          state: "NV",
+        },
+      },
+      requestsPerArm: 1,
+      leadsPerRequest: 10,
+      preparedAt: new Date("2026-07-30T18:00:00.000Z"),
+    });
+    const definitionHash = hashAcquisitionSourcingValue(definition);
+    const assignments = definition.assignmentSchedule.map(slot =>
+      buildAcquisitionSourcingExperimentAssignment({
+        definition,
+        definitionHash,
+        requestId: `smirk-discovery-${slot.arm}-${slot.slotOrdinal}-fixture`,
+        slotOrdinal: slot.slotOrdinal,
+      })
+    );
+    const bindings = assignments.map(
+      buildSmirkAcquisitionExperimentCampaignBinding
+    );
+
+    expect(new Set(bindings.map(binding => binding.externalId))).toEqual(
+      new Set([
+        "velvet-acquisition-experiment-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      ])
+    );
+    expect(new Set(bindings.map(binding => binding.name))).toEqual(
+      new Set(["Velvet controlled sourcing cohort aaaaaaaa"])
+    );
+    expect(assignments.map(assignment => assignment.arm).sort()).toEqual([
+      "challenger",
+      "control",
+    ]);
   });
 });
 

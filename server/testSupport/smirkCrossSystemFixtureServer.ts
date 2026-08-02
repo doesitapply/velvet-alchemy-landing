@@ -324,7 +324,7 @@ async function prepareSyntheticDiscovery(): Promise<{
         state: "NV",
       },
     },
-    requestsPerArm: 1,
+    requestsPerArm: 2,
     leadsPerRequest: 10,
     userId,
     actorId: userId,
@@ -443,9 +443,17 @@ async function executeSyntheticExperimentDiscovery(input: {
   }
 
   const arm = before.acquisitionExperimentAssignment.arm;
+  const requestFixtureId = crypto
+    .createHash("sha256")
+    .update(input.requestId)
+    .digest("hex")
+    .slice(0, 12);
+  const phoneBase =
+    Number.parseInt(requestFixtureId.slice(0, 8), 16) % 9_900;
   const placeIds = Array.from(
     { length: 10 },
-    (_, index) => `synthetic-${arm}-${index + 1}-${runId}`
+    (_, index) =>
+      `synthetic-${arm}-${requestFixtureId}-${index + 1}-${runId}`
   );
   let adapterCalls = 0;
   let ownerEmailCalls = 0;
@@ -465,9 +473,13 @@ async function executeSyntheticExperimentDiscovery(input: {
         status: "OK",
         result: {
           name: `Synthetic ${arm} Trade ${index + 1}`,
-          website: `https://example.invalid/${arm}-${index + 1}`,
+          website:
+            `https://example.invalid/` +
+            `${arm}-${requestFixtureId}-${index + 1}`,
           formatted_address: `${200 + index} Example Avenue, Reno, NV 89501`,
-          formatted_phone_number: `+1202555${String(100 + index).padStart(4, "0")}`,
+          formatted_phone_number: `+1202555${String(
+            100 + ((phoneBase + index) % 9_900)
+          ).padStart(4, "0")}`,
           rating: 4.5,
           user_ratings_total: 20 + index,
           business_status: "OPERATIONAL",
@@ -486,7 +498,9 @@ async function executeSyntheticExperimentDiscovery(input: {
         );
       }
       return {
-        email: `${arm}-${ownerEmailCalls}-${runId}@example.invalid`,
+        email:
+          `${arm}-${requestFixtureId}-${ownerEmailCalls}-` +
+          `${runId}@example.invalid`,
         title: "Owner",
         confidence: 95,
         source: "hunter",

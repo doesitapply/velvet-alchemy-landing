@@ -4,6 +4,7 @@ import { smirkResearchPayloadSchema } from "./smirkResearch";
 import {
   acquisitionSourcingExperimentAssignmentBindingSchema,
   acquisitionSourcingExperimentAssignmentSchema,
+  type AcquisitionSourcingExperimentAssignment,
 } from "./acquisitionSourcingExperiment";
 
 export const SMIRK_LEAD_BATCH_REQUEST_CONTRACT =
@@ -12,6 +13,8 @@ export const SMIRK_LEAD_BATCH_RESPONSE_CONTRACT =
   "velvet-smirk.lead-batch-response.v1" as const;
 export const SMIRK_LEAD_BATCH_SCOPE = "smirk:research" as const;
 export const MAX_SMIRK_LEAD_BATCH_SIZE = 20;
+export const SMIRK_ACQUISITION_EXPERIMENT_CAMPAIGN_PREFIX =
+  "velvet-acquisition-experiment" as const;
 
 const SAFE_EXTERNAL_ID = /^[A-Za-z0-9:_-]+$/;
 
@@ -176,6 +179,23 @@ export type AppliedLearningCandidate = z.infer<
 export type SmirkLeadBatchResponse = z.infer<
   typeof smirkLeadBatchResponseSchema
 >;
+
+export function buildSmirkAcquisitionExperimentCampaignBinding(
+  assignment: AcquisitionSourcingExperimentAssignment
+): {
+  externalId: string;
+  name: string;
+} {
+  const parsed = acquisitionSourcingExperimentAssignmentSchema.parse(
+    assignment
+  );
+  return {
+    externalId:
+      `${SMIRK_ACQUISITION_EXPERIMENT_CAMPAIGN_PREFIX}-` +
+      parsed.experimentId,
+    name: `Velvet controlled sourcing cohort ${parsed.experimentId.slice(0, 8)}`,
+  };
+}
 
 export function isReleasedAcquisitionLearningMode(
   mode: SmirkLeadBatchRequest["criteria"]["learningMode"] | "experiment"
