@@ -2,7 +2,7 @@
 
 **Hardening branch:** `codex/revenue-loop-hardening-2026-07-29` | **Date:** 2026-08-01
 
-**Current local proof:** TypeScript clean; 178/178 portable unit tests pass; three canonical SMIRK persistence tests and two sourcing-experiment persistence tests pass against disposable loopback MySQL; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the model and email-provider adapters intercepted, and both databases removed afterward. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
+**Current local proof:** TypeScript clean; 181/181 portable unit tests pass; three canonical SMIRK persistence tests and two sourcing-experiment persistence tests pass against disposable loopback MySQL; the paired SMIRK command `npm run -s check:velvet-smirk:persistence` passes a fresh two-database HTTP loop with production network trapped, the model and email-provider adapters intercepted, and both databases removed afterward. Provider, production-migration, deployment, real delivery, and commercial results are separate gates below.
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
