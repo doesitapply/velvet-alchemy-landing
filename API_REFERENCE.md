@@ -51,7 +51,7 @@ Its `Idempotency-Key` must exactly match `requestId`.
 
 ```json
 {
-  "contractVersion": "smirk-velvet.discovery-request.v1",
+  "contractVersion": "smirk-velvet.discovery-request.v2",
   "requestId": "smirk_discovery_20260730_example_0001",
   "workspaceId": 1,
   "criteria": {
@@ -67,8 +67,9 @@ Its `Idempotency-Key` must exactly match `requestId`.
 ```
 
 A new request returns `201 PREPARED`; an exact replay returns `200 DUPLICATE`.
-The response binds the request hash, quote hash, effective criteria, maximum
-provider calls, per-call price, and maximum cost. Only a privileged Velvet
+The response binds the request hash, quote hash, effective criteria, separate
+Maps and Hunter request/unit-cost/maximum-cost line items, and exact combined
+maximums. Only a privileged Velvet
 browser session can approve the exact quote and separately queue it.
 
 ### GET /api/v1/smirk/discovery-requests/:requestId

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { readMapsRequestCostConfig } from "../_core/map";
+import { readHunterOwnerEnrichmentConfig } from "./emailEnrichment";
 import {
   appliedLearningCandidateSchema,
   isReleasedAcquisitionLearningMode,
@@ -13,20 +14,20 @@ import {
 } from "./acquisitionSourcingExperiment";
 
 export const SMIRK_DISCOVERY_REQUEST_CONTRACT =
-  "smirk-velvet.discovery-request.v1" as const;
+  "smirk-velvet.discovery-request.v2" as const;
 export const SMIRK_DISCOVERY_RESPONSE_CONTRACT =
-  "velvet-smirk.discovery-response.v1" as const;
+  "velvet-smirk.discovery-response.v2" as const;
 export const SMIRK_DISCOVERY_STATUS_CONTRACT =
-  "velvet-smirk.discovery-status.v1" as const;
+  "velvet-smirk.discovery-status.v2" as const;
 export const SMIRK_DISCOVERY_SCOPE = "smirk:research" as const;
 export const SMIRK_DISCOVERY_APPROVAL_CONFIRMATION =
-  "approve-one-smirk-discovery-v1" as const;
+  "approve-one-smirk-discovery-v2" as const;
 export const SMIRK_DISCOVERY_EXECUTION_CONFIRMATION =
-  "execute-one-smirk-discovery-v1" as const;
+  "execute-one-smirk-discovery-v2" as const;
 export const SMIRK_DISCOVERY_REJECTION_CONFIRMATION =
-  "reject-one-smirk-discovery-v1" as const;
+  "reject-one-smirk-discovery-v2" as const;
 export const SMIRK_DISCOVERY_CANCELLATION_CONFIRMATION =
-  "cancel-one-smirk-discovery-v1" as const;
+  "cancel-one-smirk-discovery-v2" as const;
 export const MAX_SMIRK_DISCOVERY_LEADS = 20;
 export const MAX_SMIRK_DISCOVERY_BUDGET_CENTS = 500;
 export const SMIRK_DISCOVERY_APPROVAL_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -70,8 +71,7 @@ export const smirkDiscoveryCriteriaSchema = z
     ) {
       ctx.addIssue({
         code: "custom",
-        message:
-          "Manual discovery requires category, city, and state filters.",
+        message: "Manual discovery requires category, city, and state filters.",
       });
     }
     if (
@@ -121,15 +121,44 @@ export const smirkDiscoveryEffectiveCriteriaSchema = z
   })
   .strict();
 
+const smirkDiscoveryProviderQuoteFields = {
+  maximumRequests: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_SMIRK_DISCOVERY_LEADS + 1),
+  costCentsPerRequest: z.number().int().positive().max(10_000),
+  maximumCostCents: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_SMIRK_DISCOVERY_BUDGET_CENTS),
+};
+
 export const smirkDiscoveryQuoteSchema = z
   .object({
-    provider: z.literal("google_maps_proxy"),
+    plan: z.literal("maps-plus-owner-email-v1"),
+    providers: z
+      .object({
+        maps: z
+          .object({
+            provider: z.literal("google_maps_proxy"),
+            ...smirkDiscoveryProviderQuoteFields,
+          })
+          .strict(),
+        ownerEmailEnrichment: z
+          .object({
+            provider: z.literal("hunter_owner_email"),
+            ...smirkDiscoveryProviderQuoteFields,
+          })
+          .strict(),
+      })
+      .strict(),
     maximumRequests: z
       .number()
       .int()
-      .min(2)
-      .max(MAX_SMIRK_DISCOVERY_LEADS + 1),
-    costCentsPerRequest: z.number().int().positive().max(10_000),
+      .min(3)
+      .max(MAX_SMIRK_DISCOVERY_LEADS * 2 + 1),
     maximumCostCents: z
       .number()
       .int()
@@ -137,7 +166,44 @@ export const smirkDiscoveryQuoteSchema = z
       .max(MAX_SMIRK_DISCOVERY_BUDGET_CENTS),
     quotedAt: z.string().datetime({ offset: true }),
   })
-  .strict();
+  .strict()
+  .superRefine((quote, ctx) => {
+    for (const [provider, lineItem] of Object.entries(quote.providers)) {
+      if (
+        lineItem.maximumCostCents !==
+        lineItem.maximumRequests * lineItem.costCentsPerRequest
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["providers", provider, "maximumCostCents"],
+          message:
+            "Provider maximum cost must equal its exact request ceiling.",
+        });
+      }
+    }
+    const maximumRequests =
+      quote.providers.maps.maximumRequests +
+      quote.providers.ownerEmailEnrichment.maximumRequests;
+    const maximumCostCents =
+      quote.providers.maps.maximumCostCents +
+      quote.providers.ownerEmailEnrichment.maximumCostCents;
+    if (quote.maximumRequests !== maximumRequests) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["maximumRequests"],
+        message:
+          "Combined request ceiling does not match its provider line items.",
+      });
+    }
+    if (quote.maximumCostCents !== maximumCostCents) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["maximumCostCents"],
+        message:
+          "Combined cost ceiling does not match its provider line items.",
+      });
+    }
+  });
 
 export const smirkDiscoveryStateSchema = z.enum([
   "PREPARED",
@@ -199,7 +265,7 @@ export const smirkDiscoveryStatusResponseSchema = z
       .number()
       .int()
       .nonnegative()
-      .max(MAX_SMIRK_DISCOVERY_LEADS + 1),
+      .max(MAX_SMIRK_DISCOVERY_LEADS * 2 + 1),
     approvedMaxSpendCents: z.number().int().nonnegative().nullable(),
     error: z.string().max(2_000).nullable(),
     contactActionAllowed: z.literal(false),
@@ -210,13 +276,15 @@ export const smirkDiscoveryStatusResponseSchema = z
 export type SmirkDiscoveryCriteria = z.infer<
   typeof smirkDiscoveryCriteriaSchema
 >;
-export type SmirkDiscoveryRequest = z.infer<
-  typeof smirkDiscoveryRequestSchema
->;
+export type SmirkDiscoveryRequest = z.infer<typeof smirkDiscoveryRequestSchema>;
 export type SmirkDiscoveryEffectiveCriteria = z.infer<
   typeof smirkDiscoveryEffectiveCriteriaSchema
 >;
 export type SmirkDiscoveryQuote = z.infer<typeof smirkDiscoveryQuoteSchema>;
+export type SmirkDiscoveryProviderRequestCounts = {
+  maps: number;
+  ownerEmailEnrichment: number;
+};
 export type SmirkDiscoveryState = z.infer<typeof smirkDiscoveryStateSchema>;
 export type SmirkDiscoveryPreparedResponse = z.infer<
   typeof smirkDiscoveryPreparedResponseSchema
@@ -320,39 +388,78 @@ export function buildSmirkDiscoveryQuote(
       `Maps discovery cannot be quoted: ${config.missing.join(", ")}`
     );
   }
-  const maximumRequests = criteria.limit + 1;
-  const maximumCostCents =
-    maximumRequests * config.costCentsPerRequest;
+  const ownerEmailConfig = readHunterOwnerEnrichmentConfig(env);
+  if (!ownerEmailConfig.configured || !ownerEmailConfig.costCentsPerCredit) {
+    throw new Error(
+      `Owner-email discovery cannot be quoted: ${ownerEmailConfig.missing.join(", ")}`
+    );
+  }
+  const mapsMaximumRequests = criteria.limit + 1;
+  const ownerEmailMaximumRequests = criteria.limit;
+  const mapsMaximumCostCents = mapsMaximumRequests * config.costCentsPerRequest;
+  const ownerEmailMaximumCostCents =
+    ownerEmailMaximumRequests * ownerEmailConfig.costCentsPerCredit;
+  const maximumRequests = mapsMaximumRequests + ownerEmailMaximumRequests;
+  const maximumCostCents = mapsMaximumCostCents + ownerEmailMaximumCostCents;
   if (maximumCostCents > MAX_SMIRK_DISCOVERY_BUDGET_CENTS) {
     throw new Error(
       `The discovery quote exceeds the ${MAX_SMIRK_DISCOVERY_BUDGET_CENTS}-cent per-request cap.`
     );
   }
   return smirkDiscoveryQuoteSchema.parse({
-    provider: "google_maps_proxy",
+    plan: "maps-plus-owner-email-v1",
+    providers: {
+      maps: {
+        provider: "google_maps_proxy",
+        maximumRequests: mapsMaximumRequests,
+        costCentsPerRequest: config.costCentsPerRequest,
+        maximumCostCents: mapsMaximumCostCents,
+      },
+      ownerEmailEnrichment: {
+        provider: "hunter_owner_email",
+        maximumRequests: ownerEmailMaximumRequests,
+        costCentsPerRequest: ownerEmailConfig.costCentsPerCredit,
+        maximumCostCents: ownerEmailMaximumCostCents,
+      },
+    },
     maximumRequests,
-    costCentsPerRequest: config.costCentsPerRequest,
     maximumCostCents,
     quotedAt: quotedAt.toISOString(),
   });
 }
 
-export function assertSmirkDiscoveryProviderRequest(input: {
+export function nextSmirkDiscoveryProviderRequestCounts(input: {
   quote: SmirkDiscoveryQuote;
   approvedMaxSpendCents: number;
-  nextRequestNumber: number;
-}): void {
-  const { quote, approvedMaxSpendCents, nextRequestNumber } = input;
+  provider: keyof SmirkDiscoveryProviderRequestCounts;
+  current: SmirkDiscoveryProviderRequestCounts;
+}): SmirkDiscoveryProviderRequestCounts {
+  const { quote, approvedMaxSpendCents, provider, current } = input;
+  const validCount = (value: number) =>
+    Number.isSafeInteger(value) && value >= 0;
+  if (!validCount(current.maps) || !validCount(current.ownerEmailEnrichment)) {
+    throw new Error("Discovery provider counters are invalid.");
+  }
+  const next = {
+    ...current,
+    [provider]: current[provider] + 1,
+  };
+  const mapsQuote = quote.providers.maps;
+  const ownerEmailQuote = quote.providers.ownerEmailEnrichment;
+  const totalRequests = next.maps + next.ownerEmailEnrichment;
+  const projectedCostCents =
+    next.maps * mapsQuote.costCentsPerRequest +
+    next.ownerEmailEnrichment * ownerEmailQuote.costCentsPerRequest;
   if (
     approvedMaxSpendCents !== quote.maximumCostCents ||
-    !Number.isSafeInteger(nextRequestNumber) ||
-    nextRequestNumber < 1 ||
-    nextRequestNumber > quote.maximumRequests ||
-    nextRequestNumber * quote.costCentsPerRequest >
-      approvedMaxSpendCents
+    next.maps > mapsQuote.maximumRequests ||
+    next.ownerEmailEnrichment > ownerEmailQuote.maximumRequests ||
+    totalRequests > quote.maximumRequests ||
+    projectedCostCents > approvedMaxSpendCents
   ) {
     throw new Error(
-      "The next Maps request is outside the exact operator-approved discovery cap."
+      "The next provider request is outside the exact operator-approved discovery cap."
     );
   }
+  return next;
 }

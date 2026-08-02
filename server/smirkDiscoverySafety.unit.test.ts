@@ -106,20 +106,18 @@ describe("SMIRK discovery execution safety", () => {
     expect(storeSource).toContain('"global_kill_switch"');
     expect(storeSource).toContain("user_kill_switch_");
     expect(SMIRK_DISCOVERY_APPROVAL_CONFIRMATION).toBe(
-      "approve-one-smirk-discovery-v1"
+      "approve-one-smirk-discovery-v2"
     );
     expect(SMIRK_DISCOVERY_EXECUTION_CONFIRMATION).toBe(
-      "execute-one-smirk-discovery-v1"
+      "execute-one-smirk-discovery-v2"
     );
     expect(SMIRK_DISCOVERY_REJECTION_CONFIRMATION).toBe(
-      "reject-one-smirk-discovery-v1"
+      "reject-one-smirk-discovery-v2"
     );
     expect(SMIRK_DISCOVERY_CANCELLATION_CONFIRMATION).toBe(
-      "cancel-one-smirk-discovery-v1"
+      "cancel-one-smirk-discovery-v2"
     );
-    expect(routerSource).toContain(
-      "SMIRK_DISCOVERY_APPROVAL_CONFIRMATION"
-    );
+    expect(routerSource).toContain("SMIRK_DISCOVERY_APPROVAL_CONFIRMATION");
   });
 
   it("keeps the worker disabled by default and bounded to one claimed job", () => {
@@ -131,24 +129,25 @@ describe("SMIRK discovery execution safety", () => {
     expect(workerSource).not.toContain("retry");
   });
 
-  it("creates research records without contact-provider code", () => {
-    expect(executorSource).toContain('contactActionAllowed: false');
+  it("creates research records and bounded owner-email evidence without contact code", () => {
+    expect(executorSource).toContain("contactActionAllowed: false");
     expect(executorSource).toContain('outreachChannel: "none"');
     expect(executorSource).toContain(
-      "expectedCostCentsPerRequest: claim.quote.costCentsPerRequest"
+      "claim.quote.providers.maps.costCentsPerRequest"
     );
+    expect(executorSource).toContain("findVerifiedOwnerEmail");
+    expect(executorSource).toContain("ownerContactMatchesRequestedDomain");
+    expect(executorSource).toContain('outreachChannel: "email"');
+    expect(executorSource).toContain("approvedCostCentsPerCredit");
     expect(executorSource).not.toContain("sendEmail");
     expect(executorSource).not.toContain("sendSms");
     expect(executorSource).not.toContain("Twilio");
     expect(executorSource).not.toContain("invokeLLM");
-    expect(executorSource).not.toContain("findVerifiedOwnerEmail");
   });
 
   it("exposes only prepare and status to the dedicated SMIRK key", () => {
     expect(apiSource).toContain('"/smirk/discovery-requests"');
-    expect(apiSource).toContain(
-      '"/smirk/discovery-requests/:requestId"'
-    );
+    expect(apiSource).toContain('"/smirk/discovery-requests/:requestId"');
     expect(apiSource).not.toContain(
       '"/smirk/discovery-requests/:requestId/approve"'
     );
@@ -158,12 +157,8 @@ describe("SMIRK discovery execution safety", () => {
   });
 
   it("exports a discovery-bound batch only from exact READY receipts", () => {
-    expect(leadBatchStoreSource).toContain(
-      "request.sourceDiscoveryRequestId"
-    );
-    expect(leadBatchStoreSource).toContain(
-      "smirkDiscoveryRequests.requestId"
-    );
+    expect(leadBatchStoreSource).toContain("request.sourceDiscoveryRequestId");
+    expect(leadBatchStoreSource).toContain("smirkDiscoveryRequests.requestId");
     expect(leadBatchStoreSource).toContain(
       'eq(smirkDiscoveryLeadItems.state, "READY")'
     );

@@ -1,9 +1,5 @@
-import { and, eq, or } from "drizzle-orm";
-import {
-  audits,
-  leads,
-  smirkDiscoveryLeadItems,
-} from "../../drizzle/schema";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { audits, leads, smirkDiscoveryLeadItems } from "../../drizzle/schema";
 import {
   makeRequest,
   type PlaceDetailsResult,
@@ -11,8 +7,14 @@ import {
 } from "../_core/map";
 import { getDb } from "../db";
 import {
-  assertSmirkDiscoveryProviderRequest,
+  findVerifiedOwnerEmail,
+  ownerContactMatchesRequestedDomain,
+  type EnrichedContact,
+} from "./emailEnrichment";
+import {
   hashSmirkDiscoveryValue,
+  nextSmirkDiscoveryProviderRequestCounts,
+  type SmirkDiscoveryProviderRequestCounts,
 } from "./smirkDiscovery";
 import {
   completeSmirkDiscovery,
@@ -53,11 +55,13 @@ type DiscoveryDetail = PlaceDetailsResult["result"] & {
 type PersistResult = {
   state: "READY" | "SKIPPED";
   leadId: number | null;
+  newlyCreated: boolean;
   reason?: string;
 };
 
 export type SmirkDiscoveryExecutorDeps = {
   requestMaps?: typeof makeRequest;
+  findOwnerEmail?: typeof findVerifiedOwnerEmail;
 };
 
 function normalizeWebsite(raw: string): string {
@@ -106,10 +110,7 @@ export function evaluateSmirkDiscoveryDetail(detail: DiscoveryDetail):
   if (CHAIN_SIGNALS.some(signal => normalizedName.includes(signal))) {
     return { accepted: false, reason: "known_chain_signal" };
   }
-  if (
-    detail.business_status &&
-    detail.business_status !== "OPERATIONAL"
-  ) {
+  if (detail.business_status && detail.business_status !== "OPERATIONAL") {
     return { accepted: false, reason: "business_not_operational" };
   }
   const reviewCount = Number(detail.user_ratings_total || 0);
@@ -148,14 +149,8 @@ async function persistDiscoveryItem(input: {
       .from(smirkDiscoveryLeadItems)
       .where(
         and(
-          eq(
-            smirkDiscoveryLeadItems.discoveryId,
-            input.claim.discoveryId
-          ),
-          eq(
-            smirkDiscoveryLeadItems.sourcePlaceId,
-            input.detail.sourcePlaceId
-          )
+          eq(smirkDiscoveryLeadItems.discoveryId, input.claim.discoveryId),
+          eq(smirkDiscoveryLeadItems.sourcePlaceId, input.detail.sourcePlaceId)
         )
       )
       .limit(1);
@@ -167,9 +162,9 @@ async function persistDiscoveryItem(input: {
         );
       }
       return {
-        state:
-          existingItem.state === "READY" ? "READY" : "SKIPPED",
+        state: existingItem.state === "READY" ? "READY" : "SKIPPED",
         leadId: existingItem.leadId,
+        newlyCreated: false,
         reason: existingItem.error || undefined,
       };
     }
@@ -184,7 +179,12 @@ async function persistDiscoveryItem(input: {
         sourcePayloadHash,
         error: policy.reason,
       });
-      return { state: "SKIPPED", leadId: null, reason: policy.reason };
+      return {
+        state: "SKIPPED",
+        leadId: null,
+        newlyCreated: false,
+        reason: policy.reason,
+      };
     }
 
     const existingLeads = await tx
@@ -213,13 +213,18 @@ async function persistDiscoveryItem(input: {
       return {
         state: "SKIPPED",
         leadId: existingLeads[0].id,
+        newlyCreated: false,
         reason: "owner_scoped_duplicate",
       };
     }
 
     const reviewSnippets = (input.detail.reviews || [])
       .slice(0, 3)
-      .map(review => String(review.text || "").trim().slice(0, 200))
+      .map(review =>
+        String(review.text || "")
+          .trim()
+          .slice(0, 200)
+      )
       .filter(Boolean);
     const insertedLead = await tx
       .insert(leads)
@@ -231,19 +236,17 @@ async function persistDiscoveryItem(input: {
         outreachChannel: "none",
         phone: policy.phone,
         address:
-          String(input.detail.formatted_address || "").trim().slice(0, 512) ||
-          null,
+          String(input.detail.formatted_address || "")
+            .trim()
+            .slice(0, 512) || null,
         city: input.claim.effectiveCriteria.city,
         state: input.claim.effectiveCriteria.state,
-        googleRating:
-          Number.isFinite(Number(input.detail.rating))
-            ? String(input.detail.rating)
-            : null,
+        googleRating: Number.isFinite(Number(input.detail.rating))
+          ? String(input.detail.rating)
+          : null,
         reviewCount: policy.reviewCount,
         reviewSnippets:
-          reviewSnippets.length > 0
-            ? JSON.stringify(reviewSnippets)
-            : null,
+          reviewSnippets.length > 0 ? JSON.stringify(reviewSnippets) : null,
         googlePlaceId: input.detail.sourcePlaceId,
         businessStatus: input.detail.business_status || "OPERATIONAL",
         category: input.claim.effectiveCriteria.category,
@@ -304,7 +307,69 @@ async function persistDiscoveryItem(input: {
     if (!insertedItem[0]?.id) {
       throw new Error("The discovery lead receipt was not persisted.");
     }
-    return { state: "READY" as const, leadId };
+    return { state: "READY" as const, leadId, newlyCreated: true };
+  });
+}
+
+async function persistVerifiedDiscoveryOwnerEmail(input: {
+  claim: ClaimedSmirkDiscovery;
+  leadId: number;
+  website: string;
+  contact: EnrichedContact;
+}): Promise<void> {
+  const requestedDomain = new URL(input.website).hostname.replace(
+    /^www\./i,
+    ""
+  );
+  if (
+    input.contact.source !== "hunter" ||
+    input.contact.confidence < 70 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.contact.email) ||
+    !ownerContactMatchesRequestedDomain(input.contact, requestedDomain)
+  ) {
+    throw new Error("The owner-email result lacks verified Hunter provenance.");
+  }
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database unavailable while storing verified owner email.");
+  }
+  await db.transaction(async tx => {
+    const updated = await tx
+      .update(leads)
+      .set({
+        verifiedOwnerEmail: input.contact.email,
+        outreachChannel: "email",
+      })
+      .where(
+        and(
+          eq(leads.id, input.leadId),
+          eq(leads.userId, input.claim.userId),
+          eq(leads.status, "audited"),
+          eq(leads.outreachChannel, "none"),
+          isNull(leads.verifiedOwnerEmail)
+        )
+      );
+    if (Number(updated[0]?.affectedRows ?? 0) !== 1) {
+      throw new Error(
+        "The verified owner email did not match one newly discovered lead."
+      );
+    }
+    const verified = await tx
+      .select({
+        email: leads.verifiedOwnerEmail,
+        outreachChannel: leads.outreachChannel,
+      })
+      .from(leads)
+      .where(
+        and(eq(leads.id, input.leadId), eq(leads.userId, input.claim.userId))
+      )
+      .limit(1);
+    if (
+      verified[0]?.email !== input.contact.email ||
+      verified[0]?.outreachChannel !== "email"
+    ) {
+      throw new Error("The verified owner email was not durably stored.");
+    }
   });
 }
 
@@ -313,20 +378,25 @@ export async function executeClaimedSmirkDiscovery(
   deps: SmirkDiscoveryExecutorDeps = {}
 ): Promise<void> {
   const requestMaps = deps.requestMaps || makeRequest;
-  let providerRequests = 0;
+  const findOwnerEmail = deps.findOwnerEmail || findVerifiedOwnerEmail;
+  let providerRequestCounts: SmirkDiscoveryProviderRequestCounts = {
+    maps: 0,
+    ownerEmailEnrichment: 0,
+  };
   let createdLeadCount = 0;
   let readyLeadCount = 0;
+  let verifiedOwnerEmailCount = 0;
   let skippedLeadCount = 0;
   let failedLeadCount = 0;
   const leadIds: number[] = [];
   const errors: string[] = [];
   try {
-    assertSmirkDiscoveryProviderRequest({
+    providerRequestCounts = nextSmirkDiscoveryProviderRequestCounts({
       quote: claim.quote,
       approvedMaxSpendCents: claim.approvedMaxSpendCents,
-      nextRequestNumber: providerRequests + 1,
+      provider: "maps",
+      current: providerRequestCounts,
     });
-    providerRequests += 1;
     const query = `${claim.effectiveCriteria.category} in ${claim.effectiveCriteria.city}, ${claim.effectiveCriteria.state}`;
     const search = await requestMaps<PlacesSearchResult>(
       "/maps/api/place/textsearch/json",
@@ -334,7 +404,8 @@ export async function executeClaimedSmirkDiscovery(
       {
         userId: claim.userId,
         operation: "smirk_discovery_text_search",
-        expectedCostCentsPerRequest: claim.quote.costCentsPerRequest,
+        expectedCostCentsPerRequest:
+          claim.quote.providers.maps.costCentsPerRequest,
       }
     );
     if (search.status !== "OK" || !Array.isArray(search.results)) {
@@ -343,17 +414,14 @@ export async function executeClaimedSmirkDiscovery(
       );
     }
 
-    const places = search.results.slice(
-      0,
-      claim.effectiveCriteria.limit
-    );
+    const places = search.results.slice(0, claim.effectiveCriteria.limit);
     for (const place of places) {
-      assertSmirkDiscoveryProviderRequest({
+      providerRequestCounts = nextSmirkDiscoveryProviderRequestCounts({
         quote: claim.quote,
         approvedMaxSpendCents: claim.approvedMaxSpendCents,
-        nextRequestNumber: providerRequests + 1,
+        provider: "maps",
+        current: providerRequestCounts,
       });
-      providerRequests += 1;
       let details: PlaceDetailsResult;
       try {
         details = await requestMaps<PlaceDetailsResult>(
@@ -367,7 +435,7 @@ export async function executeClaimedSmirkDiscovery(
             userId: claim.userId,
             operation: "smirk_discovery_place_details",
             expectedCostCentsPerRequest:
-              claim.quote.costCentsPerRequest,
+              claim.quote.providers.maps.costCentsPerRequest,
           }
         );
       } catch (error) {
@@ -395,6 +463,43 @@ export async function executeClaimedSmirkDiscovery(
           createdLeadCount += 1;
           readyLeadCount += 1;
           leadIds.push(persisted.leadId);
+          if (persisted.newlyCreated) {
+            providerRequestCounts = nextSmirkDiscoveryProviderRequestCounts({
+              quote: claim.quote,
+              approvedMaxSpendCents: claim.approvedMaxSpendCents,
+              provider: "ownerEmailEnrichment",
+              current: providerRequestCounts,
+            });
+            try {
+              const contact = await findOwnerEmail(
+                String(details.result.website || ""),
+                {
+                  userId: claim.userId,
+                  leadId: persisted.leadId,
+                  approvedCostCentsPerCredit:
+                    claim.quote.providers.ownerEmailEnrichment
+                      .costCentsPerRequest,
+                }
+              );
+              if (contact) {
+                await persistVerifiedDiscoveryOwnerEmail({
+                  claim,
+                  leadId: persisted.leadId,
+                  website: String(details.result.website || ""),
+                  contact,
+                });
+                verifiedOwnerEmailCount += 1;
+              }
+            } catch (error) {
+              failedLeadCount += 1;
+              errors.push(
+                error instanceof Error
+                  ? error.message.slice(0, 500)
+                  : "Owner-email enrichment failed."
+              );
+              break;
+            }
+          }
         } else {
           skippedLeadCount += 1;
         }
@@ -417,6 +522,8 @@ export async function executeClaimedSmirkDiscovery(
         : readyLeadCount > 0
           ? "COMPLETED"
           : "EMPTY";
+    const providerRequests =
+      providerRequestCounts.maps + providerRequestCounts.ownerEmailEnrichment;
     await completeSmirkDiscovery({
       discoveryId: claim.discoveryId,
       userId: claim.userId,
@@ -428,14 +535,16 @@ export async function executeClaimedSmirkDiscovery(
       skippedLeadCount,
       failedLeadCount,
       result: {
-        contractVersion: "velvet-smirk.discovery-result.v1",
+        contractVersion: "velvet-smirk.discovery-result.v2",
         requestId: claim.requestId,
         state,
         leadIds,
         counts: {
           providerRequests,
+          providerRequestCounts,
           createdLeadCount,
           readyLeadCount,
+          verifiedOwnerEmailCount,
           skippedLeadCount,
           failedLeadCount,
         },
@@ -450,6 +559,8 @@ export async function executeClaimedSmirkDiscovery(
       error instanceof Error
         ? error.message.slice(0, 2_000)
         : "Discovery execution failed.";
+    const providerRequests =
+      providerRequestCounts.maps + providerRequestCounts.ownerEmailEnrichment;
     await completeSmirkDiscovery({
       discoveryId: claim.discoveryId,
       userId: claim.userId,
@@ -461,14 +572,16 @@ export async function executeClaimedSmirkDiscovery(
       skippedLeadCount,
       failedLeadCount: Math.max(1, failedLeadCount),
       result: {
-        contractVersion: "velvet-smirk.discovery-result.v1",
+        contractVersion: "velvet-smirk.discovery-result.v2",
         requestId: claim.requestId,
         state: readyLeadCount > 0 ? "PARTIAL" : "FAILED",
         leadIds,
         counts: {
           providerRequests,
+          providerRequestCounts,
           createdLeadCount,
           readyLeadCount,
+          verifiedOwnerEmailCount,
           skippedLeadCount,
           failedLeadCount: Math.max(1, failedLeadCount),
         },

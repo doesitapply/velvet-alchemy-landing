@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertApprovedHunterOwnerEnrichmentConfig,
+  ownerContactMatchesRequestedDomain,
   readHunterOwnerEnrichmentConfig,
   selectHunterVerifiedOwner,
 } from "./lib/emailEnrichment";
@@ -76,4 +78,36 @@ describe("verified owner email provenance", () => {
     ).toBeNull();
   });
 
+  it("rejects approved lookups after Hunter configuration or price drift", () => {
+    expect(() =>
+      assertApprovedHunterOwnerEnrichmentConfig(
+        readHunterOwnerEnrichmentConfig({}),
+        3
+      )
+    ).toThrow("no longer configured");
+    expect(() =>
+      assertApprovedHunterOwnerEnrichmentConfig(
+        readHunterOwnerEnrichmentConfig({
+          ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+          HUNTER_API_KEY: "synthetic-hunter-key",
+          HUNTER_COST_CENTS_PER_CREDIT: "4",
+        }),
+        3
+      )
+    ).toThrow("exact approved discovery quote");
+  });
+
+  it("accepts only an owner email on the requested business domain", () => {
+    const contact = {
+      email: "owner@example.com",
+      confidence: 95,
+      source: "hunter" as const,
+    };
+    expect(ownerContactMatchesRequestedDomain(contact, "example.com")).toBe(
+      true
+    );
+    expect(
+      ownerContactMatchesRequestedDomain(contact, "different.example")
+    ).toBe(false);
+  });
 });

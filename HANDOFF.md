@@ -53,7 +53,7 @@ The system is designed to be operated by a single person or a small team, with e
 [Synthetic contract test only] -> POST /api/integrations/velvet/handoffs
 [SMIRK discovery request]       -> POST /api/v1/smirk/discovery-requests
 [Velvet admin approval]         -> PREPARED -> APPROVED -> QUEUED -> RUNNING
-[Bounded public discovery]      -> audited review records; no contact
+[Bounded discovery + enrichment] -> audited records + verified owner emails; no contact
 [Discovery-bound reviewed pull] -> exact READY discovery receipts only
 [Frozen two-arm source test]    -> PREPARED -> ACTIVE -> CLOSED recommendation
 [Cancellation escape]           -> PREPARED/ACTIVE -> CANCELLED; audit preserved
@@ -126,7 +126,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `server/lib/smirkLeadBatchStore.ts`                   | Owner-scoped audited-lead reservation and exact replay receipts                   |
 | `server/lib/smirkDiscovery.ts`                        | SMIRK discovery request, quote, status, and exact spend-cap contracts             |
 | `server/lib/smirkDiscoveryStore.ts`                   | Approval state machine, immutable hashes, audit events, and leases                |
-| `server/lib/smirkDiscoveryExecutor.ts`                | Sequential public-source discovery with no contact providers                      |
+| `server/lib/smirkDiscoveryExecutor.ts`                | Sequential Maps + Hunter research under one exact quote; no contact providers     |
 | `server/smirkDiscoveryRouter.ts`                      | Privileged browser-only approve, queue, reject, and cancel controls               |
 | `server/smirkDiscoveryWorker.ts`                      | Default-disabled one-job discovery worker                                         |
 | `server/lib/smirkOutcome.ts`                          | Signed callback verification and research-receipt binding                         |
@@ -484,7 +484,11 @@ Only `verifiedOwnerEmail` is exported as an email, and it is paired with
 `emailVerification: "verified_owner_email"`. Hunter candidates must be valid,
 personal, decision-maker records with an explicit owner/founder-level title;
 the request is limited to one result and its owner-configured credit cost is
-reserved against Velvet's daily budget before the request starts. There is no
+reserved against Velvet's daily budget before the request starts. A SMIRK v2
+discovery quote binds Maps and Hunter as separate line items under one exact
+operator-approved request and cost ceiling. Newly discovered leads remain
+research-only even when a verified owner email is persisted; enrichment never
+creates a draft or grants send authority. There is no
 generic or non-owner fallback. The prior Snov synchronous fallback is disabled
 because Snov's current API is an asynchronous, multi-request flow that needs a
 separate costed adapter. A public business phone is paired with
@@ -649,7 +653,7 @@ Current gates:
 
 | Command                                                                                                                                                          | Boundary                                                                                      | Result on 2026-08-01                      |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `pnpm test:unit`                                                                                                                                                 | Pure logic and fail-closed route policy                                                       | 178 passed, 0 failed, 0 skipped           |
+| `pnpm test:unit`                                                                                                                                                 | Pure logic and fail-closed route policy                                                       | 181 passed, 0 failed, 0 skipped           |
 | `pnpm test:integration`                                                                                                                                          | Database, LLM, storage, Stripe, and network suites                                            | 0 passed, 0 failed, 64 explicitly skipped |
 | `DATABASE_URL=<loopback disposable MySQL> pnpm test:smirk:persistence`                                                                                           | Discovery, outcome, and human-reviewed learning persistence                                   | 3 passed, 0 failed, 0 skipped             |
 | `DATABASE_URL=<loopback disposable MySQL> RUN_SMIRK_PERSISTENCE_TEST=1 pnpm exec vitest run server/acquisitionSourcingExperimentPersistence.integration.test.ts` | Frozen assignment, exact closure, tamper rejection, explicit promotion, concurrent activation | 2 passed, 0 failed, 0 skipped             |
@@ -696,7 +700,9 @@ VELVET_REPO_PATH=/path/to/velvet-alchemy-landing \
 It creates fresh loopback MySQL and Postgres databases, applies this
 repository's tracked migrations, runs the real Velvet discovery/export/outcome
 API and SMIRK source/QC/approval/outcome routes, verifies exact replay and
-workspace denial, then drops both databases. Before the transaction loop, two
+workspace denial, then drops both databases. The discovery executor uses
+separate intercepted Maps and Hunter adapters through the exact combined quote;
+it does not manually insert the final owner emails. Before the transaction loop, two
 generated dedicated keys call the actual no-write connection-proof route. The
 gate verifies exact scopes, one admin owner, distinct credentials, workspace
 alignment, matching domain-separated signatures, and unchanged API-key

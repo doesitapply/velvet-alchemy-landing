@@ -11,9 +11,7 @@ import {
   systemConfig,
 } from "../drizzle/schema";
 import { getDb } from "./db";
-import {
-  smirkDiscoveryRequestSchema,
-} from "./lib/smirkDiscovery";
+import { smirkDiscoveryRequestSchema } from "./lib/smirkDiscovery";
 import { executeClaimedSmirkDiscovery } from "./lib/smirkDiscoveryExecutor";
 import {
   approveSmirkDiscovery,
@@ -50,6 +48,9 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
   >();
   const originalMapsEnabled = process.env.ENABLE_MAPS_RESEARCH;
   const originalMapsCost = process.env.MAPS_COST_CENTS_PER_REQUEST;
+  const originalHunterEnabled = process.env.ENABLE_HUNTER_OWNER_ENRICHMENT;
+  const originalHunterKey = process.env.HUNTER_API_KEY;
+  const originalHunterCost = process.env.HUNTER_COST_CENTS_PER_CREDIT;
 
   async function cleanFixture(): Promise<void> {
     const db = await getDb();
@@ -89,10 +90,7 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
       .select({ id: leads.id })
       .from(leads)
       .where(
-        and(
-          eq(leads.userId, actor.userId),
-          eq(leads.googlePlaceId, placeId)
-        )
+        and(eq(leads.userId, actor.userId), eq(leads.googlePlaceId, placeId))
       );
     for (const lead of priorLeads) {
       await db.delete(audits).where(eq(audits.leadId, lead.id));
@@ -103,6 +101,9 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
   beforeAll(async () => {
     process.env.ENABLE_MAPS_RESEARCH = "true";
     process.env.MAPS_COST_CENTS_PER_REQUEST = "1";
+    process.env.ENABLE_HUNTER_OWNER_ENRICHMENT = "true";
+    process.env.HUNTER_API_KEY = "synthetic-hunter-key";
+    process.env.HUNTER_COST_CENTS_PER_CREDIT = "3";
     const db = await getDb();
     if (!db) throw new Error("A loopback DATABASE_URL is required.");
     await cleanFixture();
@@ -185,11 +186,26 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
     } else {
       process.env.MAPS_COST_CENTS_PER_REQUEST = originalMapsCost;
     }
+    if (originalHunterEnabled === undefined) {
+      delete process.env.ENABLE_HUNTER_OWNER_ENRICHMENT;
+    } else {
+      process.env.ENABLE_HUNTER_OWNER_ENRICHMENT = originalHunterEnabled;
+    }
+    if (originalHunterKey === undefined) {
+      delete process.env.HUNTER_API_KEY;
+    } else {
+      process.env.HUNTER_API_KEY = originalHunterKey;
+    }
+    if (originalHunterCost === undefined) {
+      delete process.env.HUNTER_COST_CENTS_PER_CREDIT;
+    } else {
+      process.env.HUNTER_COST_CENTS_PER_CREDIT = originalHunterCost;
+    }
   });
 
   it("persists discovery, review evidence, export, and exact replay", async () => {
     const request = smirkDiscoveryRequestSchema.parse({
-      contractVersion: "smirk-velvet.discovery-request.v1",
+      contractVersion: "smirk-velvet.discovery-request.v2",
       requestId,
       workspaceId: 1,
       criteria: {
@@ -205,7 +221,7 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
 
     const prepared = await prepareSmirkDiscovery(request, actor);
     expect(prepared.outcome).toBe("created");
-    expect(prepared.response.quote.maximumCostCents).toBe(2);
+    expect(prepared.response.quote.maximumCostCents).toBe(5);
 
     const approved = await approveSmirkDiscovery({
       discoveryId: prepared.response.discoveryId,
@@ -216,6 +232,21 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
       approvedMaxSpendCents: prepared.response.quote.maximumCostCents,
     });
     expect(approved.state).toBe("APPROVED");
+
+    process.env.HUNTER_COST_CENTS_PER_CREDIT = "4";
+    await expect(
+      queueSmirkDiscovery({
+        discoveryId: prepared.response.discoveryId,
+        userId: actor.userId,
+        actorId: actor.userId,
+        requestPayloadHash: prepared.response.requestPayloadHash,
+        quotePayloadHash: prepared.response.quotePayloadHash,
+      })
+    ).rejects.toMatchObject({
+      code: "SMIRK_DISCOVERY_QUOTE_CHANGED",
+      status: 412,
+    });
+    process.env.HUNTER_COST_CENTS_PER_CREDIT = "3";
 
     const queued = await queueSmirkDiscovery({
       discoveryId: prepared.response.discoveryId,
@@ -231,6 +262,7 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
     if (!claim) throw new Error("The synthetic discovery was not claimed.");
 
     let providerCalls = 0;
+    let ownerEmailCalls = 0;
     await executeClaimedSmirkDiscovery(claim, {
       requestMaps: async (path: string) => {
         providerCalls += 1;
@@ -254,16 +286,28 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
           },
         };
       },
+      findOwnerEmail: async (domain, context) => {
+        ownerEmailCalls += 1;
+        expect(domain).toBe("https://example.com/synthetic-reno-plumbing");
+        expect(context).toMatchObject({
+          userId: actor.userId,
+          approvedCostCentsPerCredit: 3,
+        });
+        return {
+          email: "owner@example.com",
+          title: "Owner",
+          confidence: 95,
+          source: "hunter",
+        };
+      },
     });
     expect(providerCalls).toBe(2);
+    expect(ownerEmailCalls).toBe(1);
 
-    const status = await getSmirkDiscoveryStatus(
-      requestId,
-      actor.userId
-    );
+    const status = await getSmirkDiscoveryStatus(requestId, actor.userId);
     expect(status).toMatchObject({
       state: "COMPLETED",
-      providerRequests: 2,
+      providerRequests: 3,
       createdLeadCount: 1,
       readyLeadCount: 1,
       skippedLeadCount: 0,
@@ -299,10 +343,11 @@ describe.skipIf(!enabled)("SMIRK discovery persistence loop", () => {
       workspaceId: 1,
       prospect: {
         companyName: "Synthetic Reno Plumbing",
+        email: "owner@example.com",
+        emailVerification: "verified_owner_email",
         phoneContactMode: "operator_review_only",
       },
     });
-    expect(exported.prospects[0].prospect.email).toBeUndefined();
     expect(replay).toEqual({
       ...exported,
       outcome: "duplicate",

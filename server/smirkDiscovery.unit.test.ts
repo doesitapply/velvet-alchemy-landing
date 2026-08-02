@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   SMIRK_DISCOVERY_REQUEST_CONTRACT,
-  assertSmirkDiscoveryProviderRequest,
   buildSmirkDiscoveryEffectiveCriteria,
   buildSmirkDiscoveryQuote,
   hashSmirkDiscoveryValue,
+  nextSmirkDiscoveryProviderRequestCounts,
+  smirkDiscoveryQuoteSchema,
   smirkDiscoveryPreparedResponseSchema,
   smirkDiscoveryRequestSchema,
   smirkDiscoveryStatusResponseSchema,
@@ -50,7 +51,7 @@ describe("SMIRK discovery contract", () => {
     ).toBe(false);
   });
 
-  it("builds a deterministic bounded Maps quote", () => {
+  it("builds a deterministic bounded Maps and owner-email quote", () => {
     const criteria = buildSmirkDiscoveryEffectiveCriteria({
       request: manualRequest(),
       candidate: null,
@@ -60,14 +61,30 @@ describe("SMIRK discovery contract", () => {
       {
         ENABLE_MAPS_RESEARCH: "true",
         MAPS_COST_CENTS_PER_REQUEST: "2",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "3",
       },
       new Date("2026-07-30T12:00:00.000Z")
     );
     expect(quote).toEqual({
-      provider: "google_maps_proxy",
-      maximumRequests: 6,
-      costCentsPerRequest: 2,
-      maximumCostCents: 12,
+      plan: "maps-plus-owner-email-v1",
+      providers: {
+        maps: {
+          provider: "google_maps_proxy",
+          maximumRequests: 6,
+          costCentsPerRequest: 2,
+          maximumCostCents: 12,
+        },
+        ownerEmailEnrichment: {
+          provider: "hunter_owner_email",
+          maximumRequests: 5,
+          costCentsPerRequest: 3,
+          maximumCostCents: 15,
+        },
+      },
+      maximumRequests: 11,
+      maximumCostCents: 27,
       quotedAt: "2026-07-30T12:00:00.000Z",
     });
   });
@@ -85,8 +102,43 @@ describe("SMIRK discovery contract", () => {
       buildSmirkDiscoveryQuote(criteria, {
         ENABLE_MAPS_RESEARCH: "true",
         MAPS_COST_CENTS_PER_REQUEST: "25",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "1",
       })
     ).toThrow("exceeds the 500-cent");
+  });
+
+  it("rejects forged provider line items and combined quote totals", () => {
+    const criteria = buildSmirkDiscoveryEffectiveCriteria({
+      request: manualRequest(),
+      candidate: null,
+    });
+    const quote = buildSmirkDiscoveryQuote(criteria, {
+      ENABLE_MAPS_RESEARCH: "true",
+      MAPS_COST_CENTS_PER_REQUEST: "2",
+      ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+      HUNTER_API_KEY: "synthetic-hunter-key",
+      HUNTER_COST_CENTS_PER_CREDIT: "3",
+    });
+    expect(
+      smirkDiscoveryQuoteSchema.safeParse({
+        ...quote,
+        providers: {
+          ...quote.providers,
+          maps: {
+            ...quote.providers.maps,
+            maximumCostCents: quote.providers.maps.maximumCostCents - 1,
+          },
+        },
+      }).success
+    ).toBe(false);
+    expect(
+      smirkDiscoveryQuoteSchema.safeParse({
+        ...quote,
+        maximumRequests: quote.maximumRequests - 1,
+      }).success
+    ).toBe(false);
   });
 
   it("enforces the exact approved amount and provider-request count", () => {
@@ -98,28 +150,44 @@ describe("SMIRK discovery contract", () => {
       {
         ENABLE_MAPS_RESEARCH: "true",
         MAPS_COST_CENTS_PER_REQUEST: "2",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "3",
       },
       new Date("2026-07-30T12:00:00.000Z")
     );
-    expect(() =>
-      assertSmirkDiscoveryProviderRequest({
+    let counts = { maps: 0, ownerEmailEnrichment: 0 };
+    for (let index = 0; index < 6; index += 1) {
+      counts = nextSmirkDiscoveryProviderRequestCounts({
         quote,
-        approvedMaxSpendCents: 12,
-        nextRequestNumber: 6,
-      })
-    ).not.toThrow();
-    expect(() =>
-      assertSmirkDiscoveryProviderRequest({
+        approvedMaxSpendCents: 27,
+        provider: "maps",
+        current: counts,
+      });
+    }
+    for (let index = 0; index < 5; index += 1) {
+      counts = nextSmirkDiscoveryProviderRequestCounts({
         quote,
-        approvedMaxSpendCents: 11,
-        nextRequestNumber: 1,
+        approvedMaxSpendCents: 27,
+        provider: "ownerEmailEnrichment",
+        current: counts,
+      });
+    }
+    expect(counts).toEqual({ maps: 6, ownerEmailEnrichment: 5 });
+    expect(() =>
+      nextSmirkDiscoveryProviderRequestCounts({
+        quote,
+        approvedMaxSpendCents: 26,
+        provider: "maps",
+        current: { maps: 0, ownerEmailEnrichment: 0 },
       })
     ).toThrow("exact operator-approved");
     expect(() =>
-      assertSmirkDiscoveryProviderRequest({
+      nextSmirkDiscoveryProviderRequestCounts({
         quote,
-        approvedMaxSpendCents: 12,
-        nextRequestNumber: 7,
+        approvedMaxSpendCents: 27,
+        provider: "maps",
+        current: counts,
       })
     ).toThrow("exact operator-approved");
   });
@@ -261,6 +329,9 @@ describe("SMIRK discovery contract", () => {
       {
         ENABLE_MAPS_RESEARCH: "true",
         MAPS_COST_CENTS_PER_REQUEST: "1",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "2",
       },
       new Date("2026-07-30T12:00:00.000Z")
     );
@@ -268,7 +339,7 @@ describe("SMIRK discovery contract", () => {
     expect(
       smirkDiscoveryPreparedResponseSchema.parse({
         ok: true,
-        contractVersion: "velvet-smirk.discovery-response.v1",
+        contractVersion: "velvet-smirk.discovery-response.v2",
         state: "PREPARED",
         originalState: "PREPARED",
         currentState: "PREPARED",
@@ -290,7 +361,7 @@ describe("SMIRK discovery contract", () => {
     expect(
       smirkDiscoveryStatusResponseSchema.parse({
         ok: true,
-        contractVersion: "velvet-smirk.discovery-status.v1",
+        contractVersion: "velvet-smirk.discovery-status.v2",
         requestId: request.requestId,
         requestPayloadHash,
         quotePayloadHash: hashSmirkDiscoveryValue(quote),

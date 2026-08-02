@@ -417,7 +417,7 @@ export default function CommandCenter() {
     request: NonNullable<typeof smirkDiscoveryQuery.data>[number]
   ) => {
     const approved = confirm(
-      `Approve exactly $${(request.quote.maximumCostCents / 100).toFixed(2)} for this bounded Maps discovery? This approval cannot send email, SMS, or place a call.`
+      `Approve exactly $${(request.quote.maximumCostCents / 100).toFixed(2)} for this bounded Maps and owner-email research? This approval cannot send email, SMS, or place a call.`
     );
     if (!approved) return;
     try {
@@ -426,7 +426,7 @@ export default function CommandCenter() {
         requestPayloadHash: request.requestPayloadHash,
         quotePayloadHash: request.quotePayloadHash,
         approvedMaxSpendCents: request.quote.maximumCostCents,
-        confirmation: "approve-one-smirk-discovery-v1",
+        confirmation: "approve-one-smirk-discovery-v2",
         attestNoContactAuthority: true,
         attestExactSpendCap: true,
       });
@@ -453,7 +453,7 @@ export default function CommandCenter() {
         discoveryId: request.discoveryId,
         requestPayloadHash: request.requestPayloadHash,
         quotePayloadHash: request.quotePayloadHash,
-        confirmation: "execute-one-smirk-discovery-v1",
+        confirmation: "execute-one-smirk-discovery-v2",
         attestWorkerMayUseApprovedCap: true,
         attestNoContactAuthority: true,
       });
@@ -480,12 +480,12 @@ export default function CommandCenter() {
       if (decision === "REJECTED") {
         await rejectSmirkDiscoveryMutation.mutateAsync({
           discoveryId: request.discoveryId,
-          confirmation: "reject-one-smirk-discovery-v1",
+          confirmation: "reject-one-smirk-discovery-v2",
         });
       } else {
         await cancelSmirkDiscoveryMutation.mutateAsync({
           discoveryId: request.discoveryId,
-          confirmation: "cancel-one-smirk-discovery-v1",
+          confirmation: "cancel-one-smirk-discovery-v2",
         });
       }
       toast.success(`Discovery ${decision.toLowerCase()}.`);
@@ -964,7 +964,7 @@ export default function CommandCenter() {
                   <CardDescription>
                     SMIRK can request a segment and receive a quote. Only this
                     administrator surface can approve cost and queue one
-                    bounded discovery.
+                    bounded Maps and owner-email research job.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
@@ -1024,6 +1024,26 @@ export default function CommandCenter() {
                             <span>
                               {request.providerRequests}/
                               {request.quote.maximumRequests} provider slots
+                            </span>
+                            <span>
+                              Maps {request.quote.providers.maps.maximumRequests}
+                              /$
+                              {(
+                                request.quote.providers.maps.maximumCostCents /
+                                100
+                              ).toFixed(2)}
+                            </span>
+                            <span>
+                              Owner email{" "}
+                              {
+                                request.quote.providers.ownerEmailEnrichment
+                                  .maximumRequests
+                              }
+                              /$
+                              {(
+                                request.quote.providers.ownerEmailEnrichment
+                                  .maximumCostCents / 100
+                              ).toFixed(2)}
                             </span>
                             <span>
                               {request.readyLeadCount} review-ready

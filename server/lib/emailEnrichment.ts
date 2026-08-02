@@ -32,6 +32,7 @@ export interface EnrichedContact {
 export type EmailEnrichmentContext = {
   userId: number;
   leadId?: number;
+  approvedCostCentsPerCredit?: number;
 };
 
 export function readHunterOwnerEnrichmentConfig(
@@ -71,6 +72,33 @@ export function readHunterOwnerEnrichmentConfig(
   };
 }
 
+export function assertApprovedHunterOwnerEnrichmentConfig(
+  config: ReturnType<typeof readHunterOwnerEnrichmentConfig>,
+  approvedCostCentsPerCredit: number | undefined
+): void {
+  if (approvedCostCentsPerCredit === undefined) return;
+  if (!config.configured || !config.costCentsPerCredit) {
+    throw new Error(
+      `The approved owner-email lookup is no longer configured: ${config.missing.join(", ")}`
+    );
+  }
+  if (approvedCostCentsPerCredit !== config.costCentsPerCredit) {
+    throw new Error(
+      "The Hunter unit cost no longer matches the exact approved discovery quote."
+    );
+  }
+}
+
+export function ownerContactMatchesRequestedDomain(
+  contact: EnrichedContact,
+  requestedDomain: string
+): boolean {
+  const emailDomain = contact.email.split("@")[1]?.trim().toLowerCase();
+  return Boolean(
+    emailDomain && emailDomain === requestedDomain.trim().toLowerCase()
+  );
+}
+
 /**
  * Find a verified owner/founder/CEO email for a domain.
  * Returns null if no verified contact is found.
@@ -88,7 +116,15 @@ export async function findVerifiedOwnerEmail(
 
   // Try Hunter.io first
   const hunterResult = await tryHunter(cleanDomain, context);
-  if (hunterResult) return hunterResult;
+  if (hunterResult) {
+    if (!ownerContactMatchesRequestedDomain(hunterResult, cleanDomain)) {
+      console.warn(
+        "[EmailEnrichment] Hunter returned an owner email outside the requested domain."
+      );
+      return null;
+    }
+    return hunterResult;
+  }
 
   return null;
 }
@@ -102,13 +138,16 @@ async function tryHunter(
   context: EmailEnrichmentContext
 ): Promise<EnrichedContact | null> {
   const config = readHunterOwnerEnrichmentConfig();
+  assertApprovedHunterOwnerEnrichmentConfig(
+    config,
+    context.approvedCostCentsPerCredit
+  );
   if (!config.configured || !config.costCentsPerCredit) {
     console.warn(
       `[EmailEnrichment] Hunter owner lookup disabled: ${config.missing.join(", ")}`
     );
     return null;
   }
-
   const reservation = await reserveApiCallCost({
     userId: context.userId,
     leadId: context.leadId,
@@ -117,11 +156,8 @@ async function tryHunter(
     estimatedCostCents: config.costCentsPerCredit,
     requestData: { domain, maximumResults: 1 },
   });
-  let responseStatus:
-    | "success"
-    | "error"
-    | "timeout"
-    | "outcome_unknown" = "outcome_unknown";
+  let responseStatus: "success" | "error" | "timeout" | "outcome_unknown" =
+    "outcome_unknown";
   try {
     const params = new URLSearchParams({
       domain,
@@ -148,15 +184,10 @@ async function tryHunter(
   } catch (err) {
     console.error("[EmailEnrichment] Hunter.io error:", err);
     responseStatus =
-      err instanceof Error && err.name === "TimeoutError"
-        ? "timeout"
-        : "error";
+      err instanceof Error && err.name === "TimeoutError" ? "timeout" : "error";
     return null;
   } finally {
-    await settleApiCallCostReservation(
-      reservation.id,
-      responseStatus,
-    );
+    await settleApiCallCostReservation(reservation.id, responseStatus);
   }
 }
 

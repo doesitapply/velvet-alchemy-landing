@@ -443,8 +443,7 @@ export async function prepareSmirkDiscovery(
           412
         );
       }
-      const effectiveCriteriaHash =
-        hashSmirkDiscoveryValue(effectiveCriteria);
+      const effectiveCriteriaHash = hashSmirkDiscoveryValue(effectiveCriteria);
       const quotePayloadHash = hashSmirkDiscoveryValue(quote);
       const inserted = await tx
         .insert(smirkDiscoveryRequests)
@@ -473,9 +472,7 @@ export async function prepareSmirkDiscovery(
           quotePayload: JSON.stringify(quote),
           quotePayloadHash,
           state: "PREPARED",
-          expiresAt: new Date(
-            Date.now() + SMIRK_DISCOVERY_APPROVAL_TTL_MS
-          ),
+          expiresAt: new Date(Date.now() + SMIRK_DISCOVERY_APPROVAL_TTL_MS),
         })
         .$returningId();
       const discoveryId = Number(inserted[0]?.id || 0);
@@ -775,9 +772,7 @@ export async function queueSmirkDiscovery(input: {
       new Date(stored.quote.quotedAt)
     );
     if (
-      currentQuote.costCentsPerRequest !==
-        stored.quote.costCentsPerRequest ||
-      currentQuote.maximumCostCents !== stored.quote.maximumCostCents ||
+      hashSmirkDiscoveryValue(currentQuote) !== row.quotePayloadHash ||
       row.approvedMaxSpendCents !== stored.quote.maximumCostCents
     ) {
       throw new SmirkDiscoveryStoreError(
@@ -948,10 +943,7 @@ export async function claimNextSmirkDiscovery(): Promise<ClaimedSmirkDiscovery |
       .from(systemConfig)
       .where(eq(systemConfig.key, "global_kill_switch"))
       .limit(1);
-    if (
-      !globalSwitchRows[0] ||
-      globalSwitchRows[0].value !== "false"
-    ) {
+    if (!globalSwitchRows[0] || globalSwitchRows[0].value !== "false") {
       return null;
     }
     const now = new Date();
@@ -1018,9 +1010,7 @@ export async function claimNextSmirkDiscovery(): Promise<ClaimedSmirkDiscovery |
     const userSwitchRows = await tx
       .select({ value: systemConfig.value })
       .from(systemConfig)
-      .where(
-        eq(systemConfig.key, `user_kill_switch_${queued.userId}`)
-      )
+      .where(eq(systemConfig.key, `user_kill_switch_${queued.userId}`))
       .limit(1);
     if (userSwitchRows[0]?.value === "true") return null;
     const executionToken = randomUUID().replace(/-/g, "");
@@ -1050,9 +1040,7 @@ export async function claimNextSmirkDiscovery(): Promise<ClaimedSmirkDiscovery |
       details: { leaseMs: DISCOVERY_LEASE_MS },
     });
     const stored = parseStoredDiscovery(queued);
-    if (
-      queued.approvedMaxSpendCents !== stored.quote.maximumCostCents
-    ) {
+    if (queued.approvedMaxSpendCents !== stored.quote.maximumCostCents) {
       throw new SmirkDiscoveryStoreError(
         "The queued discovery no longer matches its approved spend cap.",
         "SMIRK_DISCOVERY_APPROVAL_INVALID",

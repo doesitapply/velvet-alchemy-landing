@@ -66,14 +66,17 @@ if (
 if (process.env.SMIRK_RESEARCH_WORKSPACE_ID !== "1") {
   throw new Error("The cross-system fixture is locked to workspace 1.");
 }
-if (
-  String(process.env.SMIRK_OUTCOME_SIGNING_SECRET || "").trim().length < 32
-) {
-  throw new Error("The cross-system fixture requires an outcome signing secret.");
+if (String(process.env.SMIRK_OUTCOME_SIGNING_SECRET || "").trim().length < 32) {
+  throw new Error(
+    "The cross-system fixture requires an outcome signing secret."
+  );
 }
 
 process.env.ENABLE_MAPS_RESEARCH = "true";
 process.env.MAPS_COST_CENTS_PER_REQUEST = "1";
+process.env.ENABLE_HUNTER_OWNER_ENRICHMENT = "true";
+process.env.HUNTER_API_KEY = "synthetic-cross-db-hunter-key";
+process.env.HUNTER_COST_CENTS_PER_CREDIT = "1";
 
 const openId = `codex-cross-db-owner-${runId}`;
 const discoveryRequestId = `smirk-discovery-${runId}`;
@@ -186,7 +189,7 @@ async function prepareSyntheticDiscovery(): Promise<{
   }
 
   const request = smirkDiscoveryRequestSchema.parse({
-    contractVersion: "smirk-velvet.discovery-request.v1",
+    contractVersion: "smirk-velvet.discovery-request.v2",
     requestId: discoveryRequestId,
     workspaceId: 1,
     criteria: {
@@ -232,6 +235,7 @@ async function prepareSyntheticDiscovery(): Promise<{
   }
 
   let adapterCalls = 0;
+  let ownerEmailCalls = 0;
   await executeClaimedSmirkDiscovery(claim, {
     requestMaps: async <T = unknown>(path: string): Promise<T> => {
       adapterCalls += 1;
@@ -255,42 +259,42 @@ async function prepareSyntheticDiscovery(): Promise<{
         },
       } as T;
     },
+    findOwnerEmail: async (domain, context) => {
+      ownerEmailCalls += 1;
+      if (
+        domain !== "https://example.invalid/synthetic-plumbing" ||
+        context.approvedCostCentsPerCredit !== 1
+      ) {
+        throw new Error(
+          "The synthetic owner-email request was not quote-bound."
+        );
+      }
+      return {
+        email: `owner-${runId}@example.invalid`,
+        title: "Owner",
+        confidence: 95,
+        source: "hunter",
+      };
+    },
   });
   const status = await getSmirkDiscoveryStatus(discoveryRequestId, userId);
   if (
     status.state !== "COMPLETED" ||
     status.createdLeadCount !== 1 ||
     status.readyLeadCount !== 1 ||
-    status.providerRequests !== 2 ||
-    adapterCalls !== 2
+    status.providerRequests !== 3 ||
+    adapterCalls !== 2 ||
+    ownerEmailCalls !== 1
   ) {
     throw new Error("The synthetic discovery did not complete as expected.");
   }
   const leadRows = await db
     .select({ id: leads.id })
     .from(leads)
-    .where(
-      and(
-        eq(leads.userId, userId),
-        eq(leads.googlePlaceId, placeId)
-      )
-    )
+    .where(and(eq(leads.userId, userId), eq(leads.googlePlaceId, placeId)))
     .limit(1);
   const leadId = Number(leadRows[0]?.id || 0);
   if (!leadId) throw new Error("The synthetic discovered lead is missing.");
-  await db
-    .update(leads)
-    .set({
-      verifiedOwnerEmail: `owner-${runId}@example.invalid`,
-      outreachChannel: "email",
-    })
-    .where(
-      and(
-        eq(leads.id, leadId),
-        eq(leads.userId, userId)
-      )
-    );
-
   const preparedExperiment = await prepareAcquisitionSourcingExperiment({
     experimentId,
     workspaceId: 1,
@@ -329,7 +333,9 @@ async function prepareSyntheticDiscovery(): Promise<{
     activatedExperiment.spendAuthorized !== false ||
     activatedExperiment.policyChanged !== false
   ) {
-    throw new Error("The synthetic sourcing experiment was not activated safely.");
+    throw new Error(
+      "The synthetic sourcing experiment was not activated safely."
+    );
   }
 
   return {
@@ -337,7 +343,7 @@ async function prepareSyntheticDiscovery(): Promise<{
     sourceApiKeyId,
     leadId,
     externalProspectId: `velvet-owner-${userId}-lead-${leadId}`,
-    providerRequests: adapterCalls,
+    providerRequests: adapterCalls + ownerEmailCalls,
     experimentId,
     experimentDefinitionHash: activatedExperiment.definitionHash,
   };
@@ -392,6 +398,7 @@ async function executeSyntheticExperimentDiscovery(input: {
     (_, index) => `synthetic-${arm}-${index + 1}-${runId}`
   );
   let adapterCalls = 0;
+  let ownerEmailCalls = 0;
   let detailIndex = 0;
   await executeClaimedSmirkDiscovery(claim, {
     requestMaps: async <T = unknown>(path: string): Promise<T> => {
@@ -418,6 +425,23 @@ async function executeSyntheticExperimentDiscovery(input: {
         },
       } as T;
     },
+    findOwnerEmail: async (domain, context) => {
+      ownerEmailCalls += 1;
+      if (
+        !domain.startsWith("https://example.invalid/") ||
+        context.approvedCostCentsPerCredit !== 1
+      ) {
+        throw new Error(
+          "The experiment owner-email request was not quote-bound."
+        );
+      }
+      return {
+        email: `${arm}-${ownerEmailCalls}-${runId}@example.invalid`,
+        title: "Owner",
+        confidence: 95,
+        source: "hunter",
+      };
+    },
   });
   const completed = await getSmirkDiscoveryStatus(
     input.requestId,
@@ -427,12 +451,15 @@ async function executeSyntheticExperimentDiscovery(input: {
     completed.state !== "COMPLETED" ||
     completed.createdLeadCount !== 10 ||
     completed.readyLeadCount !== 10 ||
-    completed.providerRequests !== 11 ||
+    completed.providerRequests !== 21 ||
     adapterCalls !== 11 ||
+    ownerEmailCalls !== 10 ||
     completed.acquisitionExperimentAssignment?.assignmentHash !==
       input.assignmentHash
   ) {
-    throw new Error("The synthetic experiment discovery did not complete exactly.");
+    throw new Error(
+      "The synthetic experiment discovery did not complete exactly."
+    );
   }
   const itemRows = await db
     .select({ leadId: smirkDiscoveryLeadItems.leadId })
@@ -448,19 +475,9 @@ async function executeSyntheticExperimentDiscovery(input: {
     .map(item => Number(item.leadId || 0))
     .filter(value => value > 0);
   if (leadIds.length !== 10) {
-    throw new Error("The experiment discovery did not persist ten ready leads.");
-  }
-  for (let index = 0; index < leadIds.length; index += 1) {
-    const leadId = leadIds[index];
-    await db
-      .update(leads)
-      .set({
-        verifiedOwnerEmail: `${arm}-${index + 1}-${runId}@example.invalid`,
-        outreachChannel: "email",
-      })
-      .where(
-        and(eq(leads.id, leadId), eq(leads.userId, input.userId))
-      );
+    throw new Error(
+      "The experiment discovery did not persist ten ready leads."
+    );
   }
   return {
     requestId: input.requestId,
@@ -490,12 +507,7 @@ async function fixtureState(input: {
       smirkWorkspaceId: leads.smirkWorkspaceId,
     })
     .from(leads)
-    .where(
-      and(
-        eq(leads.id, input.leadId),
-        eq(leads.userId, input.userId)
-      )
-    )
+    .where(and(eq(leads.id, input.leadId), eq(leads.userId, input.userId)))
     .limit(1);
   const outcomeRows = await db
     .select({
@@ -525,8 +537,7 @@ async function fixtureState(input: {
       experimentId: smirkDiscoveryRequests.acquisitionSourcingExperimentId,
       slotOrdinal: smirkDiscoveryRequests.acquisitionSourcingSlotOrdinal,
       arm: smirkDiscoveryRequests.acquisitionSourcingArm,
-      assignmentHash:
-        smirkDiscoveryRequests.acquisitionSourcingAssignmentHash,
+      assignmentHash: smirkDiscoveryRequests.acquisitionSourcingAssignmentHash,
     })
     .from(smirkDiscoveryRequests)
     .where(eq(smirkDiscoveryRequests.userId, input.userId));
@@ -604,7 +615,9 @@ async function main(): Promise<void> {
       !/^[A-Za-z0-9:_-]+$/.test(requestId) ||
       !/^[a-f0-9]{64}$/.test(assignmentHash)
     ) {
-      return res.status(400).json({ error: "Invalid fixture execution request." });
+      return res
+        .status(400)
+        .json({ error: "Invalid fixture execution request." });
     }
     try {
       return res.json(
@@ -616,10 +629,13 @@ async function main(): Promise<void> {
       );
     } catch (error) {
       if (error instanceof SmirkDiscoveryStoreError) {
-        return res.status(error.status).json({ error: error.message, code: error.code });
+        return res
+          .status(error.status)
+          .json({ error: error.message, code: error.code });
       }
       return res.status(503).json({
-        error: error instanceof Error ? error.message : "Fixture execution failed.",
+        error:
+          error instanceof Error ? error.message : "Fixture execution failed.",
       });
     }
   });
@@ -653,7 +669,9 @@ async function main(): Promise<void> {
       });
     } catch (error) {
       if (error instanceof AcquisitionSourcingExperimentStoreError) {
-        return res.status(error.status).json({ error: error.message, code: error.code });
+        return res
+          .status(error.status)
+          .json({ error: error.message, code: error.code });
       }
       return res.status(503).json({
         error: error instanceof Error ? error.message : "Fixture close failed.",
