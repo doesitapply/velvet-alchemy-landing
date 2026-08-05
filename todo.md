@@ -1028,7 +1028,7 @@
 ## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
 
 - [ ] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
-- [ ] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
+- [x] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
 - [ ] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
 - [ ] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
 - [ ] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
@@ -1077,3 +1077,11 @@
 - [x] D4: Owner-scoped approveDraft, rejectDraft, sendDraft via assertDraftOwner() helper
 - [x] D6: Replace vacuous if(!db) return guards with proper it.skipIf(!hasDb) in governor.test.ts, onboarding.test.ts, smirkHandoff.test.ts, charmer.sendDirectEmail.test.ts
 - [x] Test quality: 88/88 in Manus runtime; ~53 portable unit tests pass outside Manus (remainder properly skip via it.skipIf)
+
+## SMIRK Usability — Use From SMIRK (CURRENT)
+- [x] Add handoff:write and outcome:write scopes to SCOPE_OPTIONS in ApiKeys.tsx
+- [x] Add "SMIRK Integration" preset button that auto-selects outcome:write scope and names key "SMIRK Outcome Webhook"
+- [x] Add SMIRK Connection panel to ApiKeys page showing: outcome webhook URL, required env vars for Railway, copy buttons
+- [x] Fix /leads/ready scope from leads:read to handoff:write (correct security boundary)
+- [x] Add SMIRK endpoint reference to Quick Reference card (GET /leads/ready, POST /leads/:id/handoff, POST /leads/:id/outcome)
+- [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)

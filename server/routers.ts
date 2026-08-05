@@ -311,6 +311,24 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    smirkStats: protectedProcedure.query(async () => {
+        const orm = await (await import('./db')).getDb();
+        if (!orm) return { queued: 0, contacted: 0, interested: 0, booked: 0, configured: false };
+        const { leads: leadsTable } = await import('../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const { ENV } = await import('./_core/env');
+        const configured = !!(ENV.smirkApiKey && ENV.smirkBaseUrl);
+        const rows = await orm
+          .select({ status: leadsTable.status, outcome: leadsTable.smirkCallOutcome })
+          .from(leadsTable)
+          .where(inArray(leadsTable.status, ['smirk_queued', 'smirk_contacted', 'closed']));
+        const queued = rows.filter(r => r.status === 'smirk_queued').length;
+        const contacted = rows.filter(r => r.status === 'smirk_contacted').length;
+        const interested = rows.filter(r => r.outcome === 'interested').length;
+        const booked = rows.filter(r => r.outcome === 'booked').length;
+        return { queued, contacted, interested, booked, configured };
+      }),
+
     triggerHandoff: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {

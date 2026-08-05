@@ -346,7 +346,7 @@ export function createApiRouter(): Router {
   // Returns audited leads with phone numbers that haven't been handed off to SMIRK yet.
   // Sorted by priorityScore desc, then reviewCount desc.
   // Scope: leads:read
-  r.get("/leads/ready", requireScope("leads:read"), async (req: AuthedRequest, res: Response) => {
+  r.get("/leads/ready", requireScope("handoff:write"), async (req: AuthedRequest, res: Response) => {
     try {
       const limit = Math.min(parseInt(String(req.query.limit ?? "20")), 100);
       const orm = await getDb();

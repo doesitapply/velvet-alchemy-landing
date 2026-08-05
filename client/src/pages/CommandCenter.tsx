@@ -1,8 +1,9 @@
 import AppHeader from "@/components/AppHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Loader2, TrendingUp, Users, CheckCircle2, Zap, Search, Play, Activity } from "lucide-react";
+import { Loader2, TrendingUp, Users, CheckCircle2, Zap, Search, Play, Activity, Phone, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -21,6 +22,8 @@ export default function CommandCenter() {
   const scoreDistQuery = trpc.dashboard.getScoreDistribution.useQuery();
   const batchAuditMutation = trpc.orchestrator.batchAuditAll.useMutation();
   const prescreenAllMutation = trpc.prescreener.prescreenAll.useMutation();
+  const smirkStatsQuery = trpc.leads.smirkStats.useQuery();
+  const smirkStats = smirkStatsQuery.data;
 
   const metrics = metricsQuery.data;
   const pipeline = pipelineQuery.data;
@@ -411,6 +414,52 @@ export default function CommandCenter() {
               </Card>
             )}
           </div>
+
+          {/* SMIRK Integration Status */}
+          <Card className="bg-black/50 border-violet-500/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Phone className="h-4 w-4 text-violet-400" />
+                SMIRK Connection
+                {smirkStats?.configured
+                  ? <Badge className="text-xs bg-green-600/20 text-green-400 border-green-500/30">Connected</Badge>
+                  : <Badge className="text-xs bg-red-600/20 text-red-400 border-red-500/30">Not Configured</Badge>
+                }
+              </CardTitle>
+              <CardDescription>
+                {smirkStats?.configured
+                  ? "SMIRK API key is set. Handoffs are live."
+                  : "Set SMIRK_API_KEY and SMIRK_BASE_URL to enable autonomous calling."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                {[
+                  { label: "Queued", value: smirkStats?.queued ?? 0, color: "text-violet-400" },
+                  { label: "Contacted", value: smirkStats?.contacted ?? 0, color: "text-blue-400" },
+                  { label: "Interested", value: smirkStats?.interested ?? 0, color: "text-green-400" },
+                  { label: "Booked", value: smirkStats?.booked ?? 0, color: "text-amber-400" },
+                ].map(stat => (
+                  <div key={stat.label} className="bg-muted/30 rounded p-3 text-center">
+                    <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Link href="/leads">
+                  <Button size="sm" variant="outline" className="text-xs gap-1">
+                    <Phone className="h-3 w-3" /> View Leads
+                  </Button>
+                </Link>
+                <Link href="/api-keys">
+                  <Button size="sm" variant="outline" className="text-xs gap-1 border-violet-500/30 text-violet-400 hover:bg-violet-500/10">
+                    <ExternalLink className="h-3 w-3" /> SMIRK Setup
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Activity Feed */}
           <ActivityFeed />
