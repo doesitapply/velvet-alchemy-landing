@@ -1,11 +1,9 @@
 /**
  * SMIRK Handoff Integration Tests
  *
- * Validates:
- *   1. buildCallBrief — correct brief construction from lead + audit data
- *   2. queueSmirkCall — correct error handling for leads without phones
- *   3. SMIRK connectivity — correct endpoint, auth, and idempotency contract
- *   4. Synthetic test handoff — 201 RECEIVED on first POST, 200 DUPLICATE on replay
+ * Test categories:
+ *   - DB-dependent tests: skipped (not passed) when DATABASE_URL is absent
+ *   - Live SMIRK tests:   skipped (not passed) when SMIRK_BASE_URL is absent
  *
  * Strict assertions — 404 is a failure. No weakened assertions.
  */
@@ -16,12 +14,16 @@ import { buildCallBrief, queueSmirkCall, sendSyntheticTestHandoff } from "./lib/
 import { getDb } from "./db";
 import { leads, audits } from "../drizzle/schema";
 
+const hasDb = !!process.env.DATABASE_URL;
+const hasSmirk = !!process.env.SMIRK_BASE_URL && !!process.env.SMIRK_API_KEY;
+
 // ─── Test data ────────────────────────────────────────────────────────────────
 
 let testLeadId: number | null = null;
 let testLeadNoPhoneId: number | null = null;
 
 beforeAll(async () => {
+  if (!hasDb) return; // cleanup skipped — no DB
   const db = await getDb();
   if (!db) return;
 
@@ -61,6 +63,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (!hasDb) return;
   const db = await getDb();
   if (!db) return;
   if (testLeadId) await db.delete(leads).where(eq(leads.id, testLeadId));
@@ -70,20 +73,20 @@ afterAll(async () => {
 // ─── buildCallBrief ───────────────────────────────────────────────────────────
 
 describe("buildCallBrief", () => {
-  it("returns null for a lead with no phone number", async () => {
-    if (!testLeadNoPhoneId) return;
-    const brief = await buildCallBrief(testLeadNoPhoneId);
+  it.skipIf(!hasDb)("returns null for a lead with no phone number", async () => {
+    expect(testLeadNoPhoneId).not.toBeNull();
+    const brief = await buildCallBrief(testLeadNoPhoneId!);
     expect(brief).toBeNull();
   });
 
-  it("returns null for a non-existent lead ID", async () => {
+  it.skipIf(!hasDb)("returns null for a non-existent lead ID", async () => {
     const brief = await buildCallBrief(999999999);
     expect(brief).toBeNull();
   });
 
-  it("builds a valid call brief for a lead with phone and audit", async () => {
-    if (!testLeadId) return;
-    const brief = await buildCallBrief(testLeadId);
+  it.skipIf(!hasDb)("builds a valid call brief for a lead with phone and audit", async () => {
+    expect(testLeadId).not.toBeNull();
+    const brief = await buildCallBrief(testLeadId!);
     expect(brief).not.toBeNull();
     expect(brief!.velvetLeadId).toBe(testLeadId);
     expect(brief!.businessName).toBe("Test HVAC Co");
@@ -95,15 +98,15 @@ describe("buildCallBrief", () => {
     expect(brief!.outcomeWebhookUrl).toContain(`/api/v1/leads/${testLeadId}/outcome`);
   });
 
-  it("includes review count signal when reviewCount > 30", async () => {
-    if (!testLeadId) return;
-    const brief = await buildCallBrief(testLeadId);
+  it.skipIf(!hasDb)("includes review count signal when reviewCount > 30", async () => {
+    expect(testLeadId).not.toBeNull();
+    const brief = await buildCallBrief(testLeadId!);
     expect(brief!.signals.some(s => s.includes("87 Google reviews"))).toBe(true);
   });
 
-  it("includes prestige score signal when score < 60", async () => {
-    if (!testLeadId) return;
-    const brief = await buildCallBrief(testLeadId);
+  it.skipIf(!hasDb)("includes prestige score signal when score < 60", async () => {
+    expect(testLeadId).not.toBeNull();
+    const brief = await buildCallBrief(testLeadId!);
     expect(brief!.signals.some(s => s.includes("45/100"))).toBe(true);
   });
 });
@@ -111,14 +114,14 @@ describe("buildCallBrief", () => {
 // ─── queueSmirkCall error paths ───────────────────────────────────────────────
 
 describe("queueSmirkCall", () => {
-  it("returns error for lead with no phone", async () => {
-    if (!testLeadNoPhoneId) return;
-    const result = await queueSmirkCall(testLeadNoPhoneId);
+  it.skipIf(!hasDb)("returns error for lead with no phone", async () => {
+    expect(testLeadNoPhoneId).not.toBeNull();
+    const result = await queueSmirkCall(testLeadNoPhoneId!);
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/phone/i);
   });
 
-  it("returns error for non-existent lead", async () => {
+  it.skipIf(!hasDb)("returns error for non-existent lead", async () => {
     const result = await queueSmirkCall(999999999);
     expect(result.success).toBe(false);
   });
@@ -129,15 +132,9 @@ describe("queueSmirkCall", () => {
 describe("SMIRK live integration", () => {
   const syntheticSuffix = `test-${Date.now()}`;
 
-  it(
+  it.skipIf(!hasSmirk)(
     "synthetic handoff: first POST returns 201 RECEIVED",
     async () => {
-      const smirkBaseUrl = process.env.SMIRK_BASE_URL;
-      if (!smirkBaseUrl) {
-        console.warn("SMIRK_BASE_URL not set — skipping live test");
-        return;
-      }
-
       const result = await sendSyntheticTestHandoff(syntheticSuffix);
 
       console.log(`Synthetic handoff result: HTTP ${result.httpStatus} state=${result.state} jobId=${result.jobId}`);
@@ -154,15 +151,9 @@ describe("SMIRK live integration", () => {
     20_000
   );
 
-  it(
+  it.skipIf(!hasSmirk)(
     "synthetic handoff: exact replay returns 200 DUPLICATE",
     async () => {
-      const smirkBaseUrl = process.env.SMIRK_BASE_URL;
-      if (!smirkBaseUrl) {
-        console.warn("SMIRK_BASE_URL not set — skipping live test");
-        return;
-      }
-
       // Replay the exact same suffix — must be DUPLICATE
       const result = await sendSyntheticTestHandoff(syntheticSuffix);
 

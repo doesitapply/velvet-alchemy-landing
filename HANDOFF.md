@@ -1,6 +1,6 @@
 # Velvet Alchemy — Operator Handoff Document
 
-**Checkpoint:** `e9f88818` | **Date:** 2026-07-29 | **Tests:** 88/88 passing | **TypeScript:** Clean
+**Checkpoint:** post-hardening | **Date:** 2026-08-04 | **Tests:** 88/88 in Manus runtime | **TypeScript:** Clean
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -296,7 +296,7 @@ The intended operator loop is:
 |---|---|---|
 | `pnpm db:push` fails (migration journal drift) | Medium — schema changes must be applied via SQL | Apply via `webdev_execute_sql` or DB panel |
 | Google AI key (`AQ.*`) is a short-lived OAuth token | High — Gemini fallback will die | Get permanent `AIzaSy*` key from aistudio.google.com/apikey |
-| SMIRK receiver not yet deployed to production | Blocks real handoffs | Deploy SMIRK commit `2138435` to Railway |
+| SMIRK receiver deployed at commit `2138435` | ✅ Resolved — live at smirkcalls.com | Synthetic test confirmed: 201 RECEIVED + 200 DUPLICATE |
 
 ### Deferred Features
 
@@ -315,14 +315,14 @@ The intended operator loop is:
 
 ## Test Suite
 
-**88/88 tests passing** across 16 test files.
+**88/88 tests passing** in the Manus runtime (integration tests requiring injected database, LLM, and storage credentials). Outside Manus: ~53 tests pass as portable unit tests; the remainder properly skip via `it.skipIf` guards rather than returning vacuously. This is the correct behavior — do not treat skipped tests as failures.
 
 ```
 server/auth.logout.test.ts          Auth flow
 server/activityFeed.test.ts         Activity feed
 server/apiKey.test.ts               API key CRUD
 server/charmer.test.ts              Outreach generation (LLM, 30s timeout)
-server/charmer.sendDirectEmail.test.ts  Direct email send
+server/charmer.sendDirectEmail.test.ts  Verifies sendDirectEmail is disabled (D2 hardening)
 server/curator.test.ts              Full pipeline: scrape → audit (LLM, 30s timeout)
 server/governor.test.ts             Rate limits, kill-switch, domain blacklist
 server/onboarding.test.ts           Onboarding wizard + Stripe
