@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { Server } from "node:http";
 import express from "express";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
@@ -53,39 +54,51 @@ describe.skipIf(!process.env.DATABASE_URL)("GET /api/v1/leads/ready", () => {
     const rawKey = `va_live_ready_${crypto.randomBytes(18).toString("hex")}`;
     const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
     const userId = Math.floor(Date.now() / 1000);
-    const [key] = await orm.insert(apiKeys).values({
-      userId,
-      name: "ready endpoint integration test",
-      keyHash,
-      keyPrefix: rawKey.slice(0, 12),
-      scopes: JSON.stringify(["handoff:write"]),
-      isActive: true,
-    }).$returningId();
-    const [lead] = await orm.insert(leads).values({
-      userId,
-      companyName: "Ready Endpoint Test Co",
-      websiteUrl: "https://ready-endpoint.example.com",
-      status: "audited",
-      phone: "+12025550127",
-    }).$returningId();
-    const [audit] = await orm.insert(audits).values({
-      leadId: lead.id,
-      summary: "The primary contact action needs review.",
-      visualDebtData: JSON.stringify({
-        visualDebt: [{
-          category: "ux",
-          severity: "high",
-          issue: "The primary contact action is difficult to locate",
-          recommendation: "Make the contact action persistent",
-        }],
-      }),
-    }).$returningId();
-
-    const app = express();
-    app.use("/api/v1", createApiRouter());
-    const server = app.listen(0);
+    let keyId: number | null = null;
+    let leadId: number | null = null;
+    let auditId: number | null = null;
+    let server: Server | null = null;
 
     try {
+      const [key] = await orm.insert(apiKeys).values({
+        userId,
+        name: "ready endpoint integration test",
+        keyHash,
+        keyPrefix: rawKey.slice(0, 12),
+        scopes: JSON.stringify(["handoff:write"]),
+        isActive: true,
+      }).$returningId();
+      if (!key?.id) throw new Error("Failed to create the test API key");
+      keyId = key.id;
+
+      const [lead] = await orm.insert(leads).values({
+        userId,
+        companyName: "Ready Endpoint Test Co",
+        websiteUrl: "https://ready-endpoint.example.com",
+        status: "audited",
+        phone: "+12025550127",
+      }).$returningId();
+      if (!lead?.id) throw new Error("Failed to create the test lead");
+      leadId = lead.id;
+
+      const [audit] = await orm.insert(audits).values({
+        leadId,
+        summary: "The primary contact action needs review.",
+        visualDebtData: JSON.stringify({
+          visualDebt: [{
+            category: "ux",
+            severity: "high",
+            issue: "The primary contact action is difficult to locate",
+            recommendation: "Make the contact action persistent",
+          }],
+        }),
+      }).$returningId();
+      if (!audit?.id) throw new Error("Failed to create the test audit");
+      auditId = audit.id;
+
+      const app = express();
+      app.use("/api/v1", createApiRouter());
+      server = app.listen(0);
       const address = server.address();
       if (!address || typeof address === "string") {
         throw new Error("Failed to start integration test server");
@@ -100,7 +113,7 @@ describe.skipIf(!process.env.DATABASE_URL)("GET /api/v1/leads/ready", () => {
           callBrief: { openingLine: string };
         }>;
       };
-      const returnedLead = body.leads?.find(row => row.id === lead.id);
+      const returnedLead = body.leads?.find(row => row.id === leadId);
 
       expect(response.status).toBe(200);
       expect(returnedLead?.callBrief.openingLine).toContain(
@@ -110,12 +123,14 @@ describe.skipIf(!process.env.DATABASE_URL)("GET /api/v1/leads/ready", () => {
         /mobile booking issue/i,
       );
     } finally {
-      await new Promise<void>((resolve, reject) => {
-        server.close(error => error ? reject(error) : resolve());
-      });
-      await orm.delete(audits).where(eq(audits.id, audit.id));
-      await orm.delete(leads).where(eq(leads.id, lead.id));
-      await orm.delete(apiKeys).where(eq(apiKeys.id, key.id));
+      if (server) {
+        await new Promise<void>((resolve, reject) => {
+          server!.close(error => error ? reject(error) : resolve());
+        });
+      }
+      if (auditId !== null) await orm.delete(audits).where(eq(audits.id, auditId));
+      if (leadId !== null) await orm.delete(leads).where(eq(leads.id, leadId));
+      if (keyId !== null) await orm.delete(apiKeys).where(eq(apiKeys.id, keyId));
     }
   });
 });
