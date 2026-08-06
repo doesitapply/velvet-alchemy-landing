@@ -6,9 +6,12 @@ import { getDb } from "../db";
 const SMIRK_HANDOFF_PATH = "/api/integrations/velvet/handoffs";
 const SMIRK_HANDOFF_ATTEMPT_ACTION = "smirk_handoff_attempt_v1";
 const SMIRK_HANDOFF_RESOURCE = "leads";
-const SMIRK_HANDOFF_REASON =
+const SMIRK_HANDOFF_ATTEMPT_VERSION = 1 as const;
+// Version-one values are part of the durable frozen-attempt contract. Do not
+// change them in place; introduce a new attempt version and reader instead.
+const SMIRK_HANDOFF_REASON_V1 =
   "Human-review handoff from Velvet Alchemy. No external contact is authorized.";
-const SMIRK_HANDOFF_RECOMMENDED_ACTION =
+const SMIRK_HANDOFF_RECOMMENDED_ACTION_V1 =
   "Human review only. Decide whether a manual demo invitation is appropriate.";
 
 export interface SmirkHandoffPayload {
@@ -119,7 +122,7 @@ type SmirkHandoffFailure = {
 };
 
 type SmirkHandoffAttempt = {
-  version: 1;
+  version: typeof SMIRK_HANDOFF_ATTEMPT_VERSION;
   state: "prepared" | "finalized" | "blocked";
   leadId: number;
   userId: number;
@@ -218,9 +221,11 @@ function payloadSha256(payload: SmirkHandoffPayload): string {
 
 function isSafeFrozenPayload(
   value: unknown,
+  version: unknown,
   workspaceId: number,
   externalId: string,
 ): value is SmirkHandoffPayload {
+  if (version !== SMIRK_HANDOFF_ATTEMPT_VERSION) return false;
   if (!isRecord(value) || !hasOnlyKeys(value, [
     "workspaceId",
     "externalId",
@@ -242,8 +247,8 @@ function isSafeFrozenPayload(
   return value.workspaceId === workspaceId
     && value.externalId === externalId
     && /^[A-Za-z0-9:_-]{1,180}$/.test(externalId)
-    && value.reason === SMIRK_HANDOFF_REASON
-    && value.recommendedAction === SMIRK_HANDOFF_RECOMMENDED_ACTION
+    && value.reason === SMIRK_HANDOFF_REASON_V1
+    && value.recommendedAction === SMIRK_HANDOFF_RECOMMENDED_ACTION_V1
     && value.urgency === "normal"
     && (value.companyName === undefined || isBoundedString(value.companyName, 255))
     && (value.transcriptSnippet === undefined || isBoundedString(value.transcriptSnippet, 500))
@@ -347,21 +352,26 @@ function readHandoffAttempt(
     "failure",
   ])) return null;
   if (
-    value.version !== 1
+    value.version !== SMIRK_HANDOFF_ATTEMPT_VERSION
     || (value.state !== "prepared" && value.state !== "finalized" && value.state !== "blocked")
     || value.leadId !== expected.leadId
     || value.userId !== expected.userId
     || value.workspaceId !== expected.workspaceId
     || value.externalId !== expected.externalId
     || !isIsoTimestamp(value.preparedAt)
-    || !isSafeFrozenPayload(value.payload, expected.workspaceId, expected.externalId)
+    || !isSafeFrozenPayload(
+      value.payload,
+      value.version,
+      expected.workspaceId,
+      expected.externalId,
+    )
     || typeof value.payloadSha256 !== "string"
     || !/^[a-f0-9]{64}$/.test(value.payloadSha256)
     || payloadSha256(value.payload) !== value.payloadSha256
   ) return null;
 
   const base = {
-    version: 1 as const,
+    version: SMIRK_HANDOFF_ATTEMPT_VERSION,
     leadId: expected.leadId,
     userId: expected.userId,
     workspaceId: expected.workspaceId,
@@ -751,15 +761,15 @@ async function prepareHandoffAttempt(
         ...(brief.ownerName && { name: brief.ownerName }),
       },
       companyName: brief.businessName,
-      reason: SMIRK_HANDOFF_REASON,
+      reason: SMIRK_HANDOFF_REASON_V1,
       urgency: "normal",
       transcriptSnippet: brief.openingLine,
-      recommendedAction: SMIRK_HANDOFF_RECOMMENDED_ACTION,
+      recommendedAction: SMIRK_HANDOFF_RECOMMENDED_ACTION_V1,
       notes: `Internal audit summary for review: ${brief.auditSummary.slice(0, 300)}`,
     };
     const now = new Date().toISOString();
     const attempt: SmirkHandoffAttempt = {
-      version: 1,
+      version: SMIRK_HANDOFF_ATTEMPT_VERSION,
       state: "prepared",
       leadId,
       userId,
