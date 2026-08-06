@@ -263,21 +263,11 @@ export async function enrichLead(lead: {
         `[Enrichment] Found verified email for ${lead.companyName}: ${contact.email} (${contact.confidence}% confidence via ${contact.source})`
       );
     } else if (lead.phone) {
-      // No verified email — fall back to SMS if phone is available
+      // No verified email — mark SMS as available channel but DO NOT auto-send.
+      // Operator must explicitly approve an SMS draft before any message is sent.
       outreachChannel = "sms";
-      console.log(`[Enrichment] No email found for ${lead.companyName}, routing to SMS: ${lead.phone}`);
-
-      const smsResult = await sendSmsOutreach({
-        toPhone: lead.phone,
-        companyName: lead.companyName,
-        prestigeScore: lead.prestigeScore ?? 50,
-        leadId: lead.id,
-      });
-
-      smsSent = smsResult.success;
-      if (!smsResult.success) {
-        console.warn(`[Enrichment] SMS failed for ${lead.companyName}: ${smsResult.error}`);
-      }
+      console.log(`[Enrichment] No email found for ${lead.companyName} — SMS channel available (phone: ${lead.phone}). Requires operator approval before sending.`);
+      // smsSent remains false — no automatic outreach
     } else {
       console.log(`[Enrichment] No email or phone for ${lead.companyName} — no outreach channel available`);
     }

@@ -58,7 +58,7 @@ describe.skipIf(!process.env.DATABASE_URL)("GET /api/v1/leads/ready", () => {
       name: "ready endpoint integration test",
       keyHash,
       keyPrefix: rawKey.slice(0, 12),
-      scopes: JSON.stringify(["leads:read"]),
+      scopes: JSON.stringify(["handoff:write"]),
       isActive: true,
     }).$returningId();
     const [lead] = await orm.insert(leads).values({

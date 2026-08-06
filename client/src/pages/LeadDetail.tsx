@@ -263,7 +263,9 @@ export default function LeadDetail() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {['audited', 'contacted'].includes(lead.status) && (lead as any).phone && (
+              {['audited', 'contacted'].includes(lead.status)
+                && (lead as any).phone
+                && !(lead as any).smirkHandoffAt && (
                 <Button
                   onClick={() => triggerHandoff.mutate({ id: lead.id })}
                   disabled={triggerHandoff.isPending}

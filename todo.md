@@ -1027,24 +1027,33 @@
 
 ## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
 
-- [x] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
-- [x] Add a review-only handoff:write scope; defer outcome callbacks until SMIRK implements and verifies that contract
-- [x] Create server/lib/smirkHandoff.ts (review brief builder + fail-closed handoff client)
-- [x] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
-- [x] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/outcome endpoint (deferred until SMIRK implements and verifies the callback contract)
-- [x] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
-- [x] Save SMIRK secrets in the Manus deployment environment
-- [x] Write mocked contract tests plus an explicit opt-in live idempotency test
-- [ ] Run full test suite with database, storage proxy, and AI test credentials
-- [x] Save hardening checkpoint on a dedicated branch
+- [x] Add canonical `0022` enum/column migration and an exact-definition, preflight/postflight apply command
+- [x] Verify the live schema as already current without blind Drizzle replay or migration-ledger stamping
+- [x] Keep `handoff:write` review-only: GET `/leads/ready` and POST `/leads/:id/handoff` do not authorize or place calls
+- [x] Derive opening copy from audit evidence, with a neutral fallback when reliable evidence is unavailable
+- [x] Add SMIRK_BASE_URL, SMIRK_API_KEY, and SMIRK_WORKSPACE_ID to the deployment environment
+- [x] Add fail-closed mocked contract tests and an explicit opt-in live idempotency test
+- [ ] Verify production use of the former outcome callback before any reintroduction; `outcome:write` and POST `/leads/:id/outcome` remain intentionally unavailable until the sender contract is verified
+- [ ] Run the full credentialed suite with database, storage-proxy, and AI test credentials
 
 ## UI Coherence Pass
 - [x] Replace landing page with minimal auth gate (name + one line + login button)
 - [x] Root / redirects to /command-center when authenticated, to login gate when not
 - [x] Remove all "$5K paychecks" / SaaS marketing copy from codebase
-- [x] Add historical SMIRK status badges to lead list
-- [x] Add SMIRK review-handoff panel to LeadDetail
-- [x] Add review-handoff button to LeadDetail for audited leads with phone numbers
-- [x] Add leads.triggerHandoff tRPC mutation using the review-only handoff client
-- [x] Status color map updated to include historical SMIRK statuses
+- [x] Preserve historical SMIRK status and outcome fields without presenting an active callback contract
+- [x] Add a review-handoff panel and button for audited leads with phone numbers
+- [x] Add leads.triggerHandoff using the review-only handoff client
+
+## Hardening Pass — Fail-Closed Defects
+- [x] Remove automatic SMS sending from enrichment; outreachChannel is now a signal only
+- [x] Disable direct email sending and route operators to the draft-approval flow
+- [x] Owner-scope draft approval, rejection, and sending
+- [x] Make credential-dependent tests skip explicitly when their required services are unavailable
+- [x] Owner-scope SMIRK dashboard statistics
+
+## SMIRK Usability — Review Handoff
+- [x] Offer only the server-supported `handoff:write` scope and review-handoff preset
+- [x] Document the review-ready and review-handoff endpoints without outcome or autonomous-call claims
+- [x] Enforce `handoff:write` on GET `/leads/ready`
+- [x] Label configuration presence separately from confirmed delivery
+- [ ] Outcome webhook wiring remains deferred pending a verified SMIRK sender contract

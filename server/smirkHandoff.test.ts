@@ -1,6 +1,6 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
-import { audits, leads } from "../drizzle/schema";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { and, eq } from "drizzle-orm";
+import { auditLog, audits, leads } from "../drizzle/schema";
 import { getDb } from "./db";
 import {
   buildAuditEvidenceOpeningLine,
@@ -67,6 +67,11 @@ afterAll(async () => {
   const db = await getDb();
   if (!db) return;
   if (testLeadId) {
+    await db.delete(auditLog).where(and(
+      eq(auditLog.userId, TEST_USER_ID),
+      eq(auditLog.action, "smirk_handoff_attempt_v1"),
+      eq(auditLog.resourceId, testLeadId),
+    ));
     await db.delete(audits).where(eq(audits.leadId, testLeadId));
     await db.delete(leads).where(eq(leads.id, testLeadId));
   }
@@ -84,6 +89,10 @@ describe.skipIf(!process.env.DATABASE_URL)("buildCallBrief", () => {
     expect(await buildCallBrief(testLeadId!, TEST_USER_ID + 1)).toBeNull();
   });
 
+  it("returns null for a non-existent lead", async () => {
+    expect(await buildCallBrief(999999999, TEST_USER_ID)).toBeNull();
+  });
+
   it("builds evidence-derived review-only copy without unsupported loss claims", async () => {
     await ensureTestLeads();
     const brief = await buildCallBrief(testLeadId!, TEST_USER_ID);
@@ -92,6 +101,9 @@ describe.skipIf(!process.env.DATABASE_URL)("buildCallBrief", () => {
     expect(brief!.phoneNumber).toBe("+17755550001");
     expect(brief!.openingLine).toContain("mobile contact path");
     expect(brief!.openingLine).not.toMatch(/costing you|losing money|lost revenue/i);
+    expect(brief!.signals).toContain("87 public reviews");
+    expect(brief!.signals).toContain("4.6 public rating");
+    expect(brief!.signals).toContain("Internal website review score 45/100");
   });
 });
 
@@ -144,11 +156,36 @@ describe("audit-grounded opening copy", () => {
       "The main navigation lacks a visible contact path",
     );
   });
+
+  it("rejects failure markers that appear after the display truncation boundary", () => {
+    const openingLine = buildAuditEvidenceOpeningLine("Example Plumbing", {
+      summary: `${"A".repeat(260)} automated audit failed due to an upstream timeout`,
+      visualDebtData: null,
+    });
+
+    expect(openingLine).toBe(
+      "Complete a human review for Example Plumbing before deciding whether any manual outreach is appropriate.",
+    );
+  });
 });
 
 describe.skipIf(!process.env.DATABASE_URL)("createSmirkHandoff", () => {
-  it("does not call SMIRK for a missing or unowned lead", async () => {
+  beforeEach(async () => {
     await ensureTestLeads();
+    const db = await getDb();
+    if (!db) throw new Error("DATABASE_URL is required for DB-backed SMIRK tests");
+    await db.delete(auditLog).where(and(
+      eq(auditLog.userId, TEST_USER_ID),
+      eq(auditLog.action, "smirk_handoff_attempt_v1"),
+      eq(auditLog.resourceId, testLeadId!),
+    ));
+    await db.update(leads).set({
+      smirkHandoffAt: null,
+      smirkWorkspaceId: null,
+    }).where(and(eq(leads.id, testLeadId!), eq(leads.userId, TEST_USER_ID)));
+  });
+
+  it("does not call SMIRK for a missing or unowned lead", async () => {
     const fetchImpl = vi.fn();
     const result = await createSmirkHandoff(testLeadId!, TEST_USER_ID + 1, {
       env: configuredEnv,
@@ -159,21 +196,25 @@ describe.skipIf(!process.env.DATABASE_URL)("createSmirkHandoff", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("uses a stable external ID and preserves SMIRK record identifiers", async () => {
-    await ensureTestLeads();
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
+  it("freezes the payload before delivery and blocks re-delivery after local finalization", async () => {
+    const fetchImpl = vi.fn().mockImplementationOnce(async (_input, init) => {
+      const db = await getDb();
+      const rows = await db!.select().from(auditLog).where(and(
+        eq(auditLog.userId, TEST_USER_ID),
+        eq(auditLog.action, "smirk_handoff_attempt_v1"),
+        eq(auditLog.resourceId, testLeadId!),
+      ));
+      expect(rows).toHaveLength(1);
+      const frozen = JSON.parse(rows[0].details!);
+      expect(frozen.state).toBe("prepared");
+      expect(frozen.payload).toEqual(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({
         ok: true,
         state: "RECEIVED",
         handoffId: 51,
         taskId: 61,
-      }), { status: 201 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        ok: true,
-        state: "DUPLICATE",
-        handoffId: 51,
-        taskId: 61,
-      }), { status: 200 }));
+      }), { status: 201 });
+    });
 
     const first = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
       env: configuredEnv,
@@ -192,16 +233,115 @@ describe.skipIf(!process.env.DATABASE_URL)("createSmirkHandoff", () => {
     });
     expect(replay).toMatchObject({
       success: true,
-      state: "DUPLICATE",
+      state: "RECEIVED",
       handoffId: 51,
       taskId: 61,
     });
 
     const firstBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
-    const replayBody = JSON.parse(fetchImpl.mock.calls[1][1].body);
     expect(firstBody.externalId).toBe(`velvet-lead-${testLeadId}`);
-    expect(replayBody.externalId).toBe(firstBody.externalId);
     expect(firstBody.recommendedAction).toContain("Human review only");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles an ambiguous delivery by replaying the exact frozen payload", async () => {
+    const sentBodies: string[] = [];
+    const fetchImpl = vi.fn()
+      .mockImplementationOnce(async (_input, init) => {
+        sentBodies.push(String(init?.body));
+        throw new Error("Connection dropped after the receiver may have committed");
+      })
+      .mockImplementationOnce(async (_input, init) => {
+        sentBodies.push(String(init?.body));
+        return new Response(JSON.stringify({
+          ok: true,
+          state: "DUPLICATE",
+          handoffId: 91,
+          taskId: 101,
+        }), { status: 200 });
+      });
+
+    const ambiguous = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
+      env: configuredEnv,
+      fetchImpl,
+    });
+    expect(ambiguous).toMatchObject({
+      success: false,
+      code: "SMIRK_HANDOFF_NETWORK_ERROR",
+      retryable: true,
+    });
+
+    const reconciled = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
+      env: configuredEnv,
+      fetchImpl,
+    });
+    expect(reconciled).toMatchObject({
+      success: true,
+      state: "DUPLICATE",
+      handoffId: 91,
+      taskId: 101,
+    });
+    expect(sentBodies[1]).toBe(sentBodies[0]);
+
+    const localReplay = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
+      env: configuredEnv,
+      fetchImpl,
+    });
+    expect(localReplay).toMatchObject({ success: true, handoffId: 91, taskId: 101 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+    const db = await getDb();
+    const [lead] = await db!.select().from(leads).where(and(
+      eq(leads.id, testLeadId!),
+      eq(leads.userId, TEST_USER_ID),
+    ));
+    expect(lead.smirkHandoffAt).not.toBeNull();
+  });
+
+  it("fails closed without delivery when the frozen attempt is corrupt", async () => {
+    const db = await getDb();
+    await db!.insert(auditLog).values({
+      userId: TEST_USER_ID,
+      action: "smirk_handoff_attempt_v1",
+      resource: "leads",
+      resourceId: testLeadId!,
+      details: "{not-json",
+      status: "blocked",
+    });
+    const fetchImpl = vi.fn();
+
+    const result = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
+      env: configuredEnv,
+      fetchImpl,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "SMIRK_HANDOFF_ATTEMPT_CORRUPT",
+      retryable: false,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("blocks legacy re-delivery when a finalized lead has no frozen attempt", async () => {
+    const db = await getDb();
+    await db!.update(leads).set({
+      smirkHandoffAt: new Date(),
+      smirkWorkspaceId: configuredEnv.SMIRK_WORKSPACE_ID,
+    }).where(and(eq(leads.id, testLeadId!), eq(leads.userId, TEST_USER_ID)));
+    const fetchImpl = vi.fn();
+
+    const result = await createSmirkHandoff(testLeadId!, TEST_USER_ID, {
+      env: configuredEnv,
+      fetchImpl,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      code: "SMIRK_HANDOFF_FINALIZED_WITHOUT_ATTEMPT",
+      retryable: false,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
 
@@ -257,19 +397,26 @@ describe("SMIRK receiver contract", () => {
     });
   });
 
-  it("fails closed when a success-shaped response lacks a persisted handoff ID", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      state: "RECEIVED",
-    }), { status: 201 }));
+  it("keeps malformed 2xx responses reconcilable without claiming persistence", async () => {
+    const responses = [
+      new Response(JSON.stringify({ ok: true, state: "RECEIVED" }), { status: 201 }),
+      new Response("accepted", { status: 201 }),
+    ];
 
-    const result = await sendSyntheticTestHandoff("unit-missing-id", {
-      env: configuredEnv,
-      fetchImpl,
-    });
+    for (const [index, response] of responses.entries()) {
+      const fetchImpl = vi.fn().mockResolvedValue(response);
+      const result = await sendSyntheticTestHandoff(`unit-invalid-confirmation-${index}`, {
+        env: configuredEnv,
+        fetchImpl,
+      });
 
-    expect(result.success).toBe(false);
-    expect(result.code).toBe("SMIRK_HANDOFF_REJECTED");
+      expect(result).toMatchObject({
+        success: false,
+        retryable: true,
+        reconciliationRequired: true,
+      });
+      expect(result.code).toMatch(/^SMIRK_HANDOFF_INVALID_/);
+    }
   });
 
   it("accepts a conflict only with SMIRK's exact idempotency code", async () => {
@@ -347,7 +494,11 @@ describe("SMIRK receiver contract", () => {
       fetchImpl,
     });
     expect(result.success).toBe(false);
-    expect(result.code).toBe("SMIRK_HANDOFF_REJECTED");
+    expect(result).toMatchObject({
+      code: "SMIRK_HANDOFF_INVALID_CONFIRMATION",
+      retryable: true,
+      reconciliationRequired: true,
+    });
   });
 
   it("rejects malformed synthetic IDs before making a request", async () => {

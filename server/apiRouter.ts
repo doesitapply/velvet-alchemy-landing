@@ -345,8 +345,8 @@ export function createApiRouter(): Router {
   // ── GET /api/v1/leads/ready ────────────────────────────────────────────────
   // Returns audited leads with phone numbers that haven't been handed off to SMIRK yet.
   // Sorted by priorityScore desc, then reviewCount desc.
-  // Scope: leads:read
-  r.get("/leads/ready", requireScope("leads:read"), async (req: AuthedRequest, res: Response) => {
+  // Scope: handoff:write
+  r.get("/leads/ready", requireScope("handoff:write"), async (req: AuthedRequest, res: Response) => {
     try {
       const requestedLimit = Number(req.query.limit ?? 20);
       const limit = Number.isSafeInteger(requestedLimit)

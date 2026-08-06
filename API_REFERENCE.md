@@ -24,7 +24,7 @@
 | GET | `/api/v1/status` | any | Health check, confirm auth |
 | GET | `/api/v1/leads` | `leads:read` | List leads (filter by status, paginate) |
 | GET | `/api/v1/leads/:id` | `leads:read` | Get lead + latest audit |
-| GET | `/api/v1/leads/ready` | `leads:read` | List audited phone leads not yet handed off |
+| GET | `/api/v1/leads/ready` | `handoff:write` | List audited phone leads not yet handed off |
 | POST | `/api/v1/leads` | `leads:write` | Create lead manually |
 | POST | `/api/v1/scrape` | `scrape` | Search Google Maps — returns raw results, no DB save |
 | POST | `/api/v1/leads/:id/audit` | `audit` | Run AI audit on existing lead |

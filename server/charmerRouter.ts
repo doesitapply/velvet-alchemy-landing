@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { leads, audits, assets, campaigns, outreachDrafts } from "../drizzle/schema";
@@ -7,9 +8,36 @@ import { generateOutreachCopy } from "./charmer";
 import { sendEmail } from "./gmail";
 import { logAudit } from "./governor";
 
+// ─── Ownership helper ─────────────────────────────────────────────────────────
+/**
+ * Verify a draft belongs to the calling user by joining through campaigns.
+ * Throws FORBIDDEN if the draft does not exist or belongs to another user.
+ */
+async function assertDraftOwner(
+  db: Awaited<ReturnType<typeof getDb>>,
+  draftId: number,
+  userId: number
+): Promise<void> {
+  if (!db) throw new Error("Database not available");
+  const [row] = await db
+    .select({ draftId: outreachDrafts.id })
+    .from(outreachDrafts)
+    .leftJoin(campaigns, eq(outreachDrafts.campaignId, campaigns.id))
+    .where(and(eq(outreachDrafts.id, draftId), eq(campaigns.userId, userId)))
+    .limit(1);
+  if (!row) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Draft not found or does not belong to you.",
+    });
+  }
+}
+
 export const charmerRouter = router({
   /**
-   * Send email directly from lead profile (bypasses draft system)
+   * Direct email send is DISABLED.
+   * All outreach must go through the draft → approve → send flow.
+   * Use charmer.generateDraft + charmer.approveDraft + charmer.sendDraft instead.
    */
   sendDirectEmail: protectedProcedure
     .input(
@@ -20,49 +48,12 @@ export const charmerRouter = router({
         body: z.string().min(1),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Database not available");
-
-      // Verify lead exists and belongs to user
-      const [lead] = await db.select().from(leads).where(eq(leads.id, input.leadId)).limit(1);
-      if (!lead) throw new Error("Lead not found");
-
-      // Send email via Gmail MCP
-      const result = await sendEmail({
-        to: input.to,
-        subject: input.subject,
-        body: input.body,
+    .mutation(async () => {
+      throw new TRPCError({
+        code: "METHOD_NOT_SUPPORTED",
+        message:
+          "Direct email send is disabled. Use generateDraft → approveDraft → sendDraft to send outreach.",
       });
-
-      if (!result.success) {
-        // Log failure
-        await logAudit({
-          userId: ctx.user.id,
-          action: "direct_email_failed",
-          resource: "leads",
-          resourceId: input.leadId,
-          details: JSON.stringify({ error: result.error, to: input.to }),
-          status: "failure",
-        });
-
-        throw new Error(`Failed to send email: ${result.error}`);
-      }
-
-      // Log success
-      await logAudit({
-        userId: ctx.user.id,
-        action: "direct_email_sent",
-        resource: "leads",
-        resourceId: input.leadId,
-        details: JSON.stringify({ to: input.to, subject: input.subject, messageId: result.messageId }),
-        status: "success",
-      });
-
-      return {
-        success: true,
-        messageId: result.messageId,
-      };
     }),
 
   /**
@@ -107,7 +98,7 @@ export const charmerRouter = router({
         })
         .$returningId();
 
-      // Create draft
+      // Create draft — always starts as pending_approval
       const [draft] = await db
         .insert(outreachDrafts)
         .values({
@@ -139,7 +130,7 @@ export const charmerRouter = router({
     }),
 
   /**
-   * List all drafts (with optional filtering)
+   * List all drafts (with optional filtering) — scoped to calling user
    */
   listDrafts: protectedProcedure
     .input(
@@ -185,7 +176,7 @@ export const charmerRouter = router({
     }),
 
   /**
-   * Get draft by ID
+   * Get draft by ID — scoped to calling user
    */
   getDraft: protectedProcedure
     .input(
@@ -211,12 +202,12 @@ export const charmerRouter = router({
         )
         .limit(1);
 
-      if (!result) throw new Error("Draft not found");
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
       return result;
     }),
 
   /**
-   * Approve draft
+   * Approve draft — owner-scoped
    */
   approveDraft: protectedProcedure
     .input(
@@ -228,6 +219,9 @@ export const charmerRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
+      // Verify ownership before mutating
+      await assertDraftOwner(db, input.draftId, ctx.user.id);
+
       await db
         .update(outreachDrafts)
         .set({
@@ -237,7 +231,6 @@ export const charmerRouter = router({
         })
         .where(eq(outreachDrafts.id, input.draftId));
 
-      // Log audit event
       await logAudit({
         userId: ctx.user.id,
         action: "draft_approved",
@@ -250,7 +243,7 @@ export const charmerRouter = router({
     }),
 
   /**
-   * Reject draft
+   * Reject draft — owner-scoped
    */
   rejectDraft: protectedProcedure
     .input(
@@ -263,6 +256,9 @@ export const charmerRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
+      // Verify ownership before mutating
+      await assertDraftOwner(db, input.draftId, ctx.user.id);
+
       await db
         .update(outreachDrafts)
         .set({
@@ -271,7 +267,6 @@ export const charmerRouter = router({
         })
         .where(eq(outreachDrafts.id, input.draftId));
 
-      // Log audit event
       await logAudit({
         userId: ctx.user.id,
         action: "draft_rejected",
@@ -285,7 +280,7 @@ export const charmerRouter = router({
     }),
 
   /**
-   * Send approved draft via Gmail
+   * Send approved draft via Gmail — owner-scoped
    */
   sendDraft: protectedProcedure
     .input(
@@ -297,6 +292,9 @@ export const charmerRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
+      // Verify ownership before fetching or sending
+      await assertDraftOwner(db, input.draftId, ctx.user.id);
+
       // Fetch draft
       const [draft] = await db
         .select()
@@ -304,9 +302,12 @@ export const charmerRouter = router({
         .where(eq(outreachDrafts.id, input.draftId))
         .limit(1);
 
-      if (!draft) throw new Error("Draft not found");
+      if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
       if (draft.status !== "approved") {
-        throw new Error("Draft must be approved before sending");
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Draft must be approved before sending",
+        });
       }
 
       // Send email via Gmail MCP
@@ -317,7 +318,6 @@ export const charmerRouter = router({
       });
 
       if (!result.success) {
-        // Log failure
         await logAudit({
           userId: ctx.user.id,
           action: "draft_send_failed",
@@ -326,7 +326,6 @@ export const charmerRouter = router({
           details: JSON.stringify({ error: result.error }),
           status: "failure",
         });
-
         throw new Error(`Failed to send email: ${result.error}`);
       }
 
@@ -350,14 +349,10 @@ export const charmerRouter = router({
       if (campaign) {
         await db
           .update(campaigns)
-          .set({
-            status: "sent",
-            sentAt: new Date(),
-          })
+          .set({ status: "sent", sentAt: new Date() })
           .where(eq(campaigns.id, draft.campaignId));
       }
 
-      // Log success
       await logAudit({
         userId: ctx.user.id,
         action: "draft_sent",
@@ -367,9 +362,6 @@ export const charmerRouter = router({
         status: "success",
       });
 
-      return {
-        success: true,
-        messageId: result.messageId,
-      };
+      return { success: true, messageId: result.messageId };
     }),
 });
