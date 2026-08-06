@@ -46,7 +46,15 @@ describe("API Key Generation", () => {
 });
 
 describe("Scope Validation", () => {
-  const VALID_SCOPES = ["leads:read", "leads:write", "scrape", "audit", "pipeline", "*"];
+  const VALID_SCOPES = [
+    "leads:read",
+    "leads:write",
+    "scrape",
+    "audit",
+    "pipeline",
+    "handoff:write",
+    "*",
+  ];
 
   it("wildcard scope covers all operations", () => {
     const userScopes = ["*"];
@@ -57,6 +65,7 @@ describe("Scope Validation", () => {
     expect(hasAccess("scrape")).toBe(true);
     expect(hasAccess("audit")).toBe(true);
     expect(hasAccess("pipeline")).toBe(true);
+    expect(hasAccess("handoff:write")).toBe(true);
   });
 
   it("limited scopes only grant specific access", () => {
@@ -67,6 +76,7 @@ describe("Scope Validation", () => {
     expect(hasAccess("leads:read")).toBe(true);
     expect(hasAccess("scrape")).toBe(false);
     expect(hasAccess("audit")).toBe(false);
+    expect(hasAccess("handoff:write")).toBe(false);
   });
 
   it("all valid scopes are recognized", () => {

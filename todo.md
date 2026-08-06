@@ -1027,61 +1027,33 @@
 
 ## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
 
-- [ ] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
-- [x] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
-- [ ] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
-- [ ] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/outcome endpoint to apiRouter.ts
-- [ ] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
-- [ ] Request SMIRK secrets via webdev_request_secrets
-- [ ] Write integration tests for handoff and outcome endpoints
-- [ ] Run full test suite (pnpm test)
-- [ ] Save checkpoint
+- [x] Add canonical `0022` enum/column migration and an exact-definition, preflight/postflight apply command
+- [x] Verify the live schema as already current without blind Drizzle replay or migration-ledger stamping
+- [x] Keep `handoff:write` review-only: GET `/leads/ready` and POST `/leads/:id/handoff` do not authorize or place calls
+- [x] Derive opening copy from audit evidence, with a neutral fallback when reliable evidence is unavailable
+- [x] Add SMIRK_BASE_URL, SMIRK_API_KEY, and SMIRK_WORKSPACE_ID to the deployment environment
+- [x] Add fail-closed mocked contract tests and an explicit opt-in live idempotency test
+- [ ] Verify production use of the former outcome callback before any reintroduction; `outcome:write` and POST `/leads/:id/outcome` remain intentionally unavailable until the sender contract is verified
+- [ ] Run the full credentialed suite with database, storage-proxy, and AI test credentials
 
 ## UI Coherence Pass
-- [ ] Replace landing page with minimal auth gate (name + one line + login button)
-- [ ] Root / redirects to /command-center when authenticated, to login gate when not
-- [ ] Remove all "$5K paychecks" / SaaS marketing copy from codebase
-- [ ] Add SMIRK status badges to lead list (smirk_queued, smirk_contacted with outcome chip)
-- [ ] Add SMIRK Call Intelligence panel to LeadDetail page
-- [ ] Add "Queue SMIRK Call" button to LeadDetail (visible when lead is audited + has phone)
-- [ ] Add leads.triggerHandoff tRPC mutation (calls queueSmirkCall, returns result)
-- [ ] Status color map updated to include smirk_queued (purple) and smirk_contacted (indigo)
-
-## SMIRK Integration (COMPLETE)
-- [x] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
-- [x] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
-- [x] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
-- [x] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
-- [x] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
-- [x] Add POST /api/v1/leads/:id/outcome endpoint to apiRouter.ts
-- [x] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
-- [x] Write integration tests for handoff and outcome endpoints
-- [x] Synthetic cross-system proof: 201 RECEIVED + 200 DUPLICATE confirmed live
-- [x] Run full test suite — 88/88 passing
-
-## UI Coherence Pass (COMPLETE)
 - [x] Replace landing page with minimal auth gate (name + one line + login button)
 - [x] Root / redirects to /command-center when authenticated, to login gate when not
 - [x] Remove all "$5K paychecks" / SaaS marketing copy from codebase
-- [x] Add SMIRK status badges to lead list (smirk_queued, smirk_contacted with outcome chip)
-- [x] Add SMIRK Call Intelligence panel to LeadDetail page
-- [x] Add "Queue SMIRK Call" button to LeadDetail (visible when lead is audited + has phone)
-- [x] Add leads.triggerHandoff tRPC mutation (calls queueSmirkCall, returns result)
-- [x] Status color map updated to include smirk_queued (purple) and smirk_contacted (indigo)
+- [x] Preserve historical SMIRK status and outcome fields without presenting an active callback contract
+- [x] Add a review-handoff panel and button for audited leads with phone numbers
+- [x] Add leads.triggerHandoff using the review-only handoff client
 
-## Hardening Pass — Fail-Closed Defects (COMPLETE)
-- [x] D1: Remove auto-SMS send from enrichLead() — outreachChannel is now a signal only, no automatic contact
-- [x] D2: Disable sendDirectEmail — throws METHOD_NOT_SUPPORTED, directs to draft approval flow
-- [x] D4: Owner-scoped approveDraft, rejectDraft, sendDraft via assertDraftOwner() helper
-- [x] D6: Replace vacuous if(!db) return guards with proper it.skipIf(!hasDb) in governor.test.ts, onboarding.test.ts, smirkHandoff.test.ts, charmer.sendDirectEmail.test.ts
-- [x] Test quality: 88/88 in Manus runtime; ~53 portable unit tests pass outside Manus (remainder properly skip via it.skipIf)
+## Hardening Pass — Fail-Closed Defects
+- [x] Remove automatic SMS sending from enrichment; outreachChannel is now a signal only
+- [x] Disable direct email sending and route operators to the draft-approval flow
+- [x] Owner-scope draft approval, rejection, and sending
+- [x] Make credential-dependent tests skip explicitly when their required services are unavailable
+- [x] Owner-scope SMIRK dashboard statistics
 
-## SMIRK Usability — Use From SMIRK (CURRENT)
-- [x] Add handoff:write and outcome:write scopes to SCOPE_OPTIONS in ApiKeys.tsx
-- [x] Add "SMIRK Integration" preset button that auto-selects outcome:write scope and names key "SMIRK Outcome Webhook"
-- [x] Add SMIRK Connection panel to ApiKeys page showing: outcome webhook URL, required env vars for Railway, copy buttons
-- [x] Fix /leads/ready scope from leads:read to handoff:write (correct security boundary)
-- [x] Add SMIRK endpoint reference to Quick Reference card (GET /leads/ready, POST /leads/:id/handoff, POST /leads/:id/outcome)
-- [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
+## SMIRK Usability — Review Handoff
+- [x] Offer only the server-supported `handoff:write` scope and review-handoff preset
+- [x] Document the review-ready and review-handoff endpoints without outcome or autonomous-call claims
+- [x] Enforce `handoff:write` on GET `/leads/ready`
+- [x] Label configuration presence separately from confirmed delivery
+- [ ] Outcome webhook wiring remains deferred pending a verified SMIRK sender contract

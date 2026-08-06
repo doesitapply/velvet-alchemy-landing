@@ -6,11 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Key, Plus, Trash2, Copy, CheckCircle, AlertCircle, Clock, Zap, Phone, ExternalLink } from "lucide-react";
+import { Key, Plus, Trash2, Copy, CheckCircle, AlertCircle, Clock, Zap, Phone } from "lucide-react";
 
 const SCOPE_OPTIONS = [
   { value: "leads:read", label: "Read Leads", description: "GET /leads, GET /leads/:id" },
@@ -18,26 +17,18 @@ const SCOPE_OPTIONS = [
   { value: "scrape", label: "Scrape", description: "POST /scrape — search businesses" },
   { value: "audit", label: "Audit", description: "POST /leads/:id/audit" },
   { value: "pipeline", label: "Pipeline", description: "POST /pipeline — scrape + create + audit" },
-  { value: "handoff:write", label: "SMIRK Handoff", description: "GET /leads/ready, POST /leads/:id/handoff" },
-  { value: "outcome:write", label: "SMIRK Outcome", description: "POST /leads/:id/outcome — receive call results" },
+  { value: "handoff:write", label: "SMIRK Review Handoff", description: "GET /leads/ready; POST /leads/:id/handoff — review only; does not place calls" },
   { value: "*", label: "Full Access", description: "All current and future scopes" },
 ];
 
 // Preset configs for common integrations
 const PRESETS = [
   {
-    id: "smirk-outcome",
-    label: "SMIRK Outcome Webhook",
-    description: "For Railway env var VELVET_ALCHEMY_OUTCOME_KEY — lets SMIRK post call results back",
-    scopes: ["outcome:write"],
-    name: "SMIRK Outcome Webhook",
-  },
-  {
-    id: "smirk-full",
-    label: "SMIRK Full Integration",
-    description: "Poll ready leads, trigger handoffs, and receive outcomes",
-    scopes: ["handoff:write", "outcome:write"],
-    name: "SMIRK Full Integration",
+    id: "smirk-handoff",
+    label: "SMIRK Review Handoff",
+    description: "Poll review-ready leads and create review records; does not authorize or place calls",
+    scopes: ["handoff:write"],
+    name: "SMIRK Review Handoff",
   },
   {
     id: "agent",
@@ -52,14 +43,14 @@ export default function ApiKeys() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [selectedScopes, setSelectedScopes] = useState<string[]>(["leads:read"]);
-  const [newKeyResult, setNewKeyResult] = useState<{ key: string; name: string; isSmirkOutcome?: boolean } | null>(null);
+  const [newKeyResult, setNewKeyResult] = useState<{ key: string; name: string; isSmirkHandoff?: boolean } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const { data: keys, refetch } = trpc.apiKeys.list.useQuery();
   const createMutation = trpc.apiKeys.create.useMutation({
     onSuccess: (data) => {
-      const isSmirkOutcome = data.scopes.includes("outcome:write") && !data.scopes.includes("*");
-      setNewKeyResult({ key: data.key, name: data.name, isSmirkOutcome });
+      const isSmirkHandoff = data.scopes.includes("handoff:write") && !data.scopes.includes("*");
+      setNewKeyResult({ key: data.key, name: data.name, isSmirkHandoff });
       setCreateOpen(false);
       setNewKeyName("");
       setSelectedScopes(["leads:read"]);
@@ -106,8 +97,8 @@ export default function ApiKeys() {
   };
 
   const baseUrl = window.location.origin;
-  const outcomeWebhookUrl = `${baseUrl}/api/v1/leads/:id/outcome`;
   const readyLeadsUrl = `${baseUrl}/api/v1/leads/ready`;
+  const reviewHandoffUrl = `${baseUrl}/api/v1/leads/:id/handoff`;
 
   return (
     <div className="container max-w-4xl py-8 space-y-6">
@@ -135,7 +126,7 @@ export default function ApiKeys() {
               <div className="space-y-2">
                 <Label>Key Name</Label>
                 <Input
-                  placeholder="e.g. SMIRK Outcome Webhook"
+                  placeholder="e.g. SMIRK Review Handoff"
                   value={newKeyName}
                   onChange={e => setNewKeyName(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleCreate()}
@@ -200,19 +191,14 @@ export default function ApiKeys() {
                 {copiedKey === "new-key" ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
-            {newKeyResult.isSmirkOutcome && (
+            {newKeyResult.isSmirkHandoff && (
               <div className="rounded border border-violet-500/30 bg-violet-500/10 p-3 text-sm space-y-1">
                 <p className="font-medium text-violet-400 flex items-center gap-1">
-                  <Phone className="h-3.5 w-3.5" /> Set this in SMIRK Railway env vars:
+                  <Phone className="h-3.5 w-3.5" /> Review-handoff key
                 </p>
-                <p className="font-mono text-xs text-muted-foreground">
-                  VELVET_ALCHEMY_OUTCOME_KEY=<span className="text-foreground">{newKeyResult.key}</span>
-                </p>
-                <p className="font-mono text-xs text-muted-foreground">
-                  VELVET_ALCHEMY_BASE_URL=<span className="text-foreground">{baseUrl}</span>
-                </p>
-                <p className="font-mono text-xs text-muted-foreground">
-                  VELVET_ALCHEMY_WORKSPACE_ID=<span className="text-foreground">1</span>
+                <p className="text-xs text-muted-foreground">
+                  Use this as a Bearer token only for the review-ready and review-handoff endpoints.
+                  It does not authorize or place calls.
                 </p>
               </div>
             )}
@@ -223,31 +209,31 @@ export default function ApiKeys() {
         </Card>
       )}
 
-      {/* SMIRK Integration Panel */}
+      {/* SMIRK review-handoff panel */}
       <Card className="border-violet-500/40 bg-violet-500/5">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Phone className="h-4 w-4 text-violet-400" />
-            SMIRK Integration
+            SMIRK Review Handoff
           </CardTitle>
           <CardDescription>
-            Wire SMIRK to receive call outcomes and post results back to Velvet Alchemy.
+            Create a narrowly scoped key for review records. This workflow does not authorize or place calls.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Step 1 */}
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">Step 1 — Generate an outcome key</p>
+            <p className="text-sm font-semibold text-foreground">Step 1 — Generate a review-handoff key</p>
             <p className="text-xs text-muted-foreground">
-              This key goes into SMIRK's Railway environment. It lets SMIRK post call outcomes back to Velvet Alchemy after each call completes.
+              The handoff scope can list review-ready leads and create a review record in SMIRK.
             </p>
             <div className="flex flex-wrap gap-2">
               {PRESETS.map(preset => (
                 <Button
                   key={preset.id}
                   size="sm"
-                  variant={preset.id === "smirk-outcome" ? "default" : "outline"}
-                  className={preset.id === "smirk-outcome" ? "bg-violet-600 hover:bg-violet-700 text-white" : ""}
+                  variant={preset.id === "smirk-handoff" ? "default" : "outline"}
+                  className={preset.id === "smirk-handoff" ? "bg-violet-600 hover:bg-violet-700 text-white" : ""}
                   onClick={() => applyPreset(preset)}
                 >
                   {preset.label}
@@ -256,70 +242,11 @@ export default function ApiKeys() {
             </div>
           </div>
 
-          <Separator />
-
           {/* Step 2 */}
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">Step 2 — Set Railway env vars in SMIRK</p>
-            <p className="text-xs text-muted-foreground mb-2">
-              In your SMIRK Railway project → Variables, add:
-            </p>
-            <div className="space-y-1.5">
-              {[
-                { key: "VELVET_ALCHEMY_OUTCOME_KEY", value: "<key from Step 1>", copyId: null },
-                { key: "VELVET_ALCHEMY_BASE_URL", value: baseUrl, copyId: "base-url" },
-                { key: "VELVET_ALCHEMY_WORKSPACE_ID", value: "1", copyId: "ws-id" },
-              ].map(row => (
-                <div key={row.key} className="flex items-center gap-2 bg-background border border-border rounded px-3 py-1.5">
-                  <code className="text-xs text-muted-foreground w-52 shrink-0">{row.key}</code>
-                  <code className="text-xs flex-1 text-foreground truncate">{row.value}</code>
-                  {row.copyId && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 shrink-0"
-                      onClick={() => copyText(row.value, row.copyId!)}
-                    >
-                      {copiedKey === row.copyId
-                        ? <CheckCircle className="h-3 w-3 text-green-500" />
-                        : <Copy className="h-3 w-3" />}
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Step 3 */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">Step 3 — Outcome webhook URL</p>
+            <p className="text-sm font-semibold text-foreground">Step 2 — Poll review-ready leads</p>
             <p className="text-xs text-muted-foreground">
-              SMIRK posts to this endpoint after each call. Replace <code className="bg-muted px-1 rounded">:id</code> with the Velvet Alchemy lead ID from the handoff payload.
-            </p>
-            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2">
-              <code className="text-xs flex-1 text-foreground break-all">{outcomeWebhookUrl}</code>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0 shrink-0"
-                onClick={() => copyText(outcomeWebhookUrl, "outcome-url")}
-              >
-                {copiedKey === "outcome-url"
-                  ? <CheckCircle className="h-3 w-3 text-green-500" />
-                  : <Copy className="h-3 w-3" />}
-              </Button>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Step 4 — poll ready leads */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">Step 4 — Poll ready leads (optional)</p>
-            <p className="text-xs text-muted-foreground">
-              If SMIRK or an agent polls Velvet Alchemy for qualified leads, use this endpoint with a <code className="bg-muted px-1 rounded">handoff:write</code> key:
+              Send the scoped key as <code className="bg-muted px-1 rounded">Authorization: Bearer &lt;key&gt;</code>.
             </p>
             <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2">
               <code className="text-xs flex-1 text-foreground break-all">{readyLeadsUrl}</code>
@@ -334,9 +261,28 @@ export default function ApiKeys() {
                   : <Copy className="h-3 w-3" />}
               </Button>
             </div>
+          </div>
+
+          {/* Step 3 */}
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-foreground">Step 3 — Create the review handoff</p>
             <p className="text-xs text-muted-foreground">
-              Returns audited leads with phone numbers, prestige scores, and pre-built call briefs. Sorted by priority score.
+              Replace <code className="bg-muted px-1 rounded">:id</code> with the returned lead ID.
+              A successful request creates a review-only SMIRK record; it does not place a call.
             </p>
+            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2">
+              <code className="text-xs flex-1 text-foreground break-all">{reviewHandoffUrl}</code>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 shrink-0"
+                onClick={() => copyText(reviewHandoffUrl, "handoff-url")}
+              >
+                {copiedKey === "handoff-url"
+                  ? <CheckCircle className="h-3 w-3 text-green-500" />
+                  : <Copy className="h-3 w-3" />}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -367,9 +313,8 @@ export default function ApiKeys() {
               { method: "POST", path: "/scrape", desc: "Search businesses", scope: "scrape" },
               { method: "POST", path: "/leads/:id/audit", desc: "Run AI audit", scope: "audit" },
               { method: "POST", path: "/pipeline", desc: "Scrape + create + audit", scope: "pipeline" },
-              { method: "GET", path: "/leads/ready", desc: "Ready for SMIRK", scope: "handoff:write" },
-              { method: "POST", path: "/leads/:id/handoff", desc: "Queue SMIRK call", scope: "handoff:write" },
-              { method: "POST", path: "/leads/:id/outcome", desc: "Post call result", scope: "outcome:write" },
+              { method: "GET", path: "/leads/ready", desc: "Review-ready leads", scope: "handoff:write" },
+              { method: "POST", path: "/leads/:id/handoff", desc: "Create review handoff", scope: "handoff:write" },
             ].map(ep => (
               <div key={ep.path} className="flex items-center gap-2 p-2 bg-muted/40 rounded">
                 <Badge
@@ -410,9 +355,9 @@ export default function ApiKeys() {
                     {key.expiresAt && new Date(key.expiresAt) < new Date() && (
                       <Badge variant="destructive" className="text-xs">Expired</Badge>
                     )}
-                    {(key.scopes as string[]).includes("outcome:write") && (
+                    {(key.scopes as string[]).includes("handoff:write") && (
                       <Badge className="text-xs bg-violet-600/20 text-violet-400 border-violet-500/30">
-                        SMIRK
+                        SMIRK review
                       </Badge>
                     )}
                   </div>

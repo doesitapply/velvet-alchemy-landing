@@ -18,8 +18,7 @@ const VALID_SCOPES = [
   "scrape",
   "audit",
   "pipeline",
-  "handoff:write",   // Queue a SMIRK outbound call for a lead
-  "outcome:write",   // Post a SMIRK call outcome back to Velvet Alchemy
+  "handoff:write",   // Create a review-only SMIRK handoff for a lead
   "*",
 ] as const;
 

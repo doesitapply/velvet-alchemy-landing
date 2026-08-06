@@ -127,7 +127,7 @@ export default function LeadDetail() {
 
   const triggerHandoff = trpc.leads.triggerHandoff.useMutation({
     onSuccess: (data) => {
-      toast.success(`⚡ SMIRK call queued — ${data.state}`);
+      toast.success(`SMIRK review handoff created — ${data.state}`);
       refetch();
     },
     onError: (error: any) => {
@@ -263,7 +263,9 @@ export default function LeadDetail() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {['audited', 'contacted'].includes(lead.status) && (lead as any).phone && (
+              {['audited', 'contacted'].includes(lead.status)
+                && (lead as any).phone
+                && !(lead as any).smirkHandoffAt && (
                 <Button
                   onClick={() => triggerHandoff.mutate({ id: lead.id })}
                   disabled={triggerHandoff.isPending}
@@ -271,9 +273,9 @@ export default function LeadDetail() {
                   className="gap-2 bg-violet-600 hover:bg-violet-500 text-white border border-violet-400/30"
                 >
                   {triggerHandoff.isPending ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Queuing...</>
+                    <><Loader2 className="h-4 w-4 animate-spin" />Creating...</>
                   ) : (
-                    <><PhoneCall className="h-4 w-4" />Queue SMIRK Call</>
+                    <><PhoneCall className="h-4 w-4" />Send to SMIRK Review</>
                   )}
                 </Button>
               )}
@@ -464,12 +466,12 @@ export default function LeadDetail() {
             </Card>
           )}
 
-          {/* SMIRK Outcome Panel */}
-          {(lead.status === 'smirk_queued' || lead.status === 'smirk_contacted' || (lead as any).smirkCallOutcome) && (
+          {/* SMIRK review handoff and legacy outcome panel */}
+          {(lead.status === 'smirk_queued' || lead.status === 'smirk_contacted' || (lead as any).smirkHandoffAt || (lead as any).smirkCallOutcome) && (
             <Card className="p-6 border-violet-500/20 bg-violet-500/5">
               <div className="flex items-center gap-3 mb-4">
                 <PhoneCall className="h-5 w-5 text-violet-400" />
-                <h2 className="text-xl font-serif italic text-violet-300">SMIRK Call Intelligence</h2>
+                <h2 className="text-xl font-serif italic text-violet-300">SMIRK Review Handoff</h2>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div>
@@ -504,7 +506,7 @@ export default function LeadDetail() {
                 )}
                 {(lead as any).smirkHandoffAt && (
                   <div>
-                    <h3 className="text-xs font-mono text-muted-foreground mb-1">QUEUED AT</h3>
+                    <h3 className="text-xs font-mono text-muted-foreground mb-1">HANDOFF AT</h3>
                     <p className="text-sm font-mono">{new Date((lead as any).smirkHandoffAt).toLocaleString()}</p>
                   </div>
                 )}
@@ -517,7 +519,7 @@ export default function LeadDetail() {
               </div>
               {(lead as any).smirkCallSummary && (
                 <div className="border-t border-violet-500/20 pt-4">
-                  <h3 className="text-xs font-mono text-muted-foreground mb-2">CALL SUMMARY</h3>
+                  <h3 className="text-xs font-mono text-muted-foreground mb-2">LEGACY CALL SUMMARY</h3>
                   <p className="text-sm leading-relaxed">{(lead as any).smirkCallSummary}</p>
                 </div>
               )}

@@ -415,24 +415,27 @@ export default function CommandCenter() {
             )}
           </div>
 
-          {/* SMIRK Integration Status */}
+          {/* SMIRK review-handoff status */}
           <Card className="bg-black/50 border-violet-500/30">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Phone className="h-4 w-4 text-violet-400" />
-                SMIRK Connection
+                SMIRK Review Handoff
                 {smirkStats?.configured
-                  ? <Badge className="text-xs bg-green-600/20 text-green-400 border-green-500/30">Connected</Badge>
+                  ? <Badge className="text-xs bg-green-600/20 text-green-400 border-green-500/30">Configured</Badge>
                   : <Badge className="text-xs bg-red-600/20 text-red-400 border-red-500/30">Not Configured</Badge>
                 }
               </CardTitle>
               <CardDescription>
                 {smirkStats?.configured
-                  ? "SMIRK API key is set. Handoffs are live."
-                  : "Set SMIRK_API_KEY and SMIRK_BASE_URL to enable autonomous calling."}
+                  ? "Required SMIRK settings are present. Delivery is confirmed only by a successful review handoff."
+                  : "Set the SMIRK handoff settings to enable review-only handoff delivery."}
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Counts reflect historical lead fields; they do not prove active calls or an outcome callback.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
                 {[
                   { label: "Queued", value: smirkStats?.queued ?? 0, color: "text-violet-400" },

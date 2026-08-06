@@ -311,17 +311,20 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    smirkStats: protectedProcedure.query(async () => {
+    smirkStats: protectedProcedure.query(async ({ ctx }) => {
         const orm = await (await import('./db')).getDb();
         if (!orm) return { queued: 0, contacted: 0, interested: 0, booked: 0, configured: false };
         const { leads: leadsTable } = await import('../drizzle/schema');
-        const { inArray } = await import('drizzle-orm');
+        const { and, eq, inArray } = await import('drizzle-orm');
         const { ENV } = await import('./_core/env');
         const configured = !!(ENV.smirkApiKey && ENV.smirkBaseUrl);
         const rows = await orm
           .select({ status: leadsTable.status, outcome: leadsTable.smirkCallOutcome })
           .from(leadsTable)
-          .where(inArray(leadsTable.status, ['smirk_queued', 'smirk_contacted', 'closed']));
+          .where(and(
+            eq(leadsTable.userId, ctx.user.id),
+            inArray(leadsTable.status, ['smirk_queued', 'smirk_contacted', 'closed']),
+          ));
         const queued = rows.filter(r => r.status === 'smirk_queued').length;
         const contacted = rows.filter(r => r.status === 'smirk_contacted').length;
         const interested = rows.filter(r => r.outcome === 'interested').length;
@@ -330,29 +333,34 @@ export const appRouter = router({
       }),
 
     triggerHandoff: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => {
         const lead = await getLeadById(input.id);
         if (!lead) throw new Error('Lead not found');
         if (lead.userId !== ctx.user.id && ctx.user.role !== 'admin') {
           throw new Error('Unauthorized');
         }
-        if (!lead.phone) throw new Error('Lead has no phone number — cannot queue SMIRK call');
+        if (!lead.phone) throw new Error('Lead has no phone number');
         if (!['audited', 'contacted'].includes(lead.status)) {
-          throw new Error('Lead must be audited before queuing a SMIRK call');
+          throw new Error('Lead must be audited before creating a review handoff');
         }
-        const { queueSmirkCall } = await import('./lib/smirkHandoff');
-        const result = await queueSmirkCall(lead.id);
+        const { createSmirkHandoff } = await import('./lib/smirkHandoff');
+        const result = await createSmirkHandoff(lead.id, lead.userId);
         if (!result.success) throw new Error(result.error || 'SMIRK handoff failed');
         await logAudit({
           userId: ctx.user.id,
           action: 'smirk_handoff',
           resource: 'leads',
           resourceId: input.id,
-          details: `Queued SMIRK call for ${lead.companyName} — state: ${result.state}`,
+          details: `Created SMIRK review handoff for ${lead.companyName} — state: ${result.state}`,
           status: 'success',
         });
-        return { success: true, state: result.state, jobId: result.jobId };
+        return {
+          success: true,
+          state: result.state,
+          handoffId: result.handoffId,
+          taskId: result.taskId ?? null,
+        };
       }),
   }),
 });
