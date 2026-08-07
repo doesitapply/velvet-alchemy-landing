@@ -18,7 +18,6 @@ const hasDatabase =
 
 describe.skipIf(!hasDatabase)("Governor", () => {
   beforeAll(async () => {
-    // Clean up any leftover rate limit records from previous test runs
     const db = await getDb();
     if (!db) return;
     await db
@@ -57,21 +56,14 @@ describe.skipIf(!hasDatabase)("Governor", () => {
 
   describe("checkRateLimit", () => {
     it("allows requests within rate limit", async () => {
-      const userId = 999;
-      const action = "lead_create";
-
-      await expect(checkRateLimit(userId, action)).resolves.toBeUndefined();
+      await expect(checkRateLimit(999, "lead_create")).resolves.toBeUndefined();
     });
 
     it("throws error when rate limit exceeded", async () => {
       const userId = 998;
       const action = "lead_create";
-
-      // Clean this user's records before running (in case of leftover state)
       const db = await getDb();
       if (db) await db.delete(rateLimits).where(eq(rateLimits.userId, userId));
-
-      // Make 10 requests (the limit for lead_create)
       for (let i = 0; i < 10; i++) {
         await checkRateLimit(userId, action);
       }
@@ -83,10 +75,9 @@ describe.skipIf(!hasDatabase)("Governor", () => {
     }, 30000);
 
     it("handles unknown actions gracefully", async () => {
-      const userId = 997;
-      const action = "unknown_action";
-
-      await expect(checkRateLimit(userId, action)).resolves.toBeUndefined();
+      await expect(
+        checkRateLimit(997, "unknown_action")
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -94,12 +85,10 @@ describe.skipIf(!hasDatabase)("Governor", () => {
     it("allows requests when kill-switch is disabled", async () => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
-
       await db
         .update(systemConfig)
         .set({ value: "false" })
         .where(eq(systemConfig.key, "global_kill_switch"));
-
       await expect(checkKillSwitch(996)).resolves.toBeUndefined();
     });
 
@@ -126,17 +115,13 @@ describe.skipIf(!hasDatabase)("Governor", () => {
     it("blocks specific user when user kill-switch is enabled", async () => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
-
       const userId = 994;
-
       await db.insert(systemConfig).values({
         key: `user_kill_switch_${userId}`,
         value: "true",
         description: "User-specific kill-switch",
       });
-
       await expect(checkKillSwitch(userId)).rejects.toThrow("suspended");
-
       await db
         .delete(systemConfig)
         .where(eq(systemConfig.key, `user_kill_switch_${userId}`));
@@ -144,6 +129,7 @@ describe.skipIf(!hasDatabase)("Governor", () => {
   });
 
   describe("checkDomainReputation", () => {
+    // These tests are pure logic — no DB required
     it("allows safe domains", async () => {
       const result = await checkDomainReputation("https://google.com");
       expect(result).toBe(true);
@@ -155,11 +141,9 @@ describe.skipIf(!hasDatabase)("Governor", () => {
     });
 
     it("normalizes domain URLs consistently", async () => {
-      // All three forms of the same domain should return the same result
       const result1 = await checkDomainReputation("https://google.com/");
       const result2 = await checkDomainReputation("http://google.com");
       const result3 = await checkDomainReputation("google.com");
-
       expect(result1).toBe(result2);
       expect(result2).toBe(result3);
     });
@@ -169,11 +153,8 @@ describe.skipIf(!hasDatabase)("Governor", () => {
     it("creates default config values", async () => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
-
       await initializeSystemConfig();
-
       const config = await db.select().from(systemConfig);
-
       expect(config.length).toBeGreaterThan(0);
       expect(config.some(c => c.key === "global_kill_switch")).toBe(true);
       expect(config.some(c => c.key === "rate_limit_enabled")).toBe(true);

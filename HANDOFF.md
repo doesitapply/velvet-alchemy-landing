@@ -83,7 +83,7 @@ The system is designed to be operated by a single person or a small team, with e
 | Payments         | Stripe (test mode, sandbox claimed)                     |
 | Email            | Review-only generation; delivery adapter is fail-closed |
 | SMS              | Cold SMS is disabled; no Twilio delivery path is active |
-| Email Enrichment | Explicit-enable, one-result Hunter.io owner lookup       |
+| Email Enrichment | Explicit-enable, one-result Hunter.io owner lookup      |
 | Phone Agent      | SMIRK at `https://smirkcalls.com`                       |
 
 ---
@@ -102,51 +102,51 @@ The system is designed to be operated by a single person or a small team, with e
 
 ### Server
 
-| File                                                  | Purpose                                                                           |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `server/routers.ts`                                   | All tRPC procedures — leads, auth, system                                         |
-| `server/scraperRouter.ts`                             | Google Maps scraping, business search                                             |
-| `server/orchestratorRouter.ts`                        | Full pipeline: scrape → screenshot → audit → enrich                               |
-| `server/orchestrator.ts`                              | Pipeline stage execution logic                                                    |
-| `server/charmerRouter.ts`                             | Read/reject legacy drafts; new generation, approval, and send are blocked         |
-| `server/lib/smirkOutreachBoundary.ts`                 | Shared fail-closed boundary for every legacy outreach mutation                    |
-| `server/paymentRouter.ts`                             | Stripe checkout session creation                                                  |
-| `server/apiRouter.ts`                                 | Public REST API (`/api/v1/*`)                                                     |
-| `server/apiKeyRouter.ts`                              | API key management (create/revoke/list)                                           |
-| `server/acquisitionLearningRouter.ts`                 | Human-reviewed trade/metro candidates and separate release receipts               |
-| `server/acquisitionSourcingExperimentRouter.ts`       | Privileged prepare, activate, close, cancel, and propose controls                 |
-| `server/governor.ts`                                  | Rate limits, kill-switch, system config                                           |
-| `server/worker.ts`                                    | Opt-in FIFO worker (polls every 5 min, 1 job/batch)                               |
-| `server/apiCostTracker.ts`                            | Per-call cost tracking + daily kill-switch ($10/day)                              |
-| `server/lib/smirkHandoff.ts`                          | Review brief builder + synthetic-only SMIRK contract client                       |
-| `server/lib/smirkResearch.ts`                         | Research-only SMIRK client, payload validation, and response proof                |
-| `server/lib/smirkConnectionReadiness.ts`              | Redacted Velvet runtime and database prerequisite contract                        |
-| `server/lib/smirkConnectionProof.ts`                  | Signed no-write proof for exact SMIRK scopes, owner, workspace, and shared secret |
-| `server/smirkConnectionReadinessCheck.ts`             | Read-only SMIRK connection preflight CLI                                          |
+| File                                                  | Purpose                                                                                                          |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `server/routers.ts`                                   | All tRPC procedures — leads, auth, system                                                                        |
+| `server/scraperRouter.ts`                             | Google Maps scraping, business search                                                                            |
+| `server/orchestratorRouter.ts`                        | Full pipeline: scrape → screenshot → audit → enrich                                                              |
+| `server/orchestrator.ts`                              | Pipeline stage execution logic                                                                                   |
+| `server/charmerRouter.ts`                             | Read/reject legacy drafts; new generation, approval, and send are blocked                                        |
+| `server/lib/smirkOutreachBoundary.ts`                 | Shared fail-closed boundary for every legacy outreach mutation                                                   |
+| `server/paymentRouter.ts`                             | Stripe checkout session creation                                                                                 |
+| `server/apiRouter.ts`                                 | Public REST API (`/api/v1/*`)                                                                                    |
+| `server/apiKeyRouter.ts`                              | API key management (create/revoke/list)                                                                          |
+| `server/acquisitionLearningRouter.ts`                 | Human-reviewed trade/metro candidates and separate release receipts                                              |
+| `server/acquisitionSourcingExperimentRouter.ts`       | Privileged prepare, activate, close, cancel, and propose controls                                                |
+| `server/governor.ts`                                  | Rate limits, kill-switch, system config                                                                          |
+| `server/worker.ts`                                    | Opt-in FIFO worker (polls every 5 min, 1 job/batch)                                                              |
+| `server/apiCostTracker.ts`                            | Per-call cost tracking + daily kill-switch ($10/day)                                                             |
+| `server/lib/smirkHandoff.ts`                          | Review brief builder + synthetic-only SMIRK contract client                                                      |
+| `server/lib/smirkResearch.ts`                         | Research-only SMIRK client, payload validation, and response proof                                               |
+| `server/lib/smirkConnectionReadiness.ts`              | Redacted Velvet runtime and database prerequisite contract                                                       |
+| `server/lib/smirkConnectionProof.ts`                  | Signed no-write proof for exact SMIRK scopes, owner, workspace, and shared secret                                |
+| `server/smirkConnectionReadinessCheck.ts`             | Read-only SMIRK connection preflight CLI                                                                         |
 | `server/lib/smirkLeadBatch.ts`                        | SMIRK pull contract, zero-spend/no-contact validation, learning filter proof, stable experiment-campaign binding |
 | `server/lib/smirkLeadBatchStore.ts`                   | Owner-scoped audited-lead reservation, exact replay receipts, and one campaign per immutable sourcing experiment |
-| `server/lib/smirkDiscovery.ts`                        | SMIRK discovery request, quote, status, and exact spend-cap contracts             |
-| `server/lib/smirkDiscoveryStore.ts`                   | Approval state machine, immutable hashes, audit events, and leases                |
-| `server/lib/smirkDiscoveryExecutor.ts`                | Sequential Maps + Hunter research under one exact quote; no contact providers     |
-| `server/smirkDiscoveryRouter.ts`                      | Privileged browser-only approve, queue, reject, and cancel controls               |
-| `server/smirkDiscoveryWorker.ts`                      | Default-disabled one-job discovery worker                                         |
-| `server/lib/smirkOutcome.ts`                          | Signed callback verification and research-receipt binding                         |
-| `server/lib/acquisitionLearning.ts`                   | Outcome-linked sourcing scorecards and bounded proposals                          |
-| `server/lib/acquisitionSourcingExperiment.ts`         | Frozen balanced assignment, coverage evaluation, and receipt schemas              |
-| `server/lib/acquisitionSourcingExperimentStore.ts`    | Owner-scoped experiment state, audit, assignment, and candidate bridge            |
-| `server/lib/acquisitionLearningPolicy.ts`             | Hash-bound release/deactivation contracts with no contact or spend authority      |
-| `server/lib/acquisitionLearningPolicyStore.ts`        | Fail-closed loader for the current append-only released sourcing policy           |
-| `server/lib/emailEnrichment.ts`                       | Budget-reserved Hunter.io verified-owner lookup                                   |
-| `server/lib/smsOutreach.ts`                           | Fail-closed cold-SMS compatibility adapter                                        |
-| `server/lib/emailOutreach.ts`                         | Review-only copy + fail-closed delivery adapter                                   |
-| `server/lib/externalActionPolicy.ts`                  | Central prepare-only policy and unsupported-claim checks                          |
-| `server/lib/enrichment.ts`                            | Audit enrichment; phones remain research-only                                     |
-| `server/testSupport/smirkCrossSystemFixtureServer.ts` | Disposable loopback fixture for the paired MySQL/Postgres HTTP proof              |
-| `server/visualAudit.ts`                               | AI screenshot analysis, prestige score (0-100)                                    |
-| `server/screenshot.ts`                                | Headless browser screenshot capture → S3                                          |
-| `server/products.ts`                                  | Stripe package definitions ($3K/$5K/$8K)                                          |
-| `server/_core/env.ts`                                 | All environment variable definitions                                              |
-| `server/_core/llm.ts`                                 | LLM invocation with Manus → Gemini fallback                                       |
+| `server/lib/smirkDiscovery.ts`                        | SMIRK discovery request, quote, status, and exact spend-cap contracts                                            |
+| `server/lib/smirkDiscoveryStore.ts`                   | Approval state machine, immutable hashes, audit events, and leases                                               |
+| `server/lib/smirkDiscoveryExecutor.ts`                | Sequential Maps + Hunter research under one exact quote; no contact providers                                    |
+| `server/smirkDiscoveryRouter.ts`                      | Privileged browser-only approve, queue, reject, and cancel controls                                              |
+| `server/smirkDiscoveryWorker.ts`                      | Default-disabled one-job discovery worker                                                                        |
+| `server/lib/smirkOutcome.ts`                          | Signed callback verification and research-receipt binding                                                        |
+| `server/lib/acquisitionLearning.ts`                   | Outcome-linked sourcing scorecards and bounded proposals                                                         |
+| `server/lib/acquisitionSourcingExperiment.ts`         | Frozen balanced assignment, coverage evaluation, and receipt schemas                                             |
+| `server/lib/acquisitionSourcingExperimentStore.ts`    | Owner-scoped experiment state, audit, assignment, and candidate bridge                                           |
+| `server/lib/acquisitionLearningPolicy.ts`             | Hash-bound release/deactivation contracts with no contact or spend authority                                     |
+| `server/lib/acquisitionLearningPolicyStore.ts`        | Fail-closed loader for the current append-only released sourcing policy                                          |
+| `server/lib/emailEnrichment.ts`                       | Budget-reserved Hunter.io verified-owner lookup                                                                  |
+| `server/lib/smsOutreach.ts`                           | Fail-closed cold-SMS compatibility adapter                                                                       |
+| `server/lib/emailOutreach.ts`                         | Review-only copy + fail-closed delivery adapter                                                                  |
+| `server/lib/externalActionPolicy.ts`                  | Central prepare-only policy and unsupported-claim checks                                                         |
+| `server/lib/enrichment.ts`                            | Audit enrichment; phones remain research-only                                                                    |
+| `server/testSupport/smirkCrossSystemFixtureServer.ts` | Disposable loopback fixture for the paired MySQL/Postgres HTTP proof                                             |
+| `server/visualAudit.ts`                               | AI screenshot analysis, prestige score (0-100)                                                                   |
+| `server/screenshot.ts`                                | Headless browser screenshot capture → S3                                                                         |
+| `server/products.ts`                                  | Stripe package definitions ($3K/$5K/$8K)                                                                         |
+| `server/_core/env.ts`                                 | All environment variable definitions                                                                             |
+| `server/_core/llm.ts`                                 | LLM invocation with Manus → Gemini fallback                                                                      |
 
 ### Client
 
@@ -158,7 +158,7 @@ The system is designed to be operated by a single person or a small team, with e
 | `client/src/pages/Leads.tsx`             | Lead list with SMIRK status badges                                  |
 | `client/src/pages/LeadDetail.tsx`        | Full lead view, historical outcomes, and admin-only research import |
 | `client/src/pages/BusinessScraper.tsx`   | Hunt engine UI                                                      |
-| `client/src/pages/Charmer.tsx`           | Read/reject-only archive for legacy draft records                    |
+| `client/src/pages/Charmer.tsx`           | Read/reject-only archive for legacy draft records                   |
 | `client/src/pages/RevenueDashboard.tsx`  | Stripe payments and invoicing                                       |
 | `client/src/pages/GovernorDashboard.tsx` | Rate limits, kill-switch, cost monitoring                           |
 | `client/src/pages/ApiKeys.tsx`           | API key management UI                                               |
@@ -277,25 +277,25 @@ Its response is redacted and domain-separated from outcome signatures. This
 proves credential authority only, not providers, delivery, deployment parity,
 customer response, or revenue.
 
-| Variable                      | Purpose                                                                                         |
-| ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| `SMIRK_BASE_URL`              | Exact SMIRK origin; currently restricted to `https://smirkcalls.com`                            |
-| `SMIRK_API_KEY`               | Dedicated synthetic handoff bearer token; never use a dashboard-wide key                        |
-| `SMIRK_WORKSPACE_ID`          | Synthetic handoff target workspace                                                              |
-| `SMIRK_RESEARCH_API_KEY`      | Dedicated research-only bearer token; at least 32 characters and different from `SMIRK_API_KEY` |
-| `SMIRK_RESEARCH_WORKSPACE_ID` | Exact workspace allowed to receive reviewed research records                                    |
-| `SMIRK_OUTCOME_SIGNING_SECRET`| HMAC secret for verifying SMIRK outcome callbacks; at least 32 characters                         |
-| `STRIPE_SECRET_KEY`           | Credentialed Stripe integration tests and checkout                                              |
-| `STRIPE_WEBHOOK_SECRET`       | Stripe webhook verification                                                                     |
-| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe client initialization                                                                    |
-| `ENABLE_HUNTER_OWNER_ENRICHMENT` | Must equal `true` before any Hunter request can start                                        |
-| `HUNTER_API_KEY`              | Hunter owner-email enrichment                                                                    |
-| `HUNTER_COST_CENTS_PER_CREDIT`| Owner-supplied cost used for the pre-request daily-budget reservation                            |
-| `ENABLE_MAPS_RESEARCH`        | Must equal `true` before any Google Maps proxy request can start                                 |
-| `MAPS_COST_CENTS_PER_REQUEST` | Owner-supplied positive cost reserved before every Maps search, page, ranking, or detail request |
-| `ENABLE_SMIRK_DISCOVERY_WORKER` | Must equal `true` to claim separately approved discovery jobs; disabled by default             |
-| `GOOGLE_AI_API_KEY`           | Optional LLM fallback                                                                           |
-| `ENABLE_PIPELINE_WORKER`      | Must equal `true` to start the cost-bearing background worker; disabled by default              |
+| Variable                         | Purpose                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `SMIRK_BASE_URL`                 | Exact SMIRK origin; currently restricted to `https://smirkcalls.com`                             |
+| `SMIRK_API_KEY`                  | Dedicated synthetic handoff bearer token; never use a dashboard-wide key                         |
+| `SMIRK_WORKSPACE_ID`             | Synthetic handoff target workspace                                                               |
+| `SMIRK_RESEARCH_API_KEY`         | Dedicated research-only bearer token; at least 32 characters and different from `SMIRK_API_KEY`  |
+| `SMIRK_RESEARCH_WORKSPACE_ID`    | Exact workspace allowed to receive reviewed research records                                     |
+| `SMIRK_OUTCOME_SIGNING_SECRET`   | HMAC secret for verifying SMIRK outcome callbacks; at least 32 characters                        |
+| `STRIPE_SECRET_KEY`              | Credentialed Stripe integration tests and checkout                                               |
+| `STRIPE_WEBHOOK_SECRET`          | Stripe webhook verification                                                                      |
+| `VITE_STRIPE_PUBLISHABLE_KEY`    | Stripe client initialization                                                                     |
+| `ENABLE_HUNTER_OWNER_ENRICHMENT` | Must equal `true` before any Hunter request can start                                            |
+| `HUNTER_API_KEY`                 | Hunter owner-email enrichment                                                                    |
+| `HUNTER_COST_CENTS_PER_CREDIT`   | Owner-supplied cost used for the pre-request daily-budget reservation                            |
+| `ENABLE_MAPS_RESEARCH`           | Must equal `true` before any Google Maps proxy request can start                                 |
+| `MAPS_COST_CENTS_PER_REQUEST`    | Owner-supplied positive cost reserved before every Maps search, page, ranking, or detail request |
+| `ENABLE_SMIRK_DISCOVERY_WORKER`  | Must equal `true` to claim separately approved discovery jobs; disabled by default               |
+| `GOOGLE_AI_API_KEY`              | Optional LLM fallback                                                                            |
+| `ENABLE_PIPELINE_WORKER`         | Must equal `true` to start the cost-bearing background worker; disabled by default               |
 
 Twilio variables are intentionally not required because cold SMS is disabled.
 Maps and Hunter reservations are persisted before the provider request. A
@@ -563,22 +563,22 @@ The only proposal is a maximum 20-row next research batch.
 
 All endpoints require `Authorization: Bearer <api_key>`.
 
-| Method | Endpoint                    | Scope           | Purpose                                                      |
-| ------ | --------------------------- | --------------- | ------------------------------------------------------------ |
-| GET    | `/api/v1/status`            | any             | Health check                                                 |
-| GET    | `/api/v1/leads`             | `leads:read`    | List leads with filters                                      |
-| GET    | `/api/v1/leads/:id`         | `leads:read`    | Get single lead                                              |
-| POST   | `/api/v1/leads`             | `leads:write`   | Create lead                                                  |
-| POST   | `/api/v1/scrape`            | `scrape`        | Trigger Google Maps scrape                                   |
-| POST   | `/api/v1/leads/:id/audit`   | `audit`         | Trigger audit on one owned lead                              |
-| POST   | `/api/v1/pipeline`          | `pipeline`      | Scrape, create leads, and optionally audit                   |
-| POST   | `/api/v1/smirk/lead-batches` | `smirk:research` | Reserve 1-20 audited records for SMIRK review; no contact or spend |
-| POST   | `/api/v1/smirk/discovery-requests` | `smirk:research` | Prepare one bounded discovery quote; no provider call |
-| GET    | `/api/v1/smirk/discovery-requests/:requestId` | `smirk:research` | Read owner-scoped discovery status; no external action |
-| GET    | `/api/v1/smirk/connection-proof` | exact `smirk:research` or `outcome:write` | Signed, no-write credential/owner/workspace proof; no usage update |
-| GET    | `/api/v1/leads/ready`       | `leads:read`    | Get audited leads for human review; no contact authorization |
-| POST   | `/api/v1/leads/:id/handoff` | `handoff:write` | Compatibility route; returns a policy block                  |
-| POST   | `/api/v1/leads/:id/outcome` | `outcome:write` | Signed, owner-scoped, idempotent feedback event               |
+| Method | Endpoint                                      | Scope                                     | Purpose                                                            |
+| ------ | --------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------ |
+| GET    | `/api/v1/status`                              | any                                       | Health check                                                       |
+| GET    | `/api/v1/leads`                               | `leads:read`                              | List leads with filters                                            |
+| GET    | `/api/v1/leads/:id`                           | `leads:read`                              | Get single lead                                                    |
+| POST   | `/api/v1/leads`                               | `leads:write`                             | Create lead                                                        |
+| POST   | `/api/v1/scrape`                              | `scrape`                                  | Trigger Google Maps scrape                                         |
+| POST   | `/api/v1/leads/:id/audit`                     | `audit`                                   | Trigger audit on one owned lead                                    |
+| POST   | `/api/v1/pipeline`                            | `pipeline`                                | Scrape, create leads, and optionally audit                         |
+| POST   | `/api/v1/smirk/lead-batches`                  | `smirk:research`                          | Reserve 1-20 audited records for SMIRK review; no contact or spend |
+| POST   | `/api/v1/smirk/discovery-requests`            | `smirk:research`                          | Prepare one bounded discovery quote; no provider call              |
+| GET    | `/api/v1/smirk/discovery-requests/:requestId` | `smirk:research`                          | Read owner-scoped discovery status; no external action             |
+| GET    | `/api/v1/smirk/connection-proof`              | exact `smirk:research` or `outcome:write` | Signed, no-write credential/owner/workspace proof; no usage update |
+| GET    | `/api/v1/leads/ready`                         | `leads:read`                              | Get audited leads for human review; no contact authorization       |
+| POST   | `/api/v1/leads/:id/handoff`                   | `handoff:write`                           | Compatibility route; returns a policy block                        |
+| POST   | `/api/v1/leads/:id/outcome`                   | `outcome:write`                           | Signed, owner-scoped, idempotent feedback event                    |
 
 ---
 
@@ -601,17 +601,17 @@ The intended admin/owner loop is:
 
 ## API Key Scopes
 
-| Scope           | Purpose                                                 |
-| --------------- | ------------------------------------------------------- |
-| `leads:read`    | Read lead data                                          |
-| `leads:write`   | Create/delete leads                                     |
-| `scrape`        | Trigger budget-reserved Maps research                   |
-| `audit`         | Trigger audits                                          |
-| `pipeline`      | Run full pipeline                                       |
-| `handoff:write` | Reserved compatibility scope; real handoffs are blocked |
-| `smirk:research`| Prepare/read bounded SMIRK discovery and reserve reviewed records; admin grant only |
-| `outcome:write` | Write signed, owner-scoped, idempotent SMIRK outcomes   |
-| `*`             | All scopes                                              |
+| Scope            | Purpose                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `leads:read`     | Read lead data                                                                      |
+| `leads:write`    | Create/delete leads                                                                 |
+| `scrape`         | Trigger budget-reserved Maps research                                               |
+| `audit`          | Trigger audits                                                                      |
+| `pipeline`       | Run full pipeline                                                                   |
+| `handoff:write`  | Reserved compatibility scope; real handoffs are blocked                             |
+| `smirk:research` | Prepare/read bounded SMIRK discovery and reserve reviewed records; admin grant only |
+| `outcome:write`  | Write signed, owner-scoped, idempotent SMIRK outcomes                               |
+| `*`              | All scopes                                                                          |
 
 Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` authority. Both key creation and REST request handling enforce that restriction, including for older keys.
 
@@ -621,15 +621,15 @@ Normal operators cannot create or use `scrape`, `audit`, `pipeline`, or `*` auth
 
 ### Active Issues
 
-| Issue                                                     | Impact                                          | Fix                                                                                                     |
-| --------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Outcome, reviewed-batch, and discovery migrations pass on fresh and simulated-drift local MySQL databases but are not production-inspected or applied | Callback, sourcing-learning, batch-reservation, and discovery storage are not live | Capture the exact production schema, verify the four pre-journal SMIRK column types, back up the target DB, then approve exact migrations |
-| Google AI key (`AQ.*`) is a short-lived OAuth token       | High — Gemini fallback will die                 | Get permanent `AIzaSy*` key from aistudio.google.com/apikey                                             |
-| Builder JSX-location plugin expects Vite 4/5, not Vite 7  | Low — install warning; current build passes     | Upgrade or remove the development-only plugin before the next Vite upgrade                              |
-| Research receiver/client exist only on hardening branches | Real prospect registration is not active        | Approve exact commits, deploy both sides, configure dedicated credentials, then run one synthetic proof |
+| Issue                                                                                                                                                                | Impact                                                                                             | Fix                                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Outcome, reviewed-batch, and discovery migrations pass on fresh and simulated-drift local MySQL databases but are not production-inspected or applied                | Callback, sourcing-learning, batch-reservation, and discovery storage are not live                 | Capture the exact production schema, verify the four pre-journal SMIRK column types, back up the target DB, then approve exact migrations                                   |
+| Google AI key (`AQ.*`) is a short-lived OAuth token                                                                                                                  | High — Gemini fallback will die                                                                    | Get permanent `AIzaSy*` key from aistudio.google.com/apikey                                                                                                                 |
+| Builder JSX-location plugin expects Vite 4/5, not Vite 7                                                                                                             | Low — install warning; current build passes                                                        | Upgrade or remove the development-only plugin before the next Vite upgrade                                                                                                  |
+| Research receiver/client exist only on hardening branches                                                                                                            | Real prospect registration is not active                                                           | Approve exact commits, deploy both sides, configure dedicated credentials, then run one synthetic proof                                                                     |
 | Signed SMIRK connection proof exists only on the hardening branches; the 2026-07-31 production check made zero requests because required SMIRK variables were absent | Production key scopes, owner alignment, workspace binding, and shared-secret match remain unproven | Deploy both exact commits with every execution switch false, configure the two dedicated keys and workspace/secret bindings, then require the remote no-write proof to pass |
-| SMIRK callback sender is source-complete but default-disabled and unverified live | Closed-loop dispatch is inactive | Deploy both exact commits, configure dedicated secrets, then run one synthetic callback and replay |
-| SMIRK guarded prospect email is source-complete but default-disabled | No provider email is active | Back up and review schema changes, deploy the exact SMIRK commit, configure a separate Resend key and signed webhook, then run one harmless synthetic recipient test |
+| SMIRK callback sender is source-complete but default-disabled and unverified live                                                                                    | Closed-loop dispatch is inactive                                                                   | Deploy both exact commits, configure dedicated secrets, then run one synthetic callback and replay                                                                          |
+| SMIRK guarded prospect email is source-complete but default-disabled                                                                                                 | No provider email is active                                                                        | Back up and review schema changes, deploy the exact SMIRK commit, configure a separate Resend key and signed webhook, then run one harmless synthetic recipient test        |
 
 ### Deferred Features
 
@@ -771,18 +771,18 @@ for that action.
 
 ## Checkpoint History
 
-| Commit     | Description                                                               |
-| ---------- | ------------------------------------------------------------------------- |
+| Commit     | Description                                                                |
+| ---------- | -------------------------------------------------------------------------- |
 | `73728f8`  | Portable 113-test gate and exact Velvet/SMIRK closed-loop source proof     |
 | `6b56ad8`  | Research intake, signed outcome feedback, and human-reviewed sourcing loop |
 | `4232acb`  | Guarded research-only bridge to the SMIRK prospect queue                   |
 | `aea0743`  | Approval, tenant, provider-spend, and no-cold-SMS hardening                |
-| `e9f88818` | UI coherence pass: minimal auth gate, SMIRK outcome panel, handoff button |
+| `e9f88818` | UI coherence pass: minimal auth gate, SMIRK outcome panel, handoff button  |
 | `a5c3d11e` | Historical bidirectional integration checkpoint; current live proof absent |
-| `74213332` | Phase 1-3: email enrichment, FIFO worker, cost kill-switch                |
-| `29eceb7e` | Bug fix session: 79/79 tests                                              |
-| `a80ed4f`  | Scraper v2: pagination, parallel fetch, 10 new columns                    |
-| `b2d6ed3`  | Public REST API, API key management                                       |
+| `74213332` | Phase 1-3: email enrichment, FIFO worker, cost kill-switch                 |
+| `29eceb7e` | Bug fix session: 79/79 tests                                               |
+| `a80ed4f`  | Scraper v2: pagination, parallel fetch, 10 new columns                     |
+| `b2d6ed3`  | Public REST API, API key management                                        |
 
 ---
 

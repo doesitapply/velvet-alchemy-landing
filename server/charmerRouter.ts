@@ -2,11 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import {
-  leads,
-  campaigns,
-  outreachDrafts,
-} from "../drizzle/schema";
+import { leads, campaigns, outreachDrafts } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { logAudit } from "./governor";
 import { throwSmirkOutreachAuthority } from "./lib/smirkOutreachBoundary";
@@ -64,7 +60,7 @@ export const charmerRouter = router({
     }),
 
   /**
-   * List all drafts (with optional filtering)
+   * List all drafts (with optional filtering) — scoped to calling user
    */
   listDrafts: protectedProcedure
     .input(
@@ -115,7 +111,7 @@ export const charmerRouter = router({
     }),
 
   /**
-   * Get draft by ID
+   * Get draft by ID — scoped to calling user
    */
   getDraft: protectedProcedure
     .input(
@@ -144,12 +140,13 @@ export const charmerRouter = router({
         )
         .limit(1);
 
-      if (!result) throw new Error("Draft not found");
+      if (!result)
+        throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
       return result;
     }),
 
   /**
-   * Approve draft
+   * Approve draft — owner-scoped
    */
   approveDraft: protectedProcedure
     .input(
@@ -162,7 +159,7 @@ export const charmerRouter = router({
     }),
 
   /**
-   * Reject draft
+   * Reject draft — owner-scoped
    */
   rejectDraft: protectedProcedure
     .input(
@@ -199,7 +196,6 @@ export const charmerRouter = router({
         throw new Error("Draft rejection was not persisted");
       }
 
-      // Log audit event
       await logAudit({
         userId: ctx.user.id,
         action: "draft_rejected",

@@ -245,11 +245,13 @@ export async function enrichLead(lead: {
       .replace(/^www\./, "")
       .split("/")[0];
 
-    const contact: EnrichedContact | null =
-      await findVerifiedOwnerEmail(domain, {
+    const contact: EnrichedContact | null = await findVerifiedOwnerEmail(
+      domain,
+      {
         userId: lead.userId,
         leadId: lead.id,
-      });
+      }
+    );
 
     if (contact) {
       verifiedEmail = contact.email;

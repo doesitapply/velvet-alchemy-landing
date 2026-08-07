@@ -1,6 +1,7 @@
 # Velvet Alchemy - TODO
 
 ## Curator MVP
+
 - [x] Add leads table to database schema
 - [x] Add assets table to database schema
 - [x] Run database migration
@@ -15,6 +16,7 @@
 - [x] Manual test: create lead, verify DB + S3 + UI (all tests passing)
 
 ## Curator v1 (In Progress)
+
 - [x] Create LLM visual audit function
 - [x] Define visual debt schema (JSON structure)
 - [x] Implement prestige score calculation logic
@@ -24,6 +26,7 @@
 - [x] Manual test: verify audit quality (LLM producing structured results)
 
 ## Governor (In Progress)
+
 - [x] Add rate_limits table to database schema
 - [x] Add system_config table for kill-switch and settings
 - [x] Add audit_log table for compliance tracking
@@ -37,6 +40,7 @@
 - [x] Manual test: verify rate limits trigger correctly (all tests passing)
 
 ## Visionary (In Progress)
+
 - [x] Add assets table to database schema (already exists)
 - [x] Build Business DNA extraction from visual audit
 - [x] Build asset generation function using Manus image API
@@ -48,6 +52,7 @@
 - [x] Manual test: verify assets are generated and stored (ready for user testing)
 
 ## The Charmer (In Progress)
+
 - [x] Add campaigns table to database schema
 - [x] Add outreach_drafts table to database schema
 - [x] Implement Gmail MCP client wrapper
@@ -61,6 +66,7 @@
 - [x] Manual test: generate draft, approve, send (ready for user testing)
 
 ## The Orchestrator (In Progress)
+
 - [x] Add pipeline_jobs table to database schema
 - [x] Design pipeline stages architecture (Screenshot+Audit → Assets → Outreach)
 - [x] Implement background job queue system (pipeline_jobs table)
@@ -75,6 +81,7 @@
 - [x] Manual test: create lead, verify full pipeline execution (ready for user testing)
 
 ## Command Center (In Progress)
+
 - [x] Design unified dashboard layout at /command-center
 - [x] Build workflow cards with descriptions and purposes
 - [x] Add trigger buttons for each workflow
@@ -88,6 +95,7 @@
 - [x] Manual test: launch workflows, verify real-time updates (ready for user testing)
 
 ## Documentation Suite
+
 - [x] README.md - System overview, architecture, quick start
 - [x] USER_GUIDE.md - Step-by-step workflow tutorials
 - [x] ARCHITECTURE.md - Technical deep-dive on agents and database
@@ -96,11 +104,13 @@
 - [x] API_REFERENCE.md - tRPC procedures documentation
 
 ## Future Enhancements
+
 - Curator v2: Automated lead scraping
 - Stripe integration
 - Pinecone memory
 
 ## Stress Test & Missing Features
+
 - [x] Test authentication flow end-to-end
 - [ ] Test lead creation with real websites
 - [ ] Test visual audit accuracy and prestige scoring
@@ -113,6 +123,7 @@
 - [x] Create in-app instruction/help page
 
 ## Critical Fixes Needed
+
 - [x] Create Leads list page (/leads route)
 - [x] Replace browser prompt() with proper modal dialogs (done in Leads page)
 - [x] Add navigation header/sidebar to all dashboard pages
@@ -125,6 +136,7 @@
 - [x] Add help/instruction page
 
 ## Reno Small Business Pivot
+
 - [x] Add Google Maps scraping to find small businesses by city + category
 - [x] Add Google Search ranking checker (track position for target keywords)
 - [x] Create business category taxonomy (restaurants, contractors, retail, services, healthcare, etc.)
@@ -139,6 +151,7 @@
 - [ ] Test with real Reno businesses (pizza, plumbers, dentists, etc.)
 
 ## Documentation Updates for Reno Pivot
+
 - [ ] Update README.md - Change from luxury to local business focus
 - [ ] Update USER_GUIDE.md - Add scraper workflow and examples
 - [ ] Update ARCHITECTURE.md - Document scraper infrastructure
@@ -146,6 +159,7 @@
 - [ ] Update Help page - Reflect new workflow and business categories
 
 ## Critical Fixes - Make It Work
+
 - [x] Debug visual audit performance (why is it taking 2+ minutes?)
 - [x] Check Rolex lead status in database
 - [x] Test visual audit with simple local business site
@@ -161,6 +175,7 @@
 - [ ] Remove all mock data and placeholder content
 
 ## Search API Integration
+
 - [x] Research available search APIs (Manus built-in, SerpAPI, DataForSEO)
 - [x] Choose and configure search API provider (Google Maps Places API)
 - [x] Implement searchBusinesses in scraperRouter with real API calls
@@ -170,6 +185,7 @@
 - [ ] Add error handling and rate limiting
 
 ## Command Center Dashboard Rebuild
+
 - [x] Create backend procedures for dashboard metrics (total leads, pending audits, completed outreach, conversion rates)
 - [x] Add lead pipeline stats endpoint (scraped → audited → assets → outreach)
 - [x] Add missing fields to leads table (prestigeScore, hasAssets, hasOutreach)
@@ -183,6 +199,7 @@
 - [ ] Remove old placeholder content from Command Center
 
 ## Customer Landing Page
+
 - [x] Design hero section with clear value prop ("Is Your Website Costing You Customers?")
 - [x] Add problem/solution section (bad website = lost rankings = lost revenue)
 - [x] Build features section (free audit, visual analysis, actionable recommendations)
@@ -193,6 +210,7 @@
 - [ ] Test form submission and lead capture
 
 ## Public Documentation Page
+
 - [x] Write comprehensive About/How It Works page explaining Velvet Alchemy to the public
 - [x] Include problem statement (bad websites = lost customers)
 - [x] Explain how the AI audit works (screenshot + GPT-4o Vision analysis)
@@ -204,6 +222,7 @@
 - [ ] Test page and save checkpoint
 
 ## Critical Bug Fixes (From Stress Test 2)
+
 - [x] Fix landing page form submission - debug why trpc.leads.create fails (created public procedure)
 - [x] Add loading progress indicator during 35-40 second visual audit
 - [x] Sync prestige scores from audits table to leads table after audit completes
@@ -212,6 +231,7 @@
 - [x] Test all fixes end-to-end with real data (all 3 fixes working, timeout issue identified)
 
 ## Export Page for Employee Outreach
+
 - [x] Create exportRouter with getExportData procedure
 - [x] Build Export page UI at /export with filters and selection
 - [x] Implement CSV download functionality with all lead data
@@ -221,6 +241,7 @@
 - [x] Verify CSV contains all required fields (Lead ID, Company Name, Website URL, Prestige Score, Status, Audit Summary, Top Issues, Visual Debt Details, Social Post URLs, Banner URLs, Screenshot URL, Created At, Audit Date)
 
 ## Email Integration on Lead Profile
+
 - [x] Create backend tRPC procedure for sending emails via Gmail MCP
 - [x] Build EmailComposeDialog component with form fields (to, subject, body)
 - [x] Add "Send Email" button to LeadDetail page
@@ -230,8 +251,8 @@
 - [x] Test email sending with unit tests (4/4 passing)
 - [x] Update todo.md to mark tasks complete
 
-
 ## Landing Page Routing Update
+
 - [x] Create new landing page at "/" with two paths
 - [x] Path 1: "Get Free Audit" → Customer Portal (self-service audit)
 - [x] Path 2: "Internal Dashboard" → Command Center (admin tools)
@@ -242,8 +263,8 @@
 - [x] Test internal dashboard flow (all admin tools)
 - [x] Save checkpoint
 
-
 ## Global Toast Notification System
+
 - [x] Install Sonner package for toast notifications
 - [x] Set up Toaster provider in main.tsx
 - [x] Add toast to Orchestrator (audit started, completed, failed)
@@ -253,8 +274,8 @@
 - [x] Test all toast notifications
 - [x] Save checkpoint
 
-
 ## Start Audit Button on LeadDetail
+
 - [x] Add "Start Audit" button to LeadDetail page header
 - [x] Wire up mutation to call orchestrator.executePipeline with leadId
 - [x] Add toast notifications for audit start/success/error
@@ -262,8 +283,8 @@
 - [x] Test audit trigger (button visible on pending leads, hidden on audited)
 - [x] Save checkpoint
 
-
 ## Navigation & UI Overhaul (1000x Improvement)
+
 - [x] Build persistent top navigation bar with logo + main menu (visible on ALL pages)
 - [x] Add persistent sidebar navigation for internal dashboard - SKIPPED (top nav is sufficient)
 - [x] Redesign LeadDetail page - make Start Audit button HUGE and prominent (gold, text-xl, px-8 py-6)
@@ -276,8 +297,8 @@
 - [x] Test full navigation flow: Landing → Dashboard → Leads → Detail → Audit
 - [x] Save checkpoint with complete UI overhaul
 
-
 ## Auto-Audit Pipeline & Lead Qualification
+
 - [x] Modify Scraper backend to automatically trigger audit after creating leads
 - [x] Add prestige score threshold filter to Leads page (only show audited leads >= 60)
 - [x] Update Leads page query to filter by status='audited' AND prestigeScore >= 60
@@ -286,29 +307,30 @@
 - [x] Test full workflow: Scraper → Auto-Audit → Filtered Leads page (verified filtering works - page now empty)
 - [x] Save checkpoint
 
-
 ## Add Start Scraping Button
+
 - [x] Read BusinessScraper.tsx to find form structure
 - [x] Add large prominent "Start Scraping" button at bottom of form
 - [x] Make button cyan gradient to match Start Audit button style
 - [x] Test button triggers scrape with form values (button already existed, upgraded to HUGE cyan)
 - [x] Save checkpoint
 
-
 ## SEO Improvements for Landing Page
+
 - [x] Add meta description (50-160 characters) to index.html
 - [x] Add meta keywords to index.html
 - [x] Test SEO metadata
 - [x] Save checkpoint
 
-
 ## Fix 404 Error and Nested Anchor
+
 - [ ] Update AppHeader Dashboard link from /dashboard to /command-center
 - [ ] Fix nested anchor in LeadDetail header (Back/Visit Site buttons)
 - [ ] Test navigation to verify no 404 errors
 - [ ] Save checkpoint
 
 ## Navigation Routing Fixes (Current)
+
 - [x] Deep debug and fix page constantly refreshing/glitching
 - [x] Fix /dashboard links to /command-center in LeadDetail.tsx (2 links)
 - [x] Fix /dashboard link to /command-center in Orchestrator.tsx (1 link)
@@ -317,6 +339,7 @@
 - [x] Add /dashboard redirect route to handle Management UI links
 
 ## Enhanced Navigation Bar (Current)
+
 - [x] Review current AppHeader implementation
 - [x] Design enhanced navigation with better visual hierarchy
 - [x] Add mobile responsive hamburger menu
@@ -326,6 +349,7 @@
 - [x] Ensure accessibility (keyboard navigation, ARIA labels)
 
 ## Critical Functionality Fixes (COMPLETED)
+
 - [x] Diagnose why audit system doesn't work - FIXED: userId filter was excluding scraped leads
 - [x] Fix audit button to actually trigger audits - WORKING: orchestrator.executePipeline backend confirmed
 - [x] Fix leads page showing "No leads yet" when leads exist - FIXED: removed userId filter, lowered prestige threshold
@@ -338,6 +362,7 @@
 - [x] Test end-to-end workflow with real data - VERIFIED: 45 real Reno businesses (roofing + pizza)
 
 ## Real-Time Audit Progress Tracking (COMPLETED)
+
 - [x] Design progress tracking architecture (polling vs WebSocket) - POLLING chosen for simplicity
 - [x] Update pipeline_jobs table schema to track current stage and progress percentage - Added progressPercentage column
 - [x] Implement backend progress updates in orchestrator.ts (update job status at each stage) - Progress updates at 0%, 25%, 75%, 90%, 100%
@@ -351,6 +376,7 @@
 - [x] Save checkpoint
 
 ## End-to-End Pipeline Testing (Current)
+
 - [ ] Install Playwright browsers (chromium-headless-shell)
 - [ ] Test scraper: Search "roofing Reno NV" and create 5 leads
 - [ ] Verify leads are in database with correct data
@@ -366,6 +392,7 @@
 - [ ] Save checkpoint with fully working pipeline
 
 ## Simplified Pipeline - Manual Outreach Focus (Current)
+
 - [ ] Fix screenshot timeout errors (increase timeout, handle slow sites)
 - [ ] Remove outreach automation from pipeline (focus on audit only)
 - [ ] Run audits on all pending plumber leads
@@ -378,6 +405,7 @@
 - [ ] Save checkpoint with working manual outreach system
 
 ## Outreach Playbook Document (COMPLETED)
+
 - [x] Research cold email best practices and conversion strategies
 - [x] Draft email templates for different prestige score ranges (0-30, 31-60, 61-100)
 - [x] Create objection handling guide (too expensive, already have designer, not interested)
@@ -387,6 +415,7 @@
 - [ ] Save checkpoint
 
 ## Playwright Browser Reinstall (COMPLETED)
+
 - [x] Check current Playwright browser installation status - Browsers exist in /home/ubuntu/.cache/ms-playwright/
 - [x] Clear old Playwright browser cache - Not needed
 - [x] Reinstall Playwright browsers (chromium) - Not needed, already installed
@@ -398,6 +427,7 @@
 - [ ] Save checkpoint
 
 ## Batch Processing & Asset Builder (URGENT - Current)
+
 - [ ] Add "Audit All" button to Command Center that queues all pending leads
 - [ ] Implement batch processing queue system (process leads sequentially with rate limiting)
 - [ ] Add progress indicator showing X of Y leads processed
@@ -412,6 +442,7 @@
 - [ ] Save checkpoint
 
 ## Intelligent Lead Prioritization System (COMPLETED)
+
 - [x] Design pre-screening criteria (domain age, SSL, mobile-friendly, page speed, business category value)
 - [x] Implement lightweight pre-screening function (no GPT-4o, just technical checks)
 - [x] Add priorityScore column to leads table (0-100)
@@ -428,6 +459,7 @@
 - [ ] Save checkpoint
 
 ## Desktop App Packaging (Future)
+
 - [ ] Research Electron vs Tauri for desktop packaging
 - [ ] Install Electron dependencies
 - [ ] Create Electron main process configuration
@@ -439,6 +471,7 @@
 - [ ] Save checkpoint
 
 ## PHASE 1: Selective Batch Auditing (COMPLETED - READY FOR TESTING)
+
 - [x] Add "Audit Selected" button to Leads page
 - [x] Limit batch to maximum 5 leads (enforced in mutation + UI)
 - [x] Run audits sequentially (one at a time, not parallel)
@@ -451,6 +484,7 @@
 - [ ] Test with 5 selected leads - READY TO TEST
 
 ## PHASE 2: Pre-Screening (AFTER PHASE 1)
+
 - [ ] Run pre-screening on all 49 existing leads
 - [ ] Verify every lead shows priority score
 - [ ] Test sorting by priority reorders list correctly
@@ -458,6 +492,7 @@
 - [ ] Confirm colors match scores exactly
 
 ## PHASE 3: Asset Generation & Display (AFTER PHASE 2)
+
 - [ ] Disable asset generation for leads without audits
 - [ ] Generate exactly 4 images per lead (no duplicates)
 - [ ] Display images in gallery on lead detail page
@@ -466,6 +501,7 @@
 - [ ] Verify asset generation fails gracefully if audit missing
 
 ## PHASE 4: Gmail Outreach (AFTER PHASE 3)
+
 - [ ] Set up Gmail MCP OAuth login
 - [ ] Add "Send Outreach Email" button (manual only)
 - [ ] Include in email: business name, prestige score, 1+ image, CTA
@@ -475,6 +511,7 @@
 - [ ] Verify no automatic sending (manual trigger only)
 
 ## PHASE 2: Schema-Driven Technical Leak Detection (IN PROGRESS)
+
 - [x] Add detailed_report JSONB column to leads table
 - [x] Add last_deep_scan_at timestamp column
 - [x] Update Drizzle schema with new columns
@@ -496,6 +533,7 @@
 - [ ] Save checkpoint
 
 ## Website Generation System (IN PROGRESS)
+
 - [ ] Create website_projects table in database
 - [ ] Build AI Website Generator function (reads audit data, generates HTML/CSS/JS)
 - [ ] Add "Generate Website" button to LeadDetail page
@@ -513,6 +551,7 @@
 - [ ] Save checkpoint
 
 ## ZIP Download Feature (COMPLETED)
+
 - [x] Install archiver package for ZIP creation
 - [x] Add downloadZip procedure to websiteGenerator router
 - [x] Create ZIP file from generated website files
@@ -522,6 +561,7 @@
 - [ ] Save checkpoint
 
 ## Edit Website Feature (COMPLETED)
+
 - [x] Create WebsiteEditorModal component with live preview iframe
 - [x] Add color picker inputs for primary/secondary colors
 - [x] Add background color customization
@@ -533,6 +573,7 @@
 - [ ] Save checkpoint
 
 ## Training Guide (COMPLETED)
+
 - [x] Write comprehensive training guide for operator
 - [x] Include step-by-step workflow from scraping to delivery
 - [x] Add pricing strategy and sales scripts
@@ -540,6 +581,7 @@
 - [ ] Save checkpoint and deliver guide
 
 ## Stripe Payment Integration (IN PROGRESS)
+
 - [ ] Add Stripe feature to project with webdev_add_feature
 - [ ] Create payments table in database
 - [ ] Build payment router with createPaymentLink procedure
@@ -550,15 +592,15 @@
 - [ ] Test payment flow with test mode
 - [ ] Save checkpoint
 
-
 ## Package Selection UI (COMPLETE)
+
 - [x] Replace fixed $5k Send Invoice button with package selection dropdown
 - [x] Add Basic ($3k), Standard ($5k), Premium ($8k) options with descriptions
 - [x] Test payment flow with all three package types (6/6 tests passing)
 - [x] Save checkpoint
 
-
 ## Smoke Test & Live Metrics (COMPLETE)
+
 - [x] Smoke test Command Center - NO MOCK DATA (all real tRPC queries)
 - [x] Smoke test Revenue Dashboard - NO MOCK DATA (real payment data)
 - [x] Smoke test Leads page - NO MOCK DATA (real lead data)
@@ -573,8 +615,8 @@
 - [x] Test all pages with actual data
 - [x] Save checkpoint
 
-
 ## Real-Time Activity Feed (COMPLETE)
+
 - [x] Create backend tRPC endpoint to fetch recent activities (leads, audits, payments)
 - [x] Build ActivityFeed component with icons and timestamps
 - [x] Add activity type badges (new lead, audit complete, payment received)
@@ -583,8 +625,8 @@
 - [x] Test activity feed with real data (4/4 tests passing)
 - [x] Save checkpoint
 
-
 ## Fix Playwright Production Error (COMPLETE)
+
 - [x] Investigate current screenshot implementation using Playwright
 - [x] Research production-ready screenshot alternatives (API services)
 - [x] Replace Playwright with serverless screenshot service (ScreenshotOne + screenshot.rocks fallback)
@@ -593,8 +635,8 @@
 - [x] Update error handling for screenshot failures (graceful fallback)
 - [x] Save checkpoint
 
-
 ## User Onboarding & API Cost Tracker (IN PROGRESS)
+
 - [ ] Create database schema for API usage tracking (api_calls table)
 - [ ] Create database schema for onboarding progress (user_onboarding table)
 - [ ] Build API cost tracking middleware to log all LLM/screenshot calls
@@ -607,8 +649,8 @@
 - [ ] Test complete onboarding flow from signup to first payment
 - [ ] Save checkpoint
 
-
 ## User Onboarding & API Cost Tracking (COMPLETE)
+
 - [x] Create database schema for API usage tracking (api_calls table)
 - [x] Create database schema for onboarding progress (user_onboarding table)
 - [x] Build API cost tracking middleware to log LLM/screenshot calls
@@ -625,8 +667,8 @@
 - [x] Test complete onboarding flow (3/6 tests passing - core functionality works)
 - [x] Save checkpoint
 
-
 ## Lead Deletion, Traffic Ranking & Prioritization (IN PROGRESS)
+
 - [ ] Add delete mutation to leadsRouter with proper authorization
 - [ ] Build confirmation dialog component for delete action
 - [ ] Add delete button to Leads page (each lead card)
@@ -644,8 +686,8 @@
 - [ ] Write tests for delete and priority scoring
 - [ ] Save checkpoint
 
-
 ## Lead Deletion, Traffic Ranking & Prioritization (IN PROGRESS)
+
 - [x] Add delete mutation to leads tRPC router with authorization
 - [x] Create deleteLead function in db.ts
 - [x] Build DeleteConfirmDialog component
@@ -660,8 +702,8 @@
 - [ ] Add traffic-based sorting options
 - [ ] Test complete flow and save checkpoint
 
-
 ## Operator-Proof Interface (COMPLETE)
+
 - [x] Create OperatorWizard component with giant numbered steps (STEP 1, STEP 2, STEP 3, STEP 4)
 - [x] Build auto-progression system (automatically advance when step completes)
 - [x] Implement button state management (color-coded: green=done, cyan=current, gray=pending)
@@ -676,8 +718,8 @@
 - [x] Test operator workflow
 - [x] Save checkpoint
 
-
 ## Conversion-Focused Landing Page (COMPLETE)
+
 - [x] Design hero section with compelling headline ("Turn Local Businesses Into $5K Paychecks")
 - [x] Add primary CTA button ("Start Free Audit" gold gradient)
 - [x] Add secondary CTA ("See Demo Dashboard")
@@ -694,8 +736,8 @@
 - [x] Test conversion flow (all CTAs working)
 - [x] Save checkpoint
 
-
 ## Fix Landing Page OAuth Redirect (COMPLETE)
+
 - [x] Identify why landing page redirects to OAuth login (CTAs linked to getLoginUrl())
 - [x] Change "Start Free Audit" button to link to /command-center
 - [x] Change "Get Dashboard Access" button to link to /command-center
@@ -704,8 +746,8 @@
 - [x] Test "Start Free Audit" button - goes to command center (which then requires auth)
 - [x] Save checkpoint
 
-
 ## Demo Video Creation (COMPLETE)
+
 - [x] Write 90-second video script with narration (complete with timing)
 - [x] Create detailed shot list (what to show on screen, 17 scenes)
 - [x] Build recording instructions (Loom setup, pre-recording checklist, advanced tips)
@@ -716,8 +758,8 @@
 - [ ] Test video playback on mobile/desktop
 - [x] Save checkpoint
 
-
 ## Fix Playwright Error & Clean Database (IN PROGRESS)
+
 - [ ] Test audit flow to reproduce Playwright error
 - [ ] Find remaining Playwright references in codebase
 - [ ] Replace all Playwright calls with serverless screenshot API
@@ -731,12 +773,14 @@
 - [x] Fix "Cannot read properties of undefined (reading '0')" error on lead detail page
 
 ## Public Audit Form Feature
+
 - [x] Add audit form UI to landing page
-- [x] Connect form to backend audit pipeline  
+- [x] Connect form to backend audit pipeline
 - [x] Test complete audit flow
 - [ ] Save checkpoint
 
 ## AI Agent Navigation Optimization
+
 - [x] Add unique descriptive IDs to all interactive elements (buttons, inputs, links)
 - [x] Fix revenue calculator overflow when values exceed 10 million
 - [x] Ensure semantic HTML structure across all pages
@@ -745,6 +789,7 @@
 - [ ] Save checkpoint
 
 ## Technographic Hunter - Production Ready
+
 - [x] Core scraper with 100% Shopify detection + GTM filtering
 - [x] Validated on 25 domains (6 Shopify, 3 high-value)
 - [x] Supabase schema with RLS policies
@@ -762,18 +807,21 @@
 - [ ] User: Find first paying customer
 
 ## User Guide for Niece (Operations Manual)
+
 - [ ] Create comprehensive daily operations guide
 - [ ] Add visual workflow diagrams
 - [ ] Create troubleshooting section
 - [ ] Save checkpoint
 
 ## User Guide for Niece (Operations Manual)
+
 - [x] Create comprehensive daily operations guide (USER_GUIDE_FOR_NIECE.md)
 - [x] Add visual workflow diagrams (WORKFLOW_DIAGRAM.md)
 - [x] Create troubleshooting section (TROUBLESHOOTING.md)
 - [ ] Save checkpoint
 
 ## Backend Architecture Audit & Optimization
+
 - [x] Map current pipeline flow and credit usage per operation
 - [x] Identify credit-burning operations (screenshot, GPT-4o audit, asset generation)
 - [x] Calculate cost per lead for current pipeline ($0.21-0.46)
@@ -785,6 +833,7 @@
 - [ ] Save checkpoint
 
 ## Asset Generation Safety Rails
+
 - [x] Add assetsStatus field to leads table schema ('not_requested' | 'generating' | 'ready' | 'failed')
 - [x] Add assetsGeneratedAt timestamp to leads table
 - [x] Columns already exist in database
@@ -799,6 +848,7 @@
 ## Autonomous Sales Pipeline (Week 1-4)
 
 ### Week 1: Automated Outreach System
+
 - [ ] Build voice analysis system (analyze user's Gmail sent emails)
 - [ ] Extract writing patterns (tone, sentence length, vocabulary, sign-offs)
 - [ ] Create email template engine with dynamic personalization
@@ -810,6 +860,7 @@
 - [ ] Write unit tests for voice analysis and email generation
 
 ### Week 1: Follow-Up Automation
+
 - [ ] Build multi-step sequence engine (Day 3, 7, 14 follow-ups)
 - [ ] Implement response detection system
 - [ ] Create intent classification (interested/not now/not interested/question)
@@ -820,6 +871,7 @@
 - [ ] Write unit tests for sequence logic
 
 ### Week 2: Demo Scheduling
+
 - [ ] Integrate calendar system (Calendly API or custom)
 - [ ] Build interest signal detection
 - [ ] Auto-trigger asset generation on demo booking
@@ -829,6 +881,7 @@
 - [ ] Test scheduling flow end-to-end
 
 ### Week 2: Proposal & Negotiation
+
 - [ ] Create proposal template engine
 - [ ] Build pricing tier system (configurable)
 - [ ] Implement objection handling library
@@ -838,6 +891,7 @@
 - [ ] Test negotiation scenarios
 
 ### Week 3: Payment & Onboarding
+
 - [ ] Enhance Stripe integration for automated payment links
 - [ ] Build payment tracking dashboard
 - [ ] Create onboarding email sequence
@@ -846,6 +900,7 @@
 - [ ] Test payment flow with test mode
 
 ### Week 3: Control Panel & Dashboard
+
 - [ ] Build pipeline overview dashboard
 - [ ] Create approval queue UI
 - [ ] Add AI activity log viewer
@@ -856,6 +911,7 @@
 - [ ] Test all control features
 
 ### Week 4: Testing & Refinement
+
 - [ ] Run end-to-end test with 50 real leads
 - [ ] Measure conversion rates at each stage
 - [ ] Calculate cost per acquisition
@@ -868,6 +924,7 @@
 ## Autonomous Sales Pipeline - Phase 1 Complete
 
 ### Week 1: Automated Outreach System (COMPLETED)
+
 - [x] Build voice analysis system (analyze user's Gmail sent emails)
 - [x] Extract writing patterns (tone, sentence length, vocabulary, sign-offs)
 - [x] Create email template engine with dynamic personalization
@@ -884,8 +941,8 @@
 - [ ] Test voice calibration with first 5 emails
 - [ ] Write unit tests for voice analysis and email generation
 
-
 ## Autonomous Sales Pipeline (Phase 1: Voice Calibration) ✅
+
 - [x] Gmail MCP integration working
 - [x] Voice profile system implemented (sarcastic, funny, approachable salesman)
 - [x] Email generation logic updated with new tone
@@ -897,8 +954,8 @@
 - [ ] Build follow-up automation (Day 3, 7, 14 sequences)
 - [ ] Add reply detection and intent classification
 
-
 ## Multi-Provider AI API Fallback System
+
 - [x] Design database schema (ai_providers, api_usage_logs, provider_health)
 - [x] Create provider abstraction layer (unified interface for all providers)
 - [x] Implement automatic failover logic (rate limit detection → switch provider)
@@ -913,8 +970,8 @@
 - [ ] Test with intentional rate limit triggers
 - [ ] Document provider setup and configuration
 
-
 ## Remove All Fake Data & Mock Stats (CURRENT PRIORITY)
+
 - [x] Remove "87% of audited businesses respond" stat from landing page
 - [x] Remove "Avg. deal closes in 3 days" stat
 - [x] Remove "Stripe secure payments" badge (not relevant yet)
@@ -926,6 +983,7 @@
 - [ ] Save checkpoint once verified working
 
 ## OpenAI Permanent Fallback
+
 - [ ] Inspect current invokeLLM and audit pipeline code
 - [ ] Build fallback wrapper: Manus AI → OpenAI on 412/429/503
 - [ ] Add OPENAI_API_KEY secret
@@ -933,12 +991,14 @@
 - [ ] Test audit runs end-to-end with OpenAI
 
 ## Multi-Provider AI Fallback Chain
+
 - [x] Implement provider chain: Manus → OpenAI → Anthropic → Google Gemini
 - [x] Add GOOGLE_AI_API_KEY to env (native Gemini API)
 - [x] Test that Gemini key works (✓ passing)
 - [ ] Save checkpoint
 
 ## Scraper 0-Results Bug Fix
+
 - [x] Root cause: invokeAI() was calling removed openai/anthropic packages, silently skipping all businesses
 - [x] Fix: invokeAI() now delegates to invokeLLM() which has the working Gemini fallback chain
 - [x] Test: scraper.test.ts passes — Gemini 2.5 Flash qualifies leads correctly
@@ -946,12 +1006,13 @@
 - [ ] Save checkpoint
 
 ## Public REST API (External Access)
+
 - [ ] Add api_keys table to drizzle schema (id, key_hash, name, scopes, created_at, last_used_at, is_active)
 - [ ] Run db:push to migrate
 - [ ] Build API key generation and management tRPC procedures
 - [ ] Build API key management UI page (/settings/api-keys)
 - [ ] Build Express middleware for API key auth (Bearer token validation)
-- [ ] Build REST router at /api/v1/* with endpoints:
+- [ ] Build REST router at /api/v1/\* with endpoints:
   - [ ] GET /api/v1/leads — list leads with filters
   - [ ] GET /api/v1/leads/:id — get lead detail + audit
   - [ ] POST /api/v1/leads — create lead manually
@@ -965,9 +1026,10 @@
 - [ ] Save checkpoint
 
 ## Public REST API for External Integrations (COMPLETE)
+
 - [x] api_keys table created in DB
 - [x] apiKeyRouter: create, list, revoke, delete keys via tRPC
-- [x] REST API mounted at /api/v1/* with Bearer token auth
+- [x] REST API mounted at /api/v1/\* with Bearer token auth
 - [x] GET /api/v1/status — health check
 - [x] GET /api/v1/leads — list leads
 - [x] GET /api/v1/leads/:id — get lead + audit
@@ -981,6 +1043,7 @@
 - [x] Unit tests: 8/8 passing
 
 ## Bug Fix Session (2026-06-28)
+
 - [x] Fix onboarding.test.ts: use stripe_checkout_session_id (correct column name), add afterAll cleanup
 - [x] Fix governor.ts: remove example.com from blacklist (was blocking curator tests)
 - [x] Fix governor.test.ts: add beforeAll/afterAll cleanup for test user IDs, fix domain test
@@ -992,31 +1055,30 @@
 - [x] Fix Stripe pricing P0: products.ts prices updated to 300000/500000/800000 cents ($3k/$5k/$8k)
 - [x] All 79 tests passing (15 test files)
 
-## Revenue Machine Upgrades (Phase 1-3 Blueprint)
+## Revenue Machine Upgrades (Historical Blueprint, Superseded)
 
-### Phase 1: Verified Email Enrichment + SMS Fallback
+### Phase 1: Verified Email Enrichment, No SMS
+
 - [x] Wire Hunter.io API into server/lib/enrichment.ts (findVerifiedOwnerEmail)
-- [x] Add HUNTER_API_KEY secret to environment (requires user to provide key)
 - [x] Filter for owner/founder/ceo/president titles, return highest-confidence email
-- [x] Add outreachChannel field to leads table: 'email' | 'sms' | 'none'
-- [x] Route lead to emailQueue if verified email found
-- [x] Route lead to SMS pipeline (Twilio) if no email but phone exists
-- [x] Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER secrets (requires user to provide)
-- [x] Build sendSmsOutreach() function with audit portal link
-- [x] Wire enrichment into orchestrator pipeline Stage 2 (batchAudit + enrichLead)
-- [ ] Write tests for enrichment routing logic (deferred — requires live API keys)
+- [x] Retain phone numbers as research-only data
+- [x] Remove automatic SMS fallback and all SMS draft creation
+- [x] Keep Velvet unable to draft, approve, or deliver outreach; SMIRK is the guarded authority
+- [x] Cover the no-SMS and no-direct-send boundary with portable unit tests
 
 ### Phase 2: FIFO Queue Worker + Auto-Enqueue
+
 - [x] Create server/worker.ts — FIFO queue worker polling pipelineJobs every 5 min
 - [x] Worker processes max 3 leads at a time (sequential, not parallel)
 - [x] Worker marks jobs running → executes 3 stages → marks completed/failed
-- [x] Register worker in server/_core/index.ts (start on boot)
+- [x] Register worker in server/\_core/index.ts (start on boot)
 - [x] Update scraperRouter.createLeadsFromSearch to auto-enqueue every new lead
 - [x] Add auto-enqueue to leads.create and leads.createPublic tRPC procedures
 - [ ] Add worker status endpoint to Governor dashboard (deferred)
 - [ ] Write tests for queue worker logic (deferred)
 
 ### Phase 3: Governor Upgrades
+
 - [x] Add daily cost kill-switch: if apiUsageLogs daily total > $10, flip kill_switch = true
 - [x] Run cost check in apiCostTracker after every logged call
 - [x] Add DAILY_COST_BUDGET_CENTS config (default 1000 = $10) — stored in system_config table
@@ -1025,26 +1087,15 @@
 - [ ] Add cost threshold display to Governor dashboard (deferred)
 - [ ] Write tests for cost kill-switch trigger (deferred)
 
-## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
+## SMIRK to Velvet Integration (Current Guarded Pull Loop)
 
-- [ ] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
-- [ ] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
-- [ ] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
-- [ ] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/outcome endpoint to apiRouter.ts
-- [ ] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
-- [ ] Request SMIRK secrets via webdev_request_secrets
-- [ ] Write integration tests for handoff and outcome endpoints
-- [ ] Run full test suite (pnpm test)
-- [ ] Save checkpoint
-
-## UI Coherence Pass
-- [ ] Replace landing page with minimal auth gate (name + one line + login button)
-- [ ] Root / redirects to /command-center when authenticated, to login gate when not
-- [ ] Remove all "$5K paychecks" / SaaS marketing copy from codebase
-- [ ] Add SMIRK status badges to lead list (smirk_queued, smirk_contacted with outcome chip)
-- [ ] Add SMIRK Call Intelligence panel to LeadDetail page
-- [ ] Add "Queue SMIRK Call" button to LeadDetail (visible when lead is audited + has phone)
-- [ ] Add leads.triggerHandoff tRPC mutation (calls queueSmirkCall, returns result)
-- [ ] Status color map updated to include smirk_queued (purple) and smirk_contacted (indigo)
+- [x] Add separate `smirk:research` and `outcome:write` least-privilege scopes
+- [x] Add reviewed, bounded research-batch export for SMIRK
+- [x] Add signed outcome callback ingestion with replay protection
+- [x] Add a no-write connection-proof endpoint
+- [x] Block legacy real-prospect handoff compatibility routes
+- [x] Block Velvet outreach drafting, approval, and delivery routes
+- [x] Add separate key-creation presets and exact SMIRK variable mapping to the API Keys UI
+- [x] Prove the closed loop with synthetic disposable databases and intercepted external boundaries
+- [ ] Create provider credentials and stage them in SMIRK through the digest-bound approval gate
+- [ ] Deploy only after SMIRK production backup and separate deploy approval

@@ -1,5 +1,11 @@
 import AppHeader from "@/components/AppHeader";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
@@ -48,10 +54,9 @@ export default function CommandCenter() {
   const pipelineQuery = trpc.dashboard.getPipelineStats.useQuery();
   const activityQuery = trpc.dashboard.getRecentActivity.useQuery();
   const scoreDistQuery = trpc.dashboard.getScoreDistribution.useQuery();
-  const categoryLearningQuery =
-    trpc.acquisitionLearning.scorecard.useQuery({
-      dimension: "category",
-    });
+  const categoryLearningQuery = trpc.acquisitionLearning.scorecard.useQuery({
+    dimension: "category",
+  });
   const metroLearningQuery = trpc.acquisitionLearning.scorecard.useQuery({
     dimension: "metro",
   });
@@ -332,7 +337,9 @@ export default function CommandCenter() {
         definitionHash: experiment.definitionHash,
         confirmation: "cancel-one-open-acquisition-sourcing-experiment-v1",
       });
-      toast.success("Source experiment cancelled with its audit trail preserved.");
+      toast.success(
+        "Source experiment cancelled with its audit trail preserved."
+      );
       sourcingExperimentsQuery.refetch();
     } catch (error) {
       toast.error(
@@ -434,9 +441,7 @@ export default function CommandCenter() {
       smirkDiscoveryQuery.refetch();
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Unable to approve discovery."
+        error instanceof Error ? error.message : "Unable to approve discovery."
       );
     }
   };
@@ -461,9 +466,7 @@ export default function CommandCenter() {
       smirkDiscoveryQuery.refetch();
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Unable to queue discovery."
+        error instanceof Error ? error.message : "Unable to queue discovery."
       );
     }
   };
@@ -492,25 +495,27 @@ export default function CommandCenter() {
       smirkDiscoveryQuery.refetch();
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Unable to update discovery."
+        error instanceof Error ? error.message : "Unable to update discovery."
       );
     }
   };
 
   const handlePreScreenAll = async () => {
     if (!metrics?.pendingAudits) return;
-    
+
     setIsPreScreening(true);
     toast.info(`Pre-screening ${metrics.pendingAudits} leads...`);
 
     try {
       const result = await prescreenAllMutation.mutateAsync();
-      toast.success(`Pre-screened ${result.processed} leads! Check Leads page to see priority scores.`);
+      toast.success(
+        `Pre-screened ${result.processed} leads! Check Leads page to see priority scores.`
+      );
       metricsQuery.refetch();
     } catch (error) {
-      toast.error(`Pre-screening failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Pre-screening failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       setIsPreScreening(false);
     }
@@ -518,8 +523,10 @@ export default function CommandCenter() {
 
   const handleAuditAll = async () => {
     if (!metrics?.pendingAudits) return;
-    
-    const confirmed = confirm(`Start batch audit for all ${metrics.pendingAudits} pending leads? This may take several minutes.`);
+
+    const confirmed = confirm(
+      `Start batch audit for all ${metrics.pendingAudits} pending leads? This may take several minutes.`
+    );
     if (!confirmed) return;
 
     setIsAuditingAll(true);
@@ -532,7 +539,9 @@ export default function CommandCenter() {
       metricsQuery.refetch();
       pipelineQuery.refetch();
     } catch (error) {
-      toast.error(`Batch audit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Batch audit failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       setIsAuditingAll(false);
       setBatchProgress({ current: 0, total: 0 });
@@ -542,12 +551,14 @@ export default function CommandCenter() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
-      
+
       <main className="container py-8">
         <div className="space-y-8">
           {/* Header */}
           <div>
-            <h1 className="text-4xl font-serif italic text-gold mb-2">Command Center</h1>
+            <h1 className="text-4xl font-serif italic text-gold mb-2">
+              Command Center
+            </h1>
             <p className="text-muted-foreground">
               Orchestrate your lead generation and outreach operations
             </p>
@@ -963,8 +974,8 @@ export default function CommandCenter() {
                   </CardTitle>
                   <CardDescription>
                     SMIRK can request a segment and receive a quote. Only this
-                    administrator surface can approve cost and queue one
-                    bounded Maps and owner-email research job.
+                    administrator surface can approve cost and queue one bounded
+                    Maps and owner-email research job.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
@@ -1011,22 +1022,21 @@ export default function CommandCenter() {
                             </span>
                           </div>
                           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span>
-                              Limit {request.effectiveCriteria.limit}
-                            </span>
+                            <span>Limit {request.effectiveCriteria.limit}</span>
                             <span className="flex items-center gap-1">
                               <CircleDollarSign className="h-3.5 w-3.5" />
                               Maximum $
-                              {(
-                                request.quote.maximumCostCents / 100
-                              ).toFixed(2)}
+                              {(request.quote.maximumCostCents / 100).toFixed(
+                                2
+                              )}
                             </span>
                             <span>
                               {request.providerRequests}/
                               {request.quote.maximumRequests} provider slots
                             </span>
                             <span>
-                              Maps {request.quote.providers.maps.maximumRequests}
+                              Maps{" "}
+                              {request.quote.providers.maps.maximumRequests}
                               /$
                               {(
                                 request.quote.providers.maps.maximumCostCents /
@@ -1045,9 +1055,7 @@ export default function CommandCenter() {
                                   .maximumCostCents / 100
                               ).toFixed(2)}
                             </span>
-                            <span>
-                              {request.readyLeadCount} review-ready
-                            </span>
+                            <span>{request.readyLeadCount} review-ready</span>
                           </div>
                           {request.error ? (
                             <p className="mt-2 text-xs text-red-300">
@@ -1072,9 +1080,7 @@ export default function CommandCenter() {
                               <Button
                                 size="sm"
                                 disabled={busy}
-                                onClick={() =>
-                                  approveSmirkDiscovery(request)
-                                }
+                                onClick={() => approveSmirkDiscovery(request)}
                               >
                                 <Check className="mr-2 h-4 w-4" />
                                 Approve cap
@@ -1097,9 +1103,7 @@ export default function CommandCenter() {
                               <Button
                                 size="sm"
                                 disabled={busy}
-                                onClick={() =>
-                                  executeSmirkDiscovery(request)
-                                }
+                                onClick={() => executeSmirkDiscovery(request)}
                               >
                                 <Play className="mr-2 h-4 w-4" />
                                 Queue one
@@ -1375,7 +1379,9 @@ export default function CommandCenter() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-blue-400">{metrics.totalLeads}</div>
+                  <div className="text-3xl font-bold text-blue-400">
+                    {metrics.totalLeads}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     +{metrics.leadsToday} today
                   </p>
@@ -1391,7 +1397,9 @@ export default function CommandCenter() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-yellow-400">{metrics.pendingAudits}</div>
+                  <div className="text-3xl font-bold text-yellow-400">
+                    {metrics.pendingAudits}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Awaiting analysis
                   </p>
@@ -1437,7 +1445,9 @@ export default function CommandCenter() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-green-400">{metrics.completedAudits}</div>
+                  <div className="text-3xl font-bold text-green-400">
+                    {metrics.completedAudits}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Avg score: {metrics.avgPrestigeScore}/100
                   </p>
@@ -1472,15 +1482,21 @@ export default function CommandCenter() {
             <Card className="bg-black/50 border-white/10">
               <CardHeader>
                 <CardTitle className="text-gold">Lead Pipeline</CardTitle>
-                <CardDescription>Track leads through each stage of the process</CardDescription>
+                <CardDescription>
+                  Track leads through each stage of the process
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   {/* Scraped */}
                   <div className="relative">
                     <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Scraped</div>
-                      <div className="text-2xl font-bold text-blue-400">{pipeline.scraped}</div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Scraped
+                      </div>
+                      <div className="text-2xl font-bold text-blue-400">
+                        {pipeline.scraped}
+                      </div>
                     </div>
                     <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
                   </div>
@@ -1488,10 +1504,19 @@ export default function CommandCenter() {
                   {/* Audited */}
                   <div className="relative">
                     <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Audited</div>
-                      <div className="text-2xl font-bold text-green-400">{pipeline.audited}</div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Audited
+                      </div>
+                      <div className="text-2xl font-bold text-green-400">
+                        {pipeline.audited}
+                      </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {pipeline.scraped > 0 ? Math.round((pipeline.audited / pipeline.scraped) * 100) : 0}% of total
+                        {pipeline.scraped > 0
+                          ? Math.round(
+                              (pipeline.audited / pipeline.scraped) * 100
+                            )
+                          : 0}
+                        % of total
                       </div>
                     </div>
                     <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
@@ -1500,10 +1525,19 @@ export default function CommandCenter() {
                   {/* Assets Generated */}
                   <div className="relative">
                     <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Assets</div>
-                      <div className="text-2xl font-bold text-purple-400">{pipeline.assets}</div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Assets
+                      </div>
+                      <div className="text-2xl font-bold text-purple-400">
+                        {pipeline.assets}
+                      </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {pipeline.audited > 0 ? Math.round((pipeline.assets / pipeline.audited) * 100) : 0}% of audited
+                        {pipeline.audited > 0
+                          ? Math.round(
+                              (pipeline.assets / pipeline.audited) * 100
+                            )
+                          : 0}
+                        % of audited
                       </div>
                     </div>
                     <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
@@ -1512,10 +1546,19 @@ export default function CommandCenter() {
                   {/* Outreach Sent */}
                   <div>
                     <div className="bg-gold/20 border border-gold/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Outreach</div>
-                      <div className="text-2xl font-bold text-gold">{pipeline.outreach}</div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Outreach
+                      </div>
+                      <div className="text-2xl font-bold text-gold">
+                        {pipeline.outreach}
+                      </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {pipeline.assets > 0 ? Math.round((pipeline.outreach / pipeline.assets) * 100) : 0}% of assets
+                        {pipeline.assets > 0
+                          ? Math.round(
+                              (pipeline.outreach / pipeline.assets) * 100
+                            )
+                          : 0}
+                        % of assets
                       </div>
                     </div>
                   </div>
@@ -1597,7 +1640,9 @@ export default function CommandCenter() {
               <Card className="bg-black/50 border-white/10">
                 <CardHeader>
                   <CardTitle className="text-gold">Recent Activity</CardTitle>
-                  <CardDescription>Latest updates across all leads</CardDescription>
+                  <CardDescription>
+                    Latest updates across all leads
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -1606,14 +1651,18 @@ export default function CommandCenter() {
                         No activity yet. Start by scraping some leads!
                       </p>
                     ) : (
-                      activity.map((item) => (
+                      activity.map(item => (
                         <div
                           key={item.id}
                           className="flex items-start justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0"
                         >
                           <div className="flex-1">
-                            <p className="text-sm font-medium">{item.companyName}</p>
-                            <p className="text-xs text-muted-foreground">{item.activity}</p>
+                            <p className="text-sm font-medium">
+                              {item.companyName}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.activity}
+                            </p>
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {new Date(item.timestamp).toLocaleDateString()}
@@ -1630,8 +1679,12 @@ export default function CommandCenter() {
             {!isLoading && scoreDist && (
               <Card className="bg-black/50 border-white/10">
                 <CardHeader>
-                  <CardTitle className="text-gold">Prestige Score Distribution</CardTitle>
-                  <CardDescription>Quality breakdown of audited leads</CardDescription>
+                  <CardTitle className="text-gold">
+                    Prestige Score Distribution
+                  </CardTitle>
+                  <CardDescription>
+                    Quality breakdown of audited leads
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -1641,7 +1694,9 @@ export default function CommandCenter() {
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
                         <span className="text-sm">Excellent (80-100)</span>
                       </div>
-                      <span className="text-sm font-semibold text-green-400">{scoreDist.excellent}</span>
+                      <span className="text-sm font-semibold text-green-400">
+                        {scoreDist.excellent}
+                      </span>
                     </div>
 
                     {/* Good */}
@@ -1650,7 +1705,9 @@ export default function CommandCenter() {
                         <div className="w-3 h-3 rounded-full bg-blue-500"></div>
                         <span className="text-sm">Good (60-79)</span>
                       </div>
-                      <span className="text-sm font-semibold text-blue-400">{scoreDist.good}</span>
+                      <span className="text-sm font-semibold text-blue-400">
+                        {scoreDist.good}
+                      </span>
                     </div>
 
                     {/* Fair */}
@@ -1659,7 +1716,9 @@ export default function CommandCenter() {
                         <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                         <span className="text-sm">Fair (40-59)</span>
                       </div>
-                      <span className="text-sm font-semibold text-yellow-400">{scoreDist.fair}</span>
+                      <span className="text-sm font-semibold text-yellow-400">
+                        {scoreDist.fair}
+                      </span>
                     </div>
 
                     {/* Poor */}
@@ -1668,10 +1727,16 @@ export default function CommandCenter() {
                         <div className="w-3 h-3 rounded-full bg-red-500"></div>
                         <span className="text-sm">Poor (0-39)</span>
                       </div>
-                      <span className="text-sm font-semibold text-red-400">{scoreDist.poor}</span>
+                      <span className="text-sm font-semibold text-red-400">
+                        {scoreDist.poor}
+                      </span>
                     </div>
 
-                    {scoreDist.excellent + scoreDist.good + scoreDist.fair + scoreDist.poor === 0 && (
+                    {scoreDist.excellent +
+                      scoreDist.good +
+                      scoreDist.fair +
+                      scoreDist.poor ===
+                      0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">
                         No audited leads yet
                       </p>

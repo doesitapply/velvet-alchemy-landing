@@ -115,16 +115,11 @@ export function parseBoundedInteger(
 }
 
 function createApiKeyAuth(recordLastUsed: boolean) {
-  return async (
-    req: AuthedRequest,
-    res: Response,
-    next: NextFunction
-  ) => {
+  return async (req: AuthedRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers["authorization"];
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
-        error:
-          "Missing or invalid Authorization header. Use: Bearer <api_key>",
+        error: "Missing or invalid Authorization header. Use: Bearer <api_key>",
       });
     }
 
@@ -133,17 +128,12 @@ function createApiKeyAuth(recordLastUsed: boolean) {
       return res.status(401).json({ error: "Empty API key" });
     }
 
-    const keyHash = crypto
-      .createHash("sha256")
-      .update(rawKey)
-      .digest("hex");
+    const keyHash = crypto.createHash("sha256").update(rawKey).digest("hex");
 
     try {
       const orm = await getDb();
       if (!orm) {
-        return res
-          .status(503)
-          .json({ error: "Database unavailable" });
+        return res.status(503).json({ error: "Database unavailable" });
       }
 
       const rows = await orm
@@ -157,14 +147,10 @@ function createApiKeyAuth(recordLastUsed: boolean) {
         return res.status(401).json({ error: "Invalid API key" });
       }
       if (!key.isActive) {
-        return res
-          .status(401)
-          .json({ error: "API key is disabled" });
+        return res.status(401).json({ error: "API key is disabled" });
       }
       if (key.expiresAt && new Date(key.expiresAt) < new Date()) {
-        return res
-          .status(401)
-          .json({ error: "API key has expired" });
+        return res.status(401).json({ error: "API key has expired" });
       }
       const [owner] = await orm
         .select({
@@ -200,9 +186,7 @@ function createApiKeyAuth(recordLastUsed: boolean) {
       next();
     } catch (err: any) {
       console.error("[API Auth] Error:", err.message);
-      return res
-        .status(500)
-        .json({ error: "Internal server error" });
+      return res.status(500).json({ error: "Internal server error" });
     }
   };
 }
@@ -238,14 +222,11 @@ export function createApiRouter(): Router {
     "/smirk/connection-proof",
     requireApiKeyWithoutUsageWrite,
     (req: AuthedRequest, res: Response) => {
-      const request =
-        velvetSmirkConnectionProofRequestSchema.safeParse({
-          workspaceId: Number(req.query.workspaceId),
-          challenge:
-            typeof req.query.challenge === "string"
-              ? req.query.challenge
-              : "",
-        });
+      const request = velvetSmirkConnectionProofRequestSchema.safeParse({
+        workspaceId: Number(req.query.workspaceId),
+        challenge:
+          typeof req.query.challenge === "string" ? req.query.challenge : "",
+      });
       if (!request.success) {
         return res.status(400).json({
           error: "Invalid SMIRK connection proof request.",
@@ -445,9 +426,7 @@ export function createApiRouter(): Router {
           ok: true,
           contractVersion: SMIRK_LEAD_BATCH_RESPONSE_CONTRACT,
           state:
-            result.outcome === "duplicate"
-              ? "DUPLICATE"
-              : result.originalState,
+            result.outcome === "duplicate" ? "DUPLICATE" : result.originalState,
           originalState: result.originalState,
           requestId: parsed.data.requestId,
           requestPayloadHash: result.requestPayloadHash,
@@ -506,8 +485,7 @@ export function createApiRouter(): Router {
       ).trim();
       if (idempotencyKey !== parsed.data.requestId) {
         return res.status(400).json({
-          error:
-            "Idempotency-Key must exactly match the discovery request ID.",
+          error: "Idempotency-Key must exactly match the discovery request ID.",
           code: "SMIRK_DISCOVERY_IDEMPOTENCY_KEY_MISMATCH",
         });
       }
@@ -1118,7 +1096,7 @@ export function createApiRouter(): Router {
           });
         }
 
-        const result = await orm.transaction(async (tx) => {
+        const result = await orm.transaction(async tx => {
           const existingRows = await tx
             .select({
               id: smirkOutcomeEvents.id,
@@ -1175,8 +1153,7 @@ export function createApiRouter(): Router {
             .select({
               workspaceId: smirkLeadBatches.workspaceId,
               state: smirkLeadBatches.state,
-              prospectPayloadHash:
-                smirkLeadBatchItems.prospectPayloadHash,
+              prospectPayloadHash: smirkLeadBatchItems.prospectPayloadHash,
             })
             .from(smirkLeadBatchItems)
             .innerJoin(
@@ -1191,16 +1168,14 @@ export function createApiRouter(): Router {
             )
             .orderBy(desc(smirkLeadBatches.completedAt))
             .limit(1);
-          const batchReceiptResult =
-            validateSmirkOutcomeBatchReceipt(
-              batchReceiptRows[0],
-              parsed.data
-            );
+          const batchReceiptResult = validateSmirkOutcomeBatchReceipt(
+            batchReceiptRows[0],
+            parsed.data
+          );
           if (
             !receiptResult.ok &&
             !batchReceiptResult.ok &&
-            receiptResult.code ===
-              "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED" &&
+            receiptResult.code === "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED" &&
             batchReceiptResult.code ===
               "SMIRK_OUTCOME_RESEARCH_RECEIPT_REQUIRED"
           ) {
@@ -1227,8 +1202,7 @@ export function createApiRouter(): Router {
           });
           const leadOutcomeRows = await tx
             .select({
-              externalEventId:
-                smirkOutcomeEvents.externalEventId,
+              externalEventId: smirkOutcomeEvents.externalEventId,
               channel: smirkOutcomeEvents.channel,
               outcome: smirkOutcomeEvents.outcome,
               occurredAt: smirkOutcomeEvents.occurredAt,
@@ -1254,9 +1228,7 @@ export function createApiRouter(): Router {
             })
             .where(and(eq(leads.id, leadId), eq(leads.userId, userId)));
           if (Number(leadUpdate[0]?.affectedRows ?? 0) !== 1) {
-            throw new Error(
-              "Expected owned Velvet lead row was not updated."
-            );
+            throw new Error("Expected owned Velvet lead row was not updated.");
           }
 
           const storedRows = await tx
@@ -1320,14 +1292,12 @@ export function createApiRouter(): Router {
               "The outcome does not match a successful Velvet-to-SMIRK research registration.",
           });
         }
-        return res
-          .status(result.state === "RECORDED" ? 201 : 200)
-          .json({
-            success: true,
-            state: result.state,
-            eventId: result.eventId,
-            externalAction: "none",
-          });
+        return res.status(result.state === "RECORDED" ? 201 : 200).json({
+          success: true,
+          state: result.state,
+          eventId: result.eventId,
+          externalAction: "none",
+        });
       } catch (error) {
         if (isDuplicateOutcomeStorageError(error)) {
           try {
