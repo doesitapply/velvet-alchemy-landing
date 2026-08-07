@@ -4,35 +4,88 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign, PhoneCall, CheckCircle2, XCircle, PhoneMissed } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Loader2,
+  ArrowLeft,
+  ExternalLink,
+  Sparkles,
+  Play,
+  DollarSign,
+  PhoneCall,
+  CheckCircle2,
+  XCircle,
+  PhoneMissed,
+  ListPlus,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
-import { EmailComposeDialog } from "@/components/EmailComposeDialog";
 import AppHeader from "@/components/AppHeader";
 import { AuditProgressBar } from "@/components/AuditProgressBar";
 import { ReportDrawer } from "@/components/ReportDrawer";
-import { WebsiteEditorModal, WebsiteCustomizations } from "@/components/WebsiteEditorModal";
+import {
+  WebsiteEditorModal,
+  WebsiteCustomizations,
+} from "@/components/WebsiteEditorModal";
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
   const leadId = params?.id ? parseInt(params.id) : null;
   const { user, loading: authLoading } = useAuth();
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
-  const [selectedPackage, setSelectedPackage] = useState<'basic' | 'standard' | 'premium'>('standard');
+  const [selectedPackage, setSelectedPackage] = useState<
+    "basic" | "standard" | "premium"
+  >("standard");
 
   const { data, isLoading, error, refetch } = trpc.leads.getById.useQuery(
     { id: leadId! },
     { enabled: !!leadId && !!user }
   );
 
-  const { data: assets, isLoading: assetsLoading, refetch: refetchAssets } = trpc.visionary.getAssets.useQuery(
+  const {
+    data: assets,
+    isLoading: assetsLoading,
+    refetch: refetchAssets,
+  } = trpc.visionary.getAssets.useQuery(
     { leadId: leadId! },
     { enabled: !!leadId && !!user }
   );
+  const { data: smirkResearchReadiness } =
+    trpc.leads.smirkResearchReadiness.useQuery(undefined, {
+      enabled: Boolean(leadId && user),
+      retry: false,
+    });
+  const canManageSmirkResearch = smirkResearchReadiness?.authorized === true;
+  const { data: smirkResearchReceipt, refetch: refetchSmirkResearchReceipt } =
+    trpc.leads.smirkResearchReceipt.useQuery(
+      { id: leadId! },
+      {
+        enabled: Boolean(leadId && canManageSmirkResearch),
+        retry: false,
+      }
+    );
+  const addToSmirkResearch = trpc.leads.addToSmirkResearch.useMutation({
+    onSuccess: result => {
+      toast.success(
+        result.state === "DUPLICATE"
+          ? "SMIRK already has this exact research record."
+          : "Added to the SMIRK research queue. No contact action was created."
+      );
+      refetchSmirkResearchReceipt();
+    },
+    onError: (mutationError: any) => {
+      toast.error(`SMIRK research import failed: ${mutationError.message}`);
+    },
+  });
 
   const generateAssets = trpc.visionary.generateAssets.useMutation({
     onSuccess: () => {
@@ -44,27 +97,8 @@ export default function LeadDetail() {
     },
   });
 
-  const generateDraft = trpc.charmer.generateDraft.useMutation({
-    onSuccess: () => {
-      toast.success("Draft generated! Check the Charmer page to review.");
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate draft: ${error.message}`);
-    },
-  });
-
-  const generateOutreach = trpc.outreach.generateOutreachEmail.useMutation({
-    onSuccess: () => {
-      toast.success("Outreach email generated! Check the Approval Queue to review.");
-      window.location.href = "/outreach-approval";
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate outreach: ${error.message}`);
-    },
-  });
-
   const generateWebsite = trpc.websiteGenerator.generate.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       toast.success("Website generated! Opening editor...");
       setGeneratedHtml(data.html || "");
       setEditorModalOpen(true);
@@ -74,16 +108,17 @@ export default function LeadDetail() {
     },
   });
 
-  const saveCustomizations = trpc.websiteGenerator.saveCustomizations.useMutation({
-    onSuccess: () => {
-      toast.success("Website updated successfully!");
-      setEditorModalOpen(false);
-      refetch();
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to save customizations: ${error.message}`);
-    },
-  });
+  const saveCustomizations =
+    trpc.websiteGenerator.saveCustomizations.useMutation({
+      onSuccess: () => {
+        toast.success("Website updated successfully!");
+        setEditorModalOpen(false);
+        refetch();
+      },
+      onError: (error: any) => {
+        toast.error(`Failed to save customizations: ${error.message}`);
+      },
+    });
 
   const handleSaveCustomizations = (customizations: WebsiteCustomizations) => {
     saveCustomizations.mutate({
@@ -93,10 +128,10 @@ export default function LeadDetail() {
   };
 
   const downloadWebsite = trpc.websiteGenerator.downloadZip.useMutation({
-    onSuccess: async (data) => {
+    onSuccess: async data => {
       toast.success("Downloading website...");
       // Trigger browser download
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = `/api/download/${data.filename}`;
       link.download = data.filename;
       document.body.appendChild(link);
@@ -109,7 +144,7 @@ export default function LeadDetail() {
   });
 
   const createInvoice = trpc.payment.createCheckoutSession.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       if (data.checkoutUrl) {
         // Copy to clipboard
         navigator.clipboard.writeText(data.checkoutUrl);
@@ -122,47 +157,6 @@ export default function LeadDetail() {
       toast.error(`Failed to create payment link: ${error.message}`);
     },
   });
-
-
-
-  const triggerHandoff = trpc.leads.triggerHandoff.useMutation({
-    onSuccess: (data) => {
-      toast.success(`⚡ SMIRK call queued — ${data.state}`);
-      refetch();
-    },
-    onError: (error: any) => {
-      toast.error(`Handoff failed: ${error.message}`);
-    },
-  });
-
-  const sendDirectEmail = trpc.charmer.sendDirectEmail.useMutation({
-    onSuccess: () => {
-      toast.success("Email sent successfully!");
-      setEmailDialogOpen(false);
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to send email: ${error.message}`);
-    },
-  });
-
-  // Email generation query (returns email content for manual sending via Gmail MCP)
-  const [emailData, setEmailData] = useState<any>(null);
-  
-  const handleGenerateEmail = async () => {
-    try {
-      const utils = trpc.useUtils();
-      const result = await utils.email.generateOutreach.fetch({ leadId: leadId! });
-      setEmailData(result);
-      
-      // Copy email to clipboard for easy pasting
-      const emailText = `To: ${result.to}\nSubject: ${result.subject}\n\n${result.body}`;
-      await navigator.clipboard.writeText(emailText);
-      
-      toast.success("Email content copied to clipboard! Use Gmail to send.");
-    } catch (error: any) {
-      toast.error(`Failed to generate email: ${error.message}`);
-    }
-  };
 
   const startAudit = trpc.orchestrator.executePipeline.useMutation({
     onSuccess: () => {
@@ -186,7 +180,9 @@ export default function LeadDetail() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="p-8 max-w-md text-center space-y-4">
-          <h2 className="text-2xl font-serif italic">Authentication Required</h2>
+          <h2 className="text-2xl font-serif italic">
+            Authentication Required
+          </h2>
           <Button asChild className="w-full">
             <a href={getLoginUrl()}>Login</a>
           </Button>
@@ -244,40 +240,39 @@ export default function LeadDetail() {
           {/* Lead Header */}
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-4xl font-serif italic mb-2">{lead.companyName}</h1>
+              <h1 className="text-4xl font-serif italic mb-2">
+                {lead.companyName}
+              </h1>
               <div className="flex items-center gap-4 text-sm text-muted-foreground font-mono">
-                <span>Created: {new Date(lead.createdAt).toLocaleDateString()}</span>
+                <span>
+                  Created: {new Date(lead.createdAt).toLocaleDateString()}
+                </span>
                 <span>•</span>
-                <span className={`px-2 py-1 rounded-sm ${
-                  lead.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
-                  lead.status === 'audited' ? 'bg-green-500/10 text-green-500' :
-                  lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-500' :
-                  lead.status === 'smirk_queued' ? 'bg-violet-500/10 text-violet-400' :
-                  lead.status === 'smirk_contacted' ? 'bg-indigo-500/10 text-indigo-400' :
-                  'bg-gray-500/10 text-gray-500'
-                }`}>
-                  {lead.status === 'smirk_queued' ? '⚡ SMIRK QUEUED' :
-                   lead.status === 'smirk_contacted' ? '⚡ SMIRK CONTACTED' :
-                   lead.status.toUpperCase()}
+                <span
+                  className={`px-2 py-1 rounded-sm ${
+                    lead.status === "pending"
+                      ? "bg-yellow-500/10 text-yellow-500"
+                      : lead.status === "audited"
+                        ? "bg-green-500/10 text-green-500"
+                        : lead.status === "contacted"
+                          ? "bg-blue-500/10 text-blue-500"
+                          : lead.status === "smirk_queued"
+                            ? "bg-violet-500/10 text-violet-400"
+                            : lead.status === "smirk_contacted"
+                              ? "bg-indigo-500/10 text-indigo-400"
+                              : "bg-gray-500/10 text-gray-500"
+                  }`}
+                >
+                  {lead.status === "smirk_queued"
+                    ? "⚡ SMIRK QUEUED"
+                    : lead.status === "smirk_contacted"
+                      ? "⚡ SMIRK CONTACTED"
+                      : lead.status.toUpperCase()}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {['audited', 'contacted'].includes(lead.status) && (lead as any).phone && (
-                <Button
-                  onClick={() => triggerHandoff.mutate({ id: lead.id })}
-                  disabled={triggerHandoff.isPending}
-                  size="lg"
-                  className="gap-2 bg-violet-600 hover:bg-violet-500 text-white border border-violet-400/30"
-                >
-                  {triggerHandoff.isPending ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Queuing...</>
-                  ) : (
-                    <><PhoneCall className="h-4 w-4" />Queue SMIRK Call</>
-                  )}
-                </Button>
-              )}
-              {lead.status === 'pending' && (
+              {lead.status === "pending" && (
                 <Button
                   onClick={() => startAudit.mutate({ leadId: lead.id })}
                   disabled={startAudit.isPending}
@@ -301,7 +296,9 @@ export default function LeadDetail() {
                 variant="outline"
                 size="lg"
                 className="border-2 border-white/30 gap-2"
-                onClick={() => window.open(lead.websiteUrl, "_blank", "noopener,noreferrer")}
+                onClick={() =>
+                  window.open(lead.websiteUrl, "_blank", "noopener,noreferrer")
+                }
               >
                 Visit Site
                 <ExternalLink className="h-5 w-5" />
@@ -310,17 +307,75 @@ export default function LeadDetail() {
           </div>
 
           {/* Progress Bar */}
-          {lead.status === 'pending' && (
-            <AuditProgressBar 
-              leadId={lead.id} 
+          {lead.status === "pending" && (
+            <AuditProgressBar
+              leadId={lead.id}
               onComplete={() => {
                 toast.success("Audit completed!");
                 refetch(); // Refetch lead data instead of reloading page
               }}
-              onError={(error) => {
+              onError={error => {
                 toast.error(`Audit failed: ${error}`);
               }}
             />
+          )}
+
+          {canManageSmirkResearch && (
+            <Card className="p-5 border-violet-500/20 bg-violet-500/5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <ListPlus className="h-5 w-5 text-violet-300" />
+                    <h2 className="text-lg font-serif italic text-violet-200">
+                      SMIRK Research Queue
+                    </h2>
+                    <span className="inline-flex items-center gap-1 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                      <ShieldCheck className="h-3 w-3" />
+                      NO CONTACT
+                    </span>
+                  </div>
+                  {smirkResearchReceipt ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {smirkResearchReceipt.state === "IMPORTED"
+                        ? "Imported"
+                        : "Exact record confirmed"}{" "}
+                      as SMIRK prospect #{smirkResearchReceipt.prospectId}. No
+                      email, SMS, call, handoff, or callback task was created.
+                    </p>
+                  ) : smirkResearchReadiness?.configured ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Move this audited public-business record into SMIRK for
+                      operator review only.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-amber-300/80">
+                      Configuration required:{" "}
+                      {smirkResearchReadiness?.missing?.join(", ") ||
+                        "checking dedicated research credentials"}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  className="shrink-0 border-violet-500/40 text-violet-200 hover:bg-violet-500/10"
+                  onClick={() => addToSmirkResearch.mutate({ id: lead.id })}
+                  disabled={
+                    addToSmirkResearch.isPending ||
+                    lead.status !== "audited" ||
+                    !smirkResearchReadiness?.configured
+                  }
+                >
+                  {addToSmirkResearch.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ListPlus className="mr-2 h-4 w-4" />
+                  )}
+                  {smirkResearchReceipt
+                    ? "Verify Exact Record"
+                    : "Add to SMIRK Research"}
+                </Button>
+              </div>
+            </Card>
           )}
 
           {/* Screenshot */}
@@ -328,8 +383,8 @@ export default function LeadDetail() {
             <Card className="p-4">
               <h2 className="text-xl font-serif italic mb-4">Visual Capture</h2>
               <div className="border border-border rounded-sm overflow-hidden">
-                <img 
-                  src={lead.screenshotUrl} 
+                <img
+                  src={lead.screenshotUrl}
                   alt={`Screenshot of ${lead.companyName}`}
                   className="w-full h-auto"
                 />
@@ -343,32 +398,46 @@ export default function LeadDetail() {
               <h2 className="text-xl font-serif italic mb-4">Audit Report</h2>
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-mono text-muted-foreground mb-2">SUMMARY</h3>
-                  <p className="text-sm">{audit.summary || "No summary available"}</p>
+                  <h3 className="text-sm font-mono text-muted-foreground mb-2">
+                    SUMMARY
+                  </h3>
+                  <p className="text-sm">
+                    {audit.summary || "No summary available"}
+                  </p>
                 </div>
-                
+
                 {audit.prestigeScore !== null && (
                   <div>
-                    <h3 className="text-sm font-mono text-muted-foreground mb-2">PRESTIGE SCORE</h3>
+                    <h3 className="text-sm font-mono text-muted-foreground mb-2">
+                      PRESTIGE SCORE
+                    </h3>
                     <div className="flex items-center gap-4">
-                      <div className="text-5xl font-serif italic">{audit.prestigeScore}</div>
+                      <div className="text-5xl font-serif italic">
+                        {audit.prestigeScore}
+                      </div>
                       <div className="flex-1">
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full transition-all ${
-                              audit.prestigeScore >= 80 ? 'bg-green-500' :
-                              audit.prestigeScore >= 60 ? 'bg-yellow-500' :
-                              audit.prestigeScore >= 40 ? 'bg-orange-500' :
-                              'bg-red-500'
+                              audit.prestigeScore >= 80
+                                ? "bg-green-500"
+                                : audit.prestigeScore >= 60
+                                  ? "bg-yellow-500"
+                                  : audit.prestigeScore >= 40
+                                    ? "bg-orange-500"
+                                    : "bg-red-500"
                             }`}
                             style={{ width: `${audit.prestigeScore}%` }}
                           />
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {audit.prestigeScore >= 80 ? 'Exceptional' :
-                           audit.prestigeScore >= 60 ? 'Good' :
-                           audit.prestigeScore >= 40 ? 'Needs Improvement' :
-                           'Critical Issues'}
+                          {audit.prestigeScore >= 80
+                            ? "Exceptional"
+                            : audit.prestigeScore >= 60
+                              ? "Good"
+                              : audit.prestigeScore >= 40
+                                ? "Needs Improvement"
+                                : "Critical Issues"}
                         </p>
                       </div>
                     </div>
@@ -383,142 +452,216 @@ export default function LeadDetail() {
                 )}
 
                 {/* Visual Debt Breakdown */}
-                {audit.visualDebtData && (() => {
-                  try {
-                    const auditData = JSON.parse(audit.visualDebtData);
-                    return (
-                      <>
-                        {/* Strengths & Weaknesses */}
-                        <div className="grid md:grid-cols-2 gap-4">
-                          {auditData.strengths && auditData.strengths.length > 0 && (
-                            <div>
-                              <h3 className="text-sm font-mono text-muted-foreground mb-2">STRENGTHS</h3>
-                              <ul className="space-y-1">
-                                {auditData.strengths.map((strength: string, i: number) => (
-                                  <li key={i} className="text-sm flex items-start gap-2">
-                                    <span className="text-green-500 mt-0.5">✓</span>
-                                    <span>{strength}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {auditData.weaknesses && auditData.weaknesses.length > 0 && (
-                            <div>
-                              <h3 className="text-sm font-mono text-muted-foreground mb-2">WEAKNESSES</h3>
-                              <ul className="space-y-1">
-                                {auditData.weaknesses.map((weakness: string, i: number) => (
-                                  <li key={i} className="text-sm flex items-start gap-2">
-                                    <span className="text-red-500 mt-0.5">✗</span>
-                                    <span>{weakness}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Visual Debt Items */}
-                        {auditData.visualDebt && auditData.visualDebt.length > 0 && (
-                          <div>
-                            <h3 className="text-sm font-mono text-muted-foreground mb-3">VISUAL DEBT ANALYSIS</h3>
-                            <div className="space-y-3">
-                              {auditData.visualDebt.map((item: any, i: number) => (
-                                <div key={i} className="border border-border rounded-sm p-4 space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-xs px-2 py-1 rounded-sm font-mono ${
-                                      item.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
-                                      item.severity === 'high' ? 'bg-orange-500/10 text-orange-500' :
-                                      item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
-                                      'bg-blue-500/10 text-blue-500'
-                                    }`}>
-                                      {item.severity.toUpperCase()}
-                                    </span>
-                                    <span className="text-xs px-2 py-1 rounded-sm font-mono bg-muted">
-                                      {item.category.toUpperCase()}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium">{item.issue}</p>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      <span className="font-mono text-xs">→</span> {item.recommendation}
-                                    </p>
-                                  </div>
+                {audit.visualDebtData &&
+                  (() => {
+                    try {
+                      const auditData = JSON.parse(audit.visualDebtData);
+                      return (
+                        <>
+                          {/* Strengths & Weaknesses */}
+                          <div className="grid md:grid-cols-2 gap-4">
+                            {auditData.strengths &&
+                              auditData.strengths.length > 0 && (
+                                <div>
+                                  <h3 className="text-sm font-mono text-muted-foreground mb-2">
+                                    STRENGTHS
+                                  </h3>
+                                  <ul className="space-y-1">
+                                    {auditData.strengths.map(
+                                      (strength: string, i: number) => (
+                                        <li
+                                          key={i}
+                                          className="text-sm flex items-start gap-2"
+                                        >
+                                          <span className="text-green-500 mt-0.5">
+                                            ✓
+                                          </span>
+                                          <span>{strength}</span>
+                                        </li>
+                                      )
+                                    )}
+                                  </ul>
                                 </div>
-                              ))}
-                            </div>
+                              )}
+                            {auditData.weaknesses &&
+                              auditData.weaknesses.length > 0 && (
+                                <div>
+                                  <h3 className="text-sm font-mono text-muted-foreground mb-2">
+                                    WEAKNESSES
+                                  </h3>
+                                  <ul className="space-y-1">
+                                    {auditData.weaknesses.map(
+                                      (weakness: string, i: number) => (
+                                        <li
+                                          key={i}
+                                          className="text-sm flex items-start gap-2"
+                                        >
+                                          <span className="text-red-500 mt-0.5">
+                                            ✗
+                                          </span>
+                                          <span>{weakness}</span>
+                                        </li>
+                                      )
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
                           </div>
-                        )}
-                      </>
-                    );
-                  } catch (e) {
-                    return null;
-                  }
-                })()}
+
+                          {/* Visual Debt Items */}
+                          {auditData.visualDebt &&
+                            auditData.visualDebt.length > 0 && (
+                              <div>
+                                <h3 className="text-sm font-mono text-muted-foreground mb-3">
+                                  VISUAL DEBT ANALYSIS
+                                </h3>
+                                <div className="space-y-3">
+                                  {auditData.visualDebt.map(
+                                    (item: any, i: number) => (
+                                      <div
+                                        key={i}
+                                        className="border border-border rounded-sm p-4 space-y-2"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span
+                                            className={`text-xs px-2 py-1 rounded-sm font-mono ${
+                                              item.severity === "critical"
+                                                ? "bg-red-500/10 text-red-500"
+                                                : item.severity === "high"
+                                                  ? "bg-orange-500/10 text-orange-500"
+                                                  : item.severity === "medium"
+                                                    ? "bg-yellow-500/10 text-yellow-500"
+                                                    : "bg-blue-500/10 text-blue-500"
+                                            }`}
+                                          >
+                                            {item.severity.toUpperCase()}
+                                          </span>
+                                          <span className="text-xs px-2 py-1 rounded-sm font-mono bg-muted">
+                                            {item.category.toUpperCase()}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <p className="text-sm font-medium">
+                                            {item.issue}
+                                          </p>
+                                          <p className="text-sm text-muted-foreground mt-1">
+                                            <span className="font-mono text-xs">
+                                              →
+                                            </span>{" "}
+                                            {item.recommendation}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                        </>
+                      );
+                    } catch (e) {
+                      return null;
+                    }
+                  })()}
 
                 <div>
-                  <h3 className="text-sm font-mono text-muted-foreground mb-2">AUDIT DATE</h3>
-                  <p className="text-sm">{new Date(audit.createdAt).toLocaleString()}</p>
+                  <h3 className="text-sm font-mono text-muted-foreground mb-2">
+                    AUDIT DATE
+                  </h3>
+                  <p className="text-sm">
+                    {new Date(audit.createdAt).toLocaleString()}
+                  </p>
                 </div>
               </div>
             </Card>
           )}
 
           {/* SMIRK Outcome Panel */}
-          {(lead.status === 'smirk_queued' || lead.status === 'smirk_contacted' || (lead as any).smirkCallOutcome) && (
+          {(lead.status === "smirk_queued" ||
+            lead.status === "smirk_contacted" ||
+            (lead as any).smirkCallOutcome) && (
             <Card className="p-6 border-violet-500/20 bg-violet-500/5">
               <div className="flex items-center gap-3 mb-4">
                 <PhoneCall className="h-5 w-5 text-violet-400" />
-                <h2 className="text-xl font-serif italic text-violet-300">SMIRK Call Intelligence</h2>
+                <h2 className="text-xl font-serif italic text-violet-300">
+                  SMIRK Call Intelligence
+                </h2>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div>
-                  <h3 className="text-xs font-mono text-muted-foreground mb-1">STATUS</h3>
-                  <span className={`text-sm font-mono px-2 py-0.5 rounded-sm ${
-                    lead.status === 'smirk_queued' ? 'bg-violet-500/20 text-violet-300' :
-                    lead.status === 'smirk_contacted' ? 'bg-indigo-500/20 text-indigo-300' :
-                    'bg-white/10 text-white/60'
-                  }`}>
-                    {lead.status === 'smirk_queued' ? 'Queued' :
-                     lead.status === 'smirk_contacted' ? 'Contacted' : lead.status}
+                  <h3 className="text-xs font-mono text-muted-foreground mb-1">
+                    STATUS
+                  </h3>
+                  <span
+                    className={`text-sm font-mono px-2 py-0.5 rounded-sm ${
+                      lead.status === "smirk_queued"
+                        ? "bg-violet-500/20 text-violet-300"
+                        : lead.status === "smirk_contacted"
+                          ? "bg-indigo-500/20 text-indigo-300"
+                          : "bg-white/10 text-white/60"
+                    }`}
+                  >
+                    {lead.status === "smirk_queued"
+                      ? "Queued"
+                      : lead.status === "smirk_contacted"
+                        ? "Contacted"
+                        : lead.status}
                   </span>
                 </div>
                 {(lead as any).smirkCallOutcome && (
                   <div>
-                    <h3 className="text-xs font-mono text-muted-foreground mb-1">OUTCOME</h3>
+                    <h3 className="text-xs font-mono text-muted-foreground mb-1">
+                      OUTCOME
+                    </h3>
                     <div className="flex items-center gap-1.5">
-                      {(lead as any).smirkCallOutcome === 'interested' ? (
+                      {(lead as any).smirkCallOutcome === "interested" ? (
                         <CheckCircle2 className="h-4 w-4 text-green-400" />
-                      ) : (lead as any).smirkCallOutcome === 'not_interested' ? (
+                      ) : (lead as any).smirkCallOutcome ===
+                        "not_interested" ? (
                         <XCircle className="h-4 w-4 text-red-400" />
-                      ) : (lead as any).smirkCallOutcome === 'no_answer' ? (
+                      ) : (lead as any).smirkCallOutcome === "no_answer" ? (
                         <PhoneMissed className="h-4 w-4 text-amber-400" />
                       ) : (
                         <PhoneCall className="h-4 w-4 text-blue-400" />
                       )}
                       <span className="text-sm font-mono capitalize">
-                        {((lead as any).smirkCallOutcome as string).replace(/_/g, ' ')}
+                        {((lead as any).smirkCallOutcome as string).replace(
+                          /_/g,
+                          " "
+                        )}
                       </span>
                     </div>
                   </div>
                 )}
                 {(lead as any).smirkHandoffAt && (
                   <div>
-                    <h3 className="text-xs font-mono text-muted-foreground mb-1">QUEUED AT</h3>
-                    <p className="text-sm font-mono">{new Date((lead as any).smirkHandoffAt).toLocaleString()}</p>
+                    <h3 className="text-xs font-mono text-muted-foreground mb-1">
+                      QUEUED AT
+                    </h3>
+                    <p className="text-sm font-mono">
+                      {new Date((lead as any).smirkHandoffAt).toLocaleString()}
+                    </p>
                   </div>
                 )}
                 {(lead as any).smirkWorkspaceId && (
                   <div>
-                    <h3 className="text-xs font-mono text-muted-foreground mb-1">WORKSPACE</h3>
-                    <p className="text-sm font-mono text-muted-foreground">{(lead as any).smirkWorkspaceId}</p>
+                    <h3 className="text-xs font-mono text-muted-foreground mb-1">
+                      WORKSPACE
+                    </h3>
+                    <p className="text-sm font-mono text-muted-foreground">
+                      {(lead as any).smirkWorkspaceId}
+                    </p>
                   </div>
                 )}
               </div>
               {(lead as any).smirkCallSummary && (
                 <div className="border-t border-violet-500/20 pt-4">
-                  <h3 className="text-xs font-mono text-muted-foreground mb-2">CALL SUMMARY</h3>
-                  <p className="text-sm leading-relaxed">{(lead as any).smirkCallSummary}</p>
+                  <h3 className="text-xs font-mono text-muted-foreground mb-2">
+                    CALL SUMMARY
+                  </h3>
+                  <p className="text-sm leading-relaxed">
+                    {(lead as any).smirkCallSummary}
+                  </p>
                 </div>
               )}
             </Card>
@@ -546,10 +689,12 @@ export default function LeadDetail() {
                     </>
                   )}
                 </Button>
-                {lead.status === 'audited' && lead.detailedReport && (
+                {lead.status === "audited" && lead.detailedReport && (
                   <>
                     <Button
-                      onClick={() => generateWebsite.mutate({ leadId: leadId! })}
+                      onClick={() =>
+                        generateWebsite.mutate({ leadId: leadId! })
+                      }
                       disabled={generateWebsite.isPending}
                       variant="default"
                       className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500"
@@ -567,7 +712,9 @@ export default function LeadDetail() {
                       )}
                     </Button>
                     <Button
-                      onClick={() => downloadWebsite.mutate({ leadId: leadId! })}
+                      onClick={() =>
+                        downloadWebsite.mutate({ leadId: leadId! })
+                      }
                       disabled={downloadWebsite.isPending}
                       variant="outline"
                       className="border-green-500 text-green-500 hover:bg-green-500/10"
@@ -586,7 +733,9 @@ export default function LeadDetail() {
                     </Button>
                     <Select
                       value={selectedPackage}
-                      onValueChange={(value: 'basic' | 'standard' | 'premium') => setSelectedPackage(value)}
+                      onValueChange={(
+                        value: "basic" | "standard" | "premium"
+                      ) => setSelectedPackage(value)}
                     >
                       <SelectTrigger className="w-[280px] border-2 border-gold/30 bg-background/50">
                         <SelectValue placeholder="Select package" />
@@ -595,28 +744,40 @@ export default function LeadDetail() {
                         <SelectItem value="basic">
                           <div className="flex flex-col">
                             <span className="font-bold">💎 Basic - $3,000</span>
-                            <span className="text-xs text-muted-foreground">Single-page website</span>
+                            <span className="text-xs text-muted-foreground">
+                              Single-page website
+                            </span>
                           </div>
                         </SelectItem>
                         <SelectItem value="standard">
                           <div className="flex flex-col">
-                            <span className="font-bold">🏆 Standard - $5,000</span>
-                            <span className="text-xs text-muted-foreground">Multi-page website</span>
+                            <span className="font-bold">
+                              🏆 Standard - $5,000
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Multi-page website
+                            </span>
                           </div>
                         </SelectItem>
                         <SelectItem value="premium">
                           <div className="flex flex-col">
-                            <span className="font-bold">👑 Premium - $8,000</span>
-                            <span className="text-xs text-muted-foreground">Full website + extras</span>
+                            <span className="font-bold">
+                              👑 Premium - $8,000
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Full website + extras
+                            </span>
                           </div>
                         </SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
-                      onClick={() => createInvoice.mutate({ 
-                        leadId: leadId!,
-                        packageType: selectedPackage
-                      })}
+                      onClick={() =>
+                        createInvoice.mutate({
+                          leadId: leadId!,
+                          packageType: selectedPackage,
+                        })
+                      }
                       disabled={createInvoice.isPending}
                       variant="default"
                       className="bg-gradient-to-r from-gold to-yellow-600 hover:from-gold/90 hover:to-yellow-500 text-black font-bold"
@@ -629,7 +790,7 @@ export default function LeadDetail() {
                       ) : (
                         <>
                           <DollarSign className="mr-2 h-4 w-4" />
-                          Send Invoice
+                          Create Payment Link
                         </>
                       )}
                     </Button>
@@ -645,7 +806,10 @@ export default function LeadDetail() {
             ) : assets && assets.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {assets.map((asset: any) => (
-                  <div key={asset.id} className="border border-border rounded-sm p-4 space-y-3">
+                  <div
+                    key={asset.id}
+                    className="border border-border rounded-sm p-4 space-y-3"
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-mono uppercase text-muted-foreground">
                         {asset.type.replace(/_/g, " ")}
@@ -674,92 +838,12 @@ export default function LeadDetail() {
               <div className="text-center py-12 space-y-4">
                 <Sparkles className="h-12 w-12 mx-auto text-muted-foreground" />
                 <p className="text-muted-foreground">
-                  No assets generated yet. Click "Generate Assets" to create high-fidelity visual assets for this lead.
+                  No assets generated yet. Click "Generate Assets" to create
+                  high-fidelity visual assets for this lead.
                 </p>
               </div>
             )}
           </Card>
-
-          {/* Outreach Section */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-serif italic">Outreach</h2>
-              <div className="flex items-center gap-2">
-                {data.lead.status === 'audited' && data.lead.detailedReport && (
-                  <Button
-                    onClick={handleGenerateEmail}
-                    variant="default"
-                  >
-                    <Send className="mr-2 h-4 w-4" />
-                    Copy Email to Clipboard
-                  </Button>
-                )}
-                <Button
-                  onClick={() => setEmailDialogOpen(true)}
-                  variant="outline"
-                >
-                  <Mail className="mr-2 h-4 w-4" />
-                  Custom Email
-                </Button>
-                <Button
-                  onClick={() => generateDraft.mutate({ leadId: leadId! })}
-                  disabled={generateDraft.isPending}
-                  variant="outline"
-                >
-                  {generateDraft.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Draft...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Generate Draft (Old)
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={() => {
-                    generateOutreach.mutate({ leadId: leadId! });
-                  }}
-                  disabled={generateOutreach.isPending}
-                >
-                  {generateOutreach.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate AI Outreach
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Send an email directly or generate a personalized draft based on the visual audit.
-            </p>
-          </Card>
-
-          {/* Email Compose Dialog */}
-          <EmailComposeDialog
-            open={emailDialogOpen}
-            onOpenChange={setEmailDialogOpen}
-            defaultTo=""
-            defaultSubject={`Website Audit Results - ${lead.companyName}`}
-            defaultBody={audit ? `Hi,\n\nI recently reviewed ${lead.companyName}'s website (${lead.websiteUrl}) and wanted to share some insights.\n\nPrestige Score: ${audit.prestigeScore}/100\n\nSummary: ${audit.summary}\n\nI'd love to discuss how we can help improve your online presence.\n\nBest regards` : `Hi,\n\nI wanted to reach out regarding ${lead.companyName}'s website.\n\nBest regards`}
-            onSend={async (data) => {
-              await sendDirectEmail.mutateAsync({
-                leadId: leadId!,
-                to: data.to,
-                subject: data.subject,
-                body: data.body,
-              });
-            }}
-            isLoading={sendDirectEmail.isPending}
-          />
 
           {/* Report Drawer */}
           <ReportDrawer
@@ -767,7 +851,9 @@ export default function LeadDetail() {
             onClose={() => setReportDrawerOpen(false)}
             companyName={lead.companyName}
             prestigeScore={audit?.prestigeScore || 0}
-            detailedReport={lead.detailedReport ? JSON.parse(lead.detailedReport) : null}
+            detailedReport={
+              lead.detailedReport ? JSON.parse(lead.detailedReport) : null
+            }
           />
 
           {/* Website Editor Modal */}

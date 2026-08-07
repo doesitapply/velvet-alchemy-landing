@@ -1,6 +1,7 @@
 /**
  * API Key Router Tests
  * Validates key generation, hashing, and scope logic
+ * Portable: no database, credentials, network, or external services.
  */
 import { describe, it, expect } from "vitest";
 import crypto from "crypto";
@@ -46,7 +47,14 @@ describe("API Key Generation", () => {
 });
 
 describe("Scope Validation", () => {
-  const VALID_SCOPES = ["leads:read", "leads:write", "scrape", "audit", "pipeline", "*"];
+  const VALID_SCOPES = [
+    "leads:read",
+    "leads:write",
+    "scrape",
+    "audit",
+    "pipeline",
+    "*",
+  ];
 
   it("wildcard scope covers all operations", () => {
     const userScopes = ["*"];

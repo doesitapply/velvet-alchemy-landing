@@ -5,9 +5,12 @@ import { getDb } from "./db";
 import { leads, payments, userOnboarding } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
-const hasDb = !!process.env.DATABASE_URL;
+const hasDatabase =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  process.env.RUN_DB_WRITE_TESTS === "1" &&
+  Boolean(process.env.DATABASE_URL);
 
-describe("Onboarding & Cost Tracking", () => {
+describe.skipIf(!hasDatabase)("Onboarding & Cost Tracking", () => {
   const testUserId = 999999;
   const testUser = {
     id: testUserId,
@@ -26,11 +29,16 @@ describe("Onboarding & Cost Tracking", () => {
   const caller = appRouter.createCaller(mockContext);
 
   async function cleanup() {
-    if (!hasDb) return;
     const db = await getDb();
     if (!db) return;
-    await db.delete(userOnboarding).where(eq(userOnboarding.userId, testUserId));
-    const testLeads = await db.select().from(leads).where(eq(leads.userId, testUserId));
+    await db
+      .delete(userOnboarding)
+      .where(eq(userOnboarding.userId, testUserId));
+    // Get test lead ids first
+    const testLeads = await db
+      .select()
+      .from(leads)
+      .where(eq(leads.userId, testUserId));
     for (const lead of testLeads) {
       await db.delete(payments).where(eq(payments.lead_id, lead.id));
     }
@@ -40,7 +48,7 @@ describe("Onboarding & Cost Tracking", () => {
   beforeAll(cleanup);
   afterAll(cleanup);
 
-  it.skipIf(!hasDb)("should create initial onboarding record with all steps incomplete", async () => {
+  it("should create initial onboarding record with all steps incomplete", async () => {
     const progress = await caller.onboarding.getProgress();
     expect(progress).toBeDefined();
     expect(progress.hasCompletedScraper).toBe(false);
@@ -50,7 +58,7 @@ describe("Onboarding & Cost Tracking", () => {
     expect(progress.onboardingCompletedAt).toBeNull();
   });
 
-  it.skipIf(!hasDb)("should mark scraper complete when user creates a lead", async () => {
+  it("should mark scraper complete when user creates a lead", async () => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
     await db.insert(leads).values({
@@ -64,17 +72,20 @@ describe("Onboarding & Cost Tracking", () => {
     expect(progress.hasReviewedAudit).toBe(false);
   });
 
-  it.skipIf(!hasDb)("should mark audit reviewed when lead status changes to audited", async () => {
+  it("should mark audit reviewed when lead status changes to audited", async () => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
-    await db.update(leads).set({ status: "audited" }).where(eq(leads.userId, testUserId));
+    await db
+      .update(leads)
+      .set({ status: "audited" })
+      .where(eq(leads.userId, testUserId));
     const progress = await caller.onboarding.getProgress();
     expect(progress.hasCompletedScraper).toBe(true);
     expect(progress.hasReviewedAudit).toBe(true);
     expect(progress.hasSentInvoice).toBe(false);
   });
 
-  it.skipIf(!hasDb)("should mark invoice sent when payment record is created", async () => {
+  it("should mark invoice sent when payment record is created", async () => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
     const testLead = await db
@@ -97,7 +108,7 @@ describe("Onboarding & Cost Tracking", () => {
     expect(progress.hasReceivedPayment).toBe(false);
   });
 
-  it.skipIf(!hasDb)("should mark payment received and complete onboarding when payment status is completed", async () => {
+  it("should mark payment received and complete onboarding when payment status is completed", async () => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
     const testLead = await db
@@ -106,7 +117,10 @@ describe("Onboarding & Cost Tracking", () => {
       .where(eq(leads.userId, testUserId))
       .limit(1)
       .then(rows => rows[0]);
-    await db.update(payments).set({ status: "completed" }).where(eq(payments.lead_id, testLead.id));
+    await db
+      .update(payments)
+      .set({ status: "completed" })
+      .where(eq(payments.lead_id, testLead.id));
     const progress = await caller.onboarding.getProgress();
     expect(progress.hasCompletedScraper).toBe(true);
     expect(progress.hasReviewedAudit).toBe(true);
@@ -115,7 +129,7 @@ describe("Onboarding & Cost Tracking", () => {
     expect(progress.onboardingCompletedAt).not.toBeNull();
   });
 
-  it.skipIf(!hasDb)("should calculate cost/profit overview correctly", async () => {
+  it("should calculate cost/profit overview correctly", async () => {
     const overview = await caller.cost.getOverview();
     expect(overview).toBeDefined();
     expect(overview.totalRevenueCents).toBeGreaterThanOrEqual(500000);

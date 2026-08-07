@@ -1,5 +1,7 @@
 # DEVELOPER HANDOFF GUIDE 👨‍💻
 
+> SUPERSEDED: This handoff predates the 2026-07-29 contact, tenancy, spend, and test-gate hardening. Use `HANDOFF.md` for current behavior and proof boundaries.
+
 **Last Updated:** January 26, 2026 at 4:24 AM PST  
 **Version:** 1.0.0  
 **Status:** Production Ready

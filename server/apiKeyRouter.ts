@@ -11,6 +11,8 @@ import crypto from "crypto";
 import { getDb } from "./db";
 import { apiKeys } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+import { isPrivilegedUser } from "./lib/accessControl";
+import { canGrantApiScopes } from "./lib/apiScopePolicy";
 
 const VALID_SCOPES = [
   "leads:read",
@@ -18,8 +20,9 @@ const VALID_SCOPES = [
   "scrape",
   "audit",
   "pipeline",
-  "handoff:write",   // Queue a SMIRK outbound call for a lead
-  "outcome:write",   // Post a SMIRK call outcome back to Velvet Alchemy
+  "handoff:write", // Reserved compatibility scope; prospect handoffs are blocked
+  "outcome:write", // Signed feedback-only callbacks; cannot trigger contact
+  "smirk:research", // Admin-only export of reviewed leads; no contact or spend
   "*",
 ] as const;
 
@@ -36,18 +39,25 @@ export const apiKeyRouter = router({
    */
   list: protectedProcedure.query(async ({ ctx }) => {
     const orm = await getDb();
-    if (!orm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    if (!orm)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database unavailable",
+      });
 
-    const rows = await orm.select({
-      id: apiKeys.id,
-      name: apiKeys.name,
-      keyPrefix: apiKeys.keyPrefix,
-      scopes: apiKeys.scopes,
-      isActive: apiKeys.isActive,
-      lastUsedAt: apiKeys.lastUsedAt,
-      expiresAt: apiKeys.expiresAt,
-      createdAt: apiKeys.createdAt,
-    }).from(apiKeys).where(eq(apiKeys.userId, ctx.user.id));
+    const rows = await orm
+      .select({
+        id: apiKeys.id,
+        name: apiKeys.name,
+        keyPrefix: apiKeys.keyPrefix,
+        scopes: apiKeys.scopes,
+        isActive: apiKeys.isActive,
+        lastUsedAt: apiKeys.lastUsedAt,
+        expiresAt: apiKeys.expiresAt,
+        createdAt: apiKeys.createdAt,
+      })
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, ctx.user.id));
 
     return rows.map(row => ({
       ...row,
@@ -59,14 +69,27 @@ export const apiKeyRouter = router({
    * Create a new API key — returns the raw key ONCE, never again
    */
   create: protectedProcedure
-    .input(z.object({
-      name: z.string().min(1).max(100),
-      scopes: z.array(z.enum(VALID_SCOPES)).min(1),
-      expiresInDays: z.number().min(1).max(3650).optional(), // null = never
-    }))
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        scopes: z.array(z.enum(VALID_SCOPES)).min(1),
+        expiresInDays: z.number().min(1).max(3650).optional(), // null = never
+      })
+    )
     .mutation(async ({ input, ctx }) => {
+      if (!canGrantApiScopes(isPrivilegedUser(ctx.user), input.scopes)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Only an administrator can grant cost-bearing, SMIRK research export, or wildcard API scopes.",
+        });
+      }
       const orm = await getDb();
-      if (!orm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!orm)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
       const { raw, hash, prefix } = generateApiKey();
 
@@ -102,14 +125,28 @@ export const apiKeyRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const orm = await getDb();
-      if (!orm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!orm)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
-      const rows = await orm.select().from(apiKeys)
-        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id))).limit(1);
+      const rows = await orm
+        .select()
+        .from(apiKeys)
+        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)))
+        .limit(1);
 
-      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "API key not found" });
+      if (!rows[0])
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "API key not found",
+        });
 
-      await orm.update(apiKeys).set({ isActive: false }).where(eq(apiKeys.id, input.id));
+      await orm
+        .update(apiKeys)
+        .set({ isActive: false })
+        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)));
       return { success: true };
     }),
 
@@ -120,14 +157,27 @@ export const apiKeyRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const orm = await getDb();
-      if (!orm) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      if (!orm)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database unavailable",
+        });
 
-      const rows = await orm.select().from(apiKeys)
-        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id))).limit(1);
+      const rows = await orm
+        .select()
+        .from(apiKeys)
+        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)))
+        .limit(1);
 
-      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "API key not found" });
+      if (!rows[0])
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "API key not found",
+        });
 
-      await orm.delete(apiKeys).where(eq(apiKeys.id, input.id));
+      await orm
+        .delete(apiKeys)
+        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)));
       return { success: true };
     }),
 });

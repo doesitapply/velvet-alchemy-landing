@@ -1,5 +1,7 @@
 # THE MONEY MANUAL 💰
 
+> HISTORICAL BUSINESS DOCUMENT: Revenue, conversion, margin, loss, readiness, and automated-delivery claims below are not current proof. Use `README.md` and `HANDOFF.md`.
+
 **Last Updated:** January 26, 2026 at 4:22 AM PST  
 **Version:** 1.0.0  
 **Status:** Production Ready

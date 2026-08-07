@@ -1,0 +1,386 @@
+import { describe, expect, it } from "vitest";
+import {
+  SMIRK_DISCOVERY_REQUEST_CONTRACT,
+  buildSmirkDiscoveryEffectiveCriteria,
+  buildSmirkDiscoveryQuote,
+  hashSmirkDiscoveryValue,
+  nextSmirkDiscoveryProviderRequestCounts,
+  smirkDiscoveryQuoteSchema,
+  smirkDiscoveryPreparedResponseSchema,
+  smirkDiscoveryRequestSchema,
+  smirkDiscoveryStatusResponseSchema,
+} from "./lib/smirkDiscovery";
+import type { AppliedLearningCandidate } from "./lib/smirkLeadBatch";
+import {
+  ACQUISITION_SOURCING_BINDING_CONTRACT,
+  buildAcquisitionSourcingExperimentAssignment,
+  buildAcquisitionSourcingExperimentDefinition,
+  hashAcquisitionSourcingValue,
+} from "./lib/acquisitionSourcingExperiment";
+
+function manualRequest() {
+  return smirkDiscoveryRequestSchema.parse({
+    contractVersion: SMIRK_DISCOVERY_REQUEST_CONTRACT,
+    requestId: "smirk_discovery_20260730_example_001",
+    workspaceId: 1,
+    criteria: {
+      limit: 5,
+      category: "plumbing",
+      city: "Reno",
+      state: "NV",
+      learningMode: "none",
+    },
+    contactActionAllowed: false,
+    spendAuthorized: false,
+  });
+}
+
+describe("SMIRK discovery contract", () => {
+  it("requires no-contact and no-spend request semantics", () => {
+    expect(
+      smirkDiscoveryRequestSchema.safeParse({
+        ...manualRequest(),
+        contactActionAllowed: true,
+      }).success
+    ).toBe(false);
+    expect(
+      smirkDiscoveryRequestSchema.safeParse({
+        ...manualRequest(),
+        spendAuthorized: true,
+      }).success
+    ).toBe(false);
+  });
+
+  it("builds a deterministic bounded Maps and owner-email quote", () => {
+    const criteria = buildSmirkDiscoveryEffectiveCriteria({
+      request: manualRequest(),
+      candidate: null,
+    });
+    const quote = buildSmirkDiscoveryQuote(
+      criteria,
+      {
+        ENABLE_MAPS_RESEARCH: "true",
+        MAPS_COST_CENTS_PER_REQUEST: "2",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "3",
+      },
+      new Date("2026-07-30T12:00:00.000Z")
+    );
+    expect(quote).toEqual({
+      plan: "maps-plus-owner-email-v1",
+      providers: {
+        maps: {
+          provider: "google_maps_proxy",
+          maximumRequests: 6,
+          costCentsPerRequest: 2,
+          maximumCostCents: 12,
+        },
+        ownerEmailEnrichment: {
+          provider: "hunter_owner_email",
+          maximumRequests: 5,
+          costCentsPerRequest: 3,
+          maximumCostCents: 15,
+        },
+      },
+      maximumRequests: 11,
+      maximumCostCents: 27,
+      quotedAt: "2026-07-30T12:00:00.000Z",
+    });
+  });
+
+  it("rejects a quote above the five-dollar request cap", () => {
+    const request = smirkDiscoveryRequestSchema.parse({
+      ...manualRequest(),
+      criteria: { ...manualRequest().criteria, limit: 20 },
+    });
+    const criteria = buildSmirkDiscoveryEffectiveCriteria({
+      request,
+      candidate: null,
+    });
+    expect(() =>
+      buildSmirkDiscoveryQuote(criteria, {
+        ENABLE_MAPS_RESEARCH: "true",
+        MAPS_COST_CENTS_PER_REQUEST: "25",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "1",
+      })
+    ).toThrow("exceeds the 500-cent");
+  });
+
+  it("rejects forged provider line items and combined quote totals", () => {
+    const criteria = buildSmirkDiscoveryEffectiveCriteria({
+      request: manualRequest(),
+      candidate: null,
+    });
+    const quote = buildSmirkDiscoveryQuote(criteria, {
+      ENABLE_MAPS_RESEARCH: "true",
+      MAPS_COST_CENTS_PER_REQUEST: "2",
+      ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+      HUNTER_API_KEY: "synthetic-hunter-key",
+      HUNTER_COST_CENTS_PER_CREDIT: "3",
+    });
+    expect(
+      smirkDiscoveryQuoteSchema.safeParse({
+        ...quote,
+        providers: {
+          ...quote.providers,
+          maps: {
+            ...quote.providers.maps,
+            maximumCostCents: quote.providers.maps.maximumCostCents - 1,
+          },
+        },
+      }).success
+    ).toBe(false);
+    expect(
+      smirkDiscoveryQuoteSchema.safeParse({
+        ...quote,
+        maximumRequests: quote.maximumRequests - 1,
+      }).success
+    ).toBe(false);
+  });
+
+  it("enforces the exact approved amount and provider-request count", () => {
+    const quote = buildSmirkDiscoveryQuote(
+      buildSmirkDiscoveryEffectiveCriteria({
+        request: manualRequest(),
+        candidate: null,
+      }),
+      {
+        ENABLE_MAPS_RESEARCH: "true",
+        MAPS_COST_CENTS_PER_REQUEST: "2",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "3",
+      },
+      new Date("2026-07-30T12:00:00.000Z")
+    );
+    let counts = { maps: 0, ownerEmailEnrichment: 0 };
+    for (let index = 0; index < 6; index += 1) {
+      counts = nextSmirkDiscoveryProviderRequestCounts({
+        quote,
+        approvedMaxSpendCents: 27,
+        provider: "maps",
+        current: counts,
+      });
+    }
+    for (let index = 0; index < 5; index += 1) {
+      counts = nextSmirkDiscoveryProviderRequestCounts({
+        quote,
+        approvedMaxSpendCents: 27,
+        provider: "ownerEmailEnrichment",
+        current: counts,
+      });
+    }
+    expect(counts).toEqual({ maps: 6, ownerEmailEnrichment: 5 });
+    expect(() =>
+      nextSmirkDiscoveryProviderRequestCounts({
+        quote,
+        approvedMaxSpendCents: 26,
+        provider: "maps",
+        current: { maps: 0, ownerEmailEnrichment: 0 },
+      })
+    ).toThrow("exact operator-approved");
+    expect(() =>
+      nextSmirkDiscoveryProviderRequestCounts({
+        quote,
+        approvedMaxSpendCents: 27,
+        provider: "maps",
+        current: counts,
+      })
+    ).toThrow("exact operator-approved");
+  });
+
+  it("combines a released category candidate with an operator-selected metro", () => {
+    const candidate: AppliedLearningCandidate = {
+      id: 7,
+      candidateKey: "category:plumbing",
+      version: 2,
+      proposal: {
+        action: "prioritize_for_next_research_batch",
+        dimension: "category",
+        value: "plumbing",
+        maximumNextBatchSize: 4,
+      },
+      policyReleaseId: "b5e9f085-f6c6-4b7f-bde8-b94d3b63de90",
+      policyReleaseReceiptHash: "b".repeat(64),
+    };
+    const request = smirkDiscoveryRequestSchema.parse({
+      contractVersion: SMIRK_DISCOVERY_REQUEST_CONTRACT,
+      requestId: "smirk_discovery_20260730_learned_001",
+      workspaceId: 1,
+      criteria: {
+        limit: 10,
+        city: "Reno",
+        state: "NV",
+        learningMode: "latest_released",
+      },
+      contactActionAllowed: false,
+      spendAuthorized: false,
+    });
+    expect(
+      buildSmirkDiscoveryEffectiveCriteria({ request, candidate })
+    ).toEqual({
+      limit: 4,
+      category: "plumbing",
+      city: "Reno",
+      state: "NV",
+    });
+  });
+
+  it("combines a released metro candidate with an operator-selected category", () => {
+    const candidate: AppliedLearningCandidate = {
+      id: 8,
+      candidateKey: "metro:reno-nv",
+      version: 1,
+      proposal: {
+        action: "prioritize_for_next_research_batch",
+        dimension: "metro",
+        value: "Reno, NV",
+        maximumNextBatchSize: 8,
+      },
+      policyReleaseId: "e05f13b8-1850-46a6-9b59-afd41bfb2f8d",
+      policyReleaseReceiptHash: "c".repeat(64),
+    };
+    const request = smirkDiscoveryRequestSchema.parse({
+      contractVersion: SMIRK_DISCOVERY_REQUEST_CONTRACT,
+      requestId: "smirk_discovery_20260730_learned_002",
+      workspaceId: 1,
+      criteria: {
+        limit: 6,
+        category: "hvac",
+        learningMode: "latest_released",
+      },
+      contactActionAllowed: false,
+      spendAuthorized: false,
+    });
+    expect(
+      buildSmirkDiscoveryEffectiveCriteria({ request, candidate })
+    ).toEqual({
+      limit: 6,
+      category: "hvac",
+      city: "Reno",
+      state: "NV",
+    });
+  });
+
+  it("uses only the exact frozen experiment assignment for experiment discovery", () => {
+    const definition = buildAcquisitionSourcingExperimentDefinition({
+      experimentId: "4763e0d1-21c0-4a99-bd28-401d0fccdfe4",
+      workspaceId: 1,
+      dimension: "category",
+      control: {
+        label: "Reno plumbing",
+        criteria: { category: "plumbing", city: "Reno", state: "NV" },
+      },
+      challenger: {
+        label: "Reno HVAC",
+        criteria: { category: "hvac", city: "Reno", state: "NV" },
+      },
+      requestsPerArm: 1,
+      leadsPerRequest: 10,
+      preparedAt: new Date("2026-08-01T12:00:00.000Z"),
+    });
+    const definitionHash = hashAcquisitionSourcingValue(definition);
+    const request = smirkDiscoveryRequestSchema.parse({
+      contractVersion: SMIRK_DISCOVERY_REQUEST_CONTRACT,
+      requestId: "smirk_discovery_experiment_20260801_001",
+      workspaceId: 1,
+      criteria: { limit: 10, learningMode: "experiment" },
+      acquisitionExperiment: {
+        contractVersion: ACQUISITION_SOURCING_BINDING_CONTRACT,
+        experimentId: definition.experimentId,
+        definitionHash,
+      },
+      contactActionAllowed: false,
+      spendAuthorized: false,
+    });
+    const assignment = buildAcquisitionSourcingExperimentAssignment({
+      definition,
+      definitionHash,
+      requestId: request.requestId,
+      slotOrdinal: 1,
+    });
+
+    expect(
+      buildSmirkDiscoveryEffectiveCriteria({
+        request,
+        candidate: null,
+        experimentAssignment: assignment,
+      })
+    ).toEqual(assignment.effectiveCriteria);
+    expect(
+      smirkDiscoveryRequestSchema.safeParse({
+        ...request,
+        acquisitionExperiment: undefined,
+      }).success
+    ).toBe(false);
+  });
+
+  it("validates prepared and status receipts without granting execution", () => {
+    const request = manualRequest();
+    const criteria = buildSmirkDiscoveryEffectiveCriteria({
+      request,
+      candidate: null,
+    });
+    const quote = buildSmirkDiscoveryQuote(
+      criteria,
+      {
+        ENABLE_MAPS_RESEARCH: "true",
+        MAPS_COST_CENTS_PER_REQUEST: "1",
+        ENABLE_HUNTER_OWNER_ENRICHMENT: "true",
+        HUNTER_API_KEY: "synthetic-hunter-key",
+        HUNTER_COST_CENTS_PER_CREDIT: "2",
+      },
+      new Date("2026-07-30T12:00:00.000Z")
+    );
+    const requestPayloadHash = hashSmirkDiscoveryValue(request);
+    expect(
+      smirkDiscoveryPreparedResponseSchema.parse({
+        ok: true,
+        contractVersion: "velvet-smirk.discovery-response.v2",
+        state: "PREPARED",
+        originalState: "PREPARED",
+        currentState: "PREPARED",
+        requestId: request.requestId,
+        requestPayloadHash,
+        quotePayloadHash: hashSmirkDiscoveryValue(quote),
+        discoveryId: 11,
+        effectiveCriteria: criteria,
+        appliedLearningCandidate: null,
+        acquisitionExperimentAssignment: null,
+        quote,
+        approvalRequired: true,
+        executionStarted: false,
+        contactActionAllowed: false,
+        spendAuthorized: false,
+        externalAction: "discovery_approval_required",
+      }).executionStarted
+    ).toBe(false);
+    expect(
+      smirkDiscoveryStatusResponseSchema.parse({
+        ok: true,
+        contractVersion: "velvet-smirk.discovery-status.v2",
+        requestId: request.requestId,
+        requestPayloadHash,
+        quotePayloadHash: hashSmirkDiscoveryValue(quote),
+        discoveryId: 11,
+        state: "PREPARED",
+        effectiveCriteria: criteria,
+        appliedLearningCandidate: null,
+        acquisitionExperimentAssignment: null,
+        quote,
+        createdLeadCount: 0,
+        readyLeadCount: 0,
+        skippedLeadCount: 0,
+        failedLeadCount: 0,
+        providerRequests: 0,
+        approvedMaxSpendCents: null,
+        error: null,
+        contactActionAllowed: false,
+        externalAction: "discovery_status_only",
+      }).contactActionAllowed
+    ).toBe(false);
+  });
+});

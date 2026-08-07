@@ -7,13 +7,15 @@ interface DetailedReport {
     critique: string;
   };
   technical_audit: {
-    load_speed: string;
+    load_speed: string | null;
     mobile_friendly: boolean | null;
+    measurement_status?: "not_measured";
   };
   conversion_leaks: string[];
   competitor_analysis: {
-    competitor_url: string;
-    gap_found: string;
+    status?: "not_measured";
+    competitor_url: string | null;
+    gap_found: string | null;
   };
   suggested_fix: string;
 }
@@ -40,9 +42,17 @@ export function ReportDrawer({ isOpen, onClose, companyName, prestigeScore, deta
   const healthGrade = getHealthGrade(prestigeScore);
   const report = detailedReport || {
     visual_audit: { score: 0, critique: "No audit data available" },
-    technical_audit: { load_speed: "Unknown", mobile_friendly: null },
+    technical_audit: {
+      load_speed: null,
+      mobile_friendly: null,
+      measurement_status: "not_measured" as const,
+    },
     conversion_leaks: [],
-    competitor_analysis: { competitor_url: "", gap_found: "" },
+    competitor_analysis: {
+      status: "not_measured" as const,
+      competitor_url: null,
+      gap_found: null,
+    },
     suggested_fix: "",
   };
 
@@ -99,12 +109,14 @@ export function ReportDrawer({ isOpen, onClose, companyName, prestigeScore, deta
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <TrendingDown className="h-5 w-5 text-orange-500" />
-              <h3 className="text-lg font-semibold">Technical Performance</h3>
+              <h3 className="text-lg font-semibold">Technical Measurements</h3>
             </div>
             <div className="bg-card border border-border rounded-lg p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Load Speed:</span>
-                <span className="font-medium">{report.technical_audit.load_speed || "Not measured"}</span>
+                <span className="font-medium">
+                  {report.technical_audit.load_speed || "Not measured"}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Mobile Friendly:</span>
@@ -123,7 +135,9 @@ export function ReportDrawer({ isOpen, onClose, companyName, prestigeScore, deta
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-red-500" />
-              <h3 className="text-lg font-semibold">Revenue Leaks Detected</h3>
+              <h3 className="text-lg font-semibold">
+                Possible Contact Friction
+              </h3>
             </div>
             {report.conversion_leaks.length > 0 ? (
               <ul className="space-y-2">
@@ -135,7 +149,9 @@ export function ReportDrawer({ isOpen, onClose, companyName, prestigeScore, deta
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground italic">No conversion leaks identified yet</p>
+              <p className="text-sm text-muted-foreground italic">
+                No screenshot-based contact observations are available.
+              </p>
             )}
           </div>
 

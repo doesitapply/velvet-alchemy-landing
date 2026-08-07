@@ -2,6 +2,7 @@ import { protectedProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { apiCalls, payments, leads } from "../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { isPrivilegedUser } from "./lib/accessControl";
 
 /**
  * Cost Router - Tracks API costs and profit margins
@@ -15,6 +16,12 @@ export const costRouter = router({
     if (!db) {
       throw new Error("Database not available");
     }
+    const scope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(apiCalls.userId, ctx.user.id);
+    const leadScope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(leads.userId, ctx.user.id);
 
     // Get total API costs
     const costs = await db
@@ -26,14 +33,17 @@ export const costRouter = router({
         callCount: sql<number>`COUNT(*)`,
       })
       .from(apiCalls)
-      .where(eq(apiCalls.userId, ctx.user.id))
-      .then(rows => rows[0] || {
-        totalCost: 0,
-        llmCost: 0,
-        screenshotCost: 0,
-        storageCost: 0,
-        callCount: 0,
-      });
+      .where(scope)
+      .then(
+        rows =>
+          rows[0] || {
+            totalCost: 0,
+            llmCost: 0,
+            screenshotCost: 0,
+            storageCost: 0,
+            callCount: 0,
+          }
+      );
 
     // Get total revenue from completed payments
     const revenue = await db
@@ -43,63 +53,61 @@ export const costRouter = router({
       })
       .from(payments)
       .innerJoin(leads, eq(payments.lead_id, leads.id))
-      .where(
-        and(
-          eq(leads.userId, ctx.user.id),
-          eq(payments.status, "completed")
-        )
-      )
-      .then(rows => rows[0] || {
-        totalRevenue: 0,
-        completedCount: 0,
-      });
+      .where(and(leadScope, eq(payments.status, "completed")))
+      .then(
+        rows =>
+          rows[0] || {
+            totalRevenue: 0,
+            completedCount: 0,
+          }
+      );
 
     const totalCostCents = Number(costs.totalCost) || 0;
     const totalRevenueCents = Number(revenue.totalRevenue) || 0;
     const profitCents = totalRevenueCents - totalCostCents;
-    const profitMarginPercent = totalRevenueCents > 0
-      ? ((profitCents / totalRevenueCents) * 100).toFixed(1)
-      : "0.0";
+    const profitMarginPercent =
+      totalRevenueCents > 0
+        ? ((profitCents / totalRevenueCents) * 100).toFixed(1)
+        : "0.0";
 
     // Get cost per lead
     const leadCount = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(leads)
-      .where(eq(leads.userId, ctx.user.id))
+      .where(leadScope)
       .then(rows => Number(rows[0]?.count) || 0);
 
-    const costPerLeadCents = leadCount > 0
-      ? Math.round(totalCostCents / leadCount)
-      : 0;
+    const costPerLeadCents =
+      leadCount > 0 ? Math.round(totalCostCents / leadCount) : 0;
 
     // Get cost per completed deal
     const completedDeals = Number(revenue.completedCount) || 0;
-    const costPerDealCents = completedDeals > 0
-      ? Math.round(totalCostCents / completedDeals)
-      : 0;
+    const costPerDealCents =
+      completedDeals > 0 ? Math.round(totalCostCents / completedDeals) : 0;
 
     return {
       totalCostCents,
       totalRevenueCents,
       profitCents,
       profitMarginPercent: parseFloat(profitMarginPercent),
-      
+
       // Cost breakdown
       llmCostCents: Number(costs.llmCost) || 0,
       screenshotCostCents: Number(costs.screenshotCost) || 0,
       storageCostCents: Number(costs.storageCost) || 0,
-      
+
       // Metrics
       apiCallCount: Number(costs.callCount) || 0,
       leadCount,
       completedDeals,
       costPerLeadCents,
       costPerDealCents,
-      
+
       // ROI calculation
-      roi: totalCostCents > 0
-        ? ((profitCents / totalCostCents) * 100).toFixed(1)
-        : "0.0",
+      roi:
+        totalCostCents > 0
+          ? ((profitCents / totalCostCents) * 100).toFixed(1)
+          : "0.0",
     };
   }),
 
@@ -109,13 +117,16 @@ export const costRouter = router({
   getRecentCalls: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) {
-      return [];
+      throw new Error("Database not available");
     }
+    const scope = isPrivilegedUser(ctx.user)
+      ? undefined
+      : eq(apiCalls.userId, ctx.user.id);
 
     const calls = await db
       .select()
       .from(apiCalls)
-      .where(eq(apiCalls.userId, ctx.user.id))
+      .where(scope)
       .orderBy(sql`${apiCalls.createdAt} DESC`)
       .limit(50);
 

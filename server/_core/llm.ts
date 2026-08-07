@@ -1,5 +1,9 @@
 import { ENV } from "./env";
-import { trackApiCall, estimateLLMCost } from "../apiCostTracker";
+import {
+  assertDailyBudgetAvailable,
+  trackApiCall,
+  estimateLLMCost,
+} from "../apiCostTracker";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -20,7 +24,12 @@ export type FileContent = {
   type: "file_url";
   file_url: {
     url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
+    mime_type?:
+      | "audio/mpeg"
+      | "audio/wav"
+      | "application/pdf"
+      | "audio/mp4"
+      | "video/mp4";
   };
 };
 
@@ -271,13 +280,13 @@ const TRANSIENT_STATUSES = new Set([412, 429, 500, 502, 503, 504]);
 
 // Error text patterns that indicate quota/rate-limit exhaustion
 const isQuotaError = (text: string) =>
-  text.includes('usage exhausted') ||
-  text.includes('quota') ||
-  text.includes('rate limit') ||
-  text.includes('rate_limit') ||
-  text.includes('RESOURCE_EXHAUSTED') ||
-  text.includes('overloaded') ||
-  text.includes('capacity');
+  text.includes("usage exhausted") ||
+  text.includes("quota") ||
+  text.includes("rate limit") ||
+  text.includes("rate_limit") ||
+  text.includes("RESOURCE_EXHAUSTED") ||
+  text.includes("overloaded") ||
+  text.includes("capacity");
 
 const shouldFallback = (status: number, errorText: string) =>
   TRANSIENT_STATUSES.has(status) || isQuotaError(errorText);
@@ -289,11 +298,11 @@ async function tryOpenAI(
   params: InvokeParams,
   fmt: ReturnType<typeof normalizeResponseFormat>
 ): Promise<InvokeResult> {
-  if (!ENV.openAiApiKey) throw new Error('SKIP: no OPENAI_API_KEY');
+  if (!ENV.openAiApiKey) throw new Error("SKIP: no OPENAI_API_KEY");
 
   const { messages, tools, toolChoice, tool_choice } = params;
   const payload: Record<string, unknown> = {
-    model: 'gpt-4o',
+    model: "gpt-4o",
     messages: messages.map(normalizeMessage),
     max_tokens: 16384,
   };
@@ -302,9 +311,12 @@ async function tryOpenAI(
   if (tc) payload.tool_choice = tc;
   if (fmt) payload.response_format = fmt;
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${ENV.openAiApiKey}` },
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${ENV.openAiApiKey}`,
+    },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -319,34 +331,36 @@ async function tryAnthropic(
   params: InvokeParams,
   _fmt: ReturnType<typeof normalizeResponseFormat>
 ): Promise<InvokeResult> {
-  if (!ENV.anthropicApiKey) throw new Error('SKIP: no ANTHROPIC_API_KEY');
+  if (!ENV.anthropicApiKey) throw new Error("SKIP: no ANTHROPIC_API_KEY");
 
   const { messages } = params;
 
   // Anthropic requires system message to be separate
-  const systemMsg = messages.find(m => m.role === 'system');
-  const userMsgs = messages.filter(m => m.role !== 'system');
+  const systemMsg = messages.find(m => m.role === "system");
+  const userMsgs = messages.filter(m => m.role !== "system");
 
   const body: Record<string, unknown> = {
-    model: 'claude-3-5-sonnet-20241022',
+    model: "claude-3-5-sonnet-20241022",
     max_tokens: 8192,
     messages: userMsgs.map(m => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      role: m.role === "assistant" ? "assistant" : "user",
+      content:
+        typeof m.content === "string" ? m.content : JSON.stringify(m.content),
     })),
   };
   if (systemMsg) {
-    body.system = typeof systemMsg.content === 'string'
-      ? systemMsg.content
-      : JSON.stringify(systemMsg.content);
+    body.system =
+      typeof systemMsg.content === "string"
+        ? systemMsg.content
+        : JSON.stringify(systemMsg.content);
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
     headers: {
-      'content-type': 'application/json',
-      'x-api-key': ENV.anthropicApiKey,
-      'anthropic-version': '2023-06-01',
+      "content-type": "application/json",
+      "x-api-key": ENV.anthropicApiKey,
+      "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(body),
   });
@@ -354,8 +368,9 @@ async function tryAnthropic(
     const t = await res.text();
     throw new Error(`anthropic:${res.status}:${t.slice(0, 200)}`);
   }
-  const raw = await res.json() as {
-    id: string; model: string;
+  const raw = (await res.json()) as {
+    id: string;
+    model: string;
     content: Array<{ type: string; text?: string }>;
     usage?: { input_tokens: number; output_tokens: number };
   };
@@ -364,19 +379,23 @@ async function tryAnthropic(
     id: raw.id,
     created: Date.now(),
     model: raw.model,
-    choices: [{
-      index: 0,
-      message: {
-        role: 'assistant',
-        content: raw.content.map(c => c.text ?? '').join(''),
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: raw.content.map(c => c.text ?? "").join(""),
+        },
+        finish_reason: "stop",
       },
-      finish_reason: 'stop',
-    }],
-    usage: raw.usage ? {
-      prompt_tokens: raw.usage.input_tokens,
-      completion_tokens: raw.usage.output_tokens,
-      total_tokens: raw.usage.input_tokens + raw.usage.output_tokens,
-    } : undefined,
+    ],
+    usage: raw.usage
+      ? {
+          prompt_tokens: raw.usage.input_tokens,
+          completion_tokens: raw.usage.output_tokens,
+          total_tokens: raw.usage.input_tokens + raw.usage.output_tokens,
+        }
+      : undefined,
   };
 }
 
@@ -385,7 +404,7 @@ async function tryGoogleGemini(
   params: InvokeParams,
   _fmt: ReturnType<typeof normalizeResponseFormat>
 ): Promise<InvokeResult> {
-  if (!ENV.googleAiApiKey) throw new Error('SKIP: no GOOGLE_AI_API_KEY');
+  if (!ENV.googleAiApiKey) throw new Error("SKIP: no GOOGLE_AI_API_KEY");
 
   const { messages } = params;
 
@@ -394,17 +413,24 @@ async function tryGoogleGemini(
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
   for (const msg of messages) {
-    const text = typeof msg.content === 'string'
-      ? msg.content
-      : Array.isArray(msg.content)
-        ? (msg.content as Array<{text?: string}>).map(c => (c && typeof c === 'object' && 'text' in c ? (c as {text: string}).text : '')).join('')
-        : '';
+    const text =
+      typeof msg.content === "string"
+        ? msg.content
+        : Array.isArray(msg.content)
+          ? (msg.content as Array<{ text?: string }>)
+              .map(c =>
+                c && typeof c === "object" && "text" in c
+                  ? (c as { text: string }).text
+                  : ""
+              )
+              .join("")
+          : "";
 
-    if (msg.role === 'system') {
+    if (msg.role === "system") {
       systemParts.push(text);
     } else {
       contents.push({
-        role: msg.role === 'assistant' ? 'model' : 'user',
+        role: msg.role === "assistant" ? "model" : "user",
         parts: [{ text }],
       });
     }
@@ -412,17 +438,17 @@ async function tryGoogleGemini(
 
   const body: Record<string, unknown> = { contents };
   if (systemParts.length > 0) {
-    body.systemInstruction = { parts: [{ text: systemParts.join('\n') }] };
+    body.systemInstruction = { parts: [{ text: systemParts.join("\n") }] };
   }
 
   // Determine auth header — AQ.* tokens use X-goog-api-key, AIzaSy* use same
   const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
     {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': ENV.googleAiApiKey,
+        "content-type": "application/json",
+        "x-goog-api-key": ENV.googleAiApiKey,
       },
       body: JSON.stringify(body),
     }
@@ -433,34 +459,42 @@ async function tryGoogleGemini(
     throw new Error(`google:${res.status}:${t.slice(0, 200)}`);
   }
 
-  const raw = await res.json() as {
+  const raw = (await res.json()) as {
     candidates: Array<{
       content: { parts: Array<{ text?: string }>; role: string };
       finishReason: string;
     }>;
-    usageMetadata?: { promptTokenCount: number; candidatesTokenCount: number; totalTokenCount: number };
+    usageMetadata?: {
+      promptTokenCount: number;
+      candidatesTokenCount: number;
+      totalTokenCount: number;
+    };
     modelVersion?: string;
     responseId?: string;
   };
 
   const candidate = raw.candidates?.[0];
-  const text = candidate?.content?.parts?.map(p => p.text ?? '').join('') ?? '';
+  const text = candidate?.content?.parts?.map(p => p.text ?? "").join("") ?? "";
 
   // Normalize to OpenAI InvokeResult shape
   return {
     id: raw.responseId ?? `gemini-${Date.now()}`,
     created: Math.floor(Date.now() / 1000),
-    model: raw.modelVersion ?? 'gemini-flash-latest',
-    choices: [{
-      index: 0,
-      message: { role: 'assistant', content: text },
-      finish_reason: candidate?.finishReason?.toLowerCase() ?? 'stop',
-    }],
-    usage: raw.usageMetadata ? {
-      prompt_tokens: raw.usageMetadata.promptTokenCount,
-      completion_tokens: raw.usageMetadata.candidatesTokenCount,
-      total_tokens: raw.usageMetadata.totalTokenCount,
-    } : undefined,
+    model: raw.modelVersion ?? "gemini-flash-latest",
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: text },
+        finish_reason: candidate?.finishReason?.toLowerCase() ?? "stop",
+      },
+    ],
+    usage: raw.usageMetadata
+      ? {
+          prompt_tokens: raw.usageMetadata.promptTokenCount,
+          completion_tokens: raw.usageMetadata.candidatesTokenCount,
+          total_tokens: raw.usageMetadata.totalTokenCount,
+        }
+      : undefined,
   };
 }
 
@@ -472,9 +506,9 @@ type ProviderFn = (
 ) => Promise<InvokeResult>;
 
 const FALLBACK_PROVIDERS: Array<{ name: string; fn: ProviderFn }> = [
-  { name: 'openai', fn: tryOpenAI },
-  { name: 'anthropic', fn: tryAnthropic },
-  { name: 'google-gemini', fn: tryGoogleGemini },
+  { name: "openai", fn: tryOpenAI },
+  { name: "anthropic", fn: tryAnthropic },
+  { name: "google-gemini", fn: tryGoogleGemini },
 ];
 
 async function runFallbackChain(
@@ -491,17 +525,19 @@ async function runFallbackChain(
       return result;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.startsWith('SKIP:')) {
+      if (msg.startsWith("SKIP:")) {
         // Key not configured — skip silently
         continue;
       }
-      console.warn(`[LLM] ✗ Fallback provider ${name} failed: ${msg.slice(0, 120)}`);
+      console.warn(
+        `[LLM] ✗ Fallback provider ${name} failed: ${msg.slice(0, 120)}`
+      );
       errors.push(`${name}: ${msg.slice(0, 120)}`);
     }
   }
 
   throw new Error(
-    `All AI providers exhausted. Errors:\n${errors.map(e => `  • ${e}`).join('\n')}`
+    `All AI providers exhausted. Errors:\n${errors.map(e => `  • ${e}`).join("\n")}`
   );
 }
 
@@ -509,6 +545,21 @@ async function runFallbackChain(
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
+  const rawMaxTokens = params.maxTokens ?? params.max_tokens ?? 4_096;
+  const requestedMaxTokens = Number.isFinite(rawMaxTokens)
+    ? rawMaxTokens
+    : 4_096;
+  const boundedMaxTokens = Math.min(
+    8_192,
+    Math.max(1, Math.floor(requestedMaxTokens))
+  );
+  const boundedParams: InvokeParams = {
+    ...params,
+    maxTokens: boundedMaxTokens,
+    max_tokens: boundedMaxTokens,
+  };
+  const reserveCents = estimateLLMCost(8_000, boundedMaxTokens);
+  await assertDailyBudgetAvailable(reserveCents);
 
   const {
     messages,
@@ -519,7 +570,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
     responseFormat,
     response_format,
-  } = params;
+  } = boundedParams;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -529,50 +580,62 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   });
 
   const payload: Record<string, unknown> = {
-    model: 'gemini-2.5-flash',
+    model: "gemini-2.5-flash",
     messages: messages.map(normalizeMessage),
-    max_tokens: 32768,
+    max_tokens: boundedMaxTokens,
     thinking: { budget_tokens: 128 },
   };
 
   if (tools?.length) payload.tools = tools;
 
-  const normalizedToolChoice = normalizeToolChoice(toolChoice || tool_choice, tools);
+  const normalizedToolChoice = normalizeToolChoice(
+    toolChoice || tool_choice,
+    tools
+  );
   if (normalizedToolChoice) payload.tool_choice = normalizedToolChoice;
-  if (normalizedResponseFormat) payload.response_format = normalizedResponseFormat;
+  if (normalizedResponseFormat)
+    payload.response_format = normalizedResponseFormat;
 
   const response = await fetch(resolveApiUrl(), {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'content-type': 'application/json',
+      "content-type": "application/json",
       authorization: `Bearer ${ENV.forgeApiKey}`,
     },
     body: JSON.stringify(payload),
   });
 
+  let result: InvokeResult;
   if (!response.ok) {
     const errorText = await response.text();
     if (shouldFallback(response.status, errorText)) {
       console.warn(
         `[LLM] Manus AI returned ${response.status} — starting fallback chain. Reason: ${errorText.slice(0, 120)}`
       );
-      return runFallbackChain(params, normalizedResponseFormat, `${response.status} ${errorText.slice(0, 120)}`);
+      result = await runFallbackChain(
+        boundedParams,
+        normalizedResponseFormat,
+        `${response.status} ${errorText.slice(0, 120)}`
+      );
+    } else {
+      throw new Error(
+        `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      );
     }
-    throw new Error(`LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`);
+  } else {
+    result = (await response.json()) as InvokeResult;
   }
 
-  const result = (await response.json()) as InvokeResult;
-
-  // Track API cost (async, don't block response)
+  // Record the successful provider, including fallback results, before return.
   if (result.usage) {
     const costCents = estimateLLMCost(
       result.usage.prompt_tokens,
       result.usage.completion_tokens
     );
-    trackApiCall({
+    await trackApiCall({
       userId: 0,
-      service: 'llm',
-      operation: 'chat_completion',
+      service: "llm",
+      operation: "chat_completion",
       tokensUsed: result.usage.total_tokens,
       estimatedCostCents: costCents,
       requestData: {
@@ -580,8 +643,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         prompt_tokens: result.usage.prompt_tokens,
         completion_tokens: result.usage.completion_tokens,
       },
-      responseStatus: 'success',
-    }).catch(err => console.error('[LLM] Cost tracking failed:', err));
+      responseStatus: "success",
+    });
   }
 
   return result;

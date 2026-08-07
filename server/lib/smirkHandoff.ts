@@ -1,7 +1,7 @@
 /**
  * SMIRK Handoff Service
  *
- * Sends qualified leads to SMIRK's inbound handoff receiver.
+ * Provides a synthetic-only client for SMIRK's inbound handoff receiver.
  *
  * Endpoint:   POST https://smirkcalls.com/api/integrations/velvet/handoffs
  * Auth:       Authorization: Bearer <SMIRK_API_KEY>
@@ -15,24 +15,23 @@
  *   SMIRK_API_KEY        — dedicated Velvet handoff bearer token
  *   SMIRK_WORKSPACE_ID   — numeric workspace ID (e.g. "1")
  *
- * Security model:
- *   - Velvet Alchemy → SMIRK: uses SMIRK_API_KEY (Bearer)
- *   - SMIRK → Velvet Alchemy: uses a VA API key with outcome:write scope
- *     (stored in SMIRK Railway env as VELVET_ALCHEMY_OUTCOME_KEY)
+ * The deployed receiver requires a call-shaped `caller` object. It is not a
+ * prospect registration or outbound dialing API, so real leads are blocked.
  */
 
 import { getDb } from "../db";
 import { leads, audits } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
+import { externalActionBlock } from "./externalActionPolicy";
 
 // ─── SMIRK Handoff Payload Contract ──────────────────────────────────────────
 
 export interface SmirkHandoffPayload {
   workspaceId: number;
-  /** Stable unique ID for idempotency — use `velvet-<leadId>-<timestamp>` for real, `velvet-manus-fake-*` for tests */
+  /** Stable synthetic test ID. Real lead handoffs are disabled. */
   externalId: string;
   caller: {
-    phone: string;       // E.164 format required
+    phone: string; // E.164 format required
     name?: string;
     email?: string;
   };
@@ -49,7 +48,9 @@ export interface SmirkHandoffResponse {
   success: boolean;
   state?: "RECEIVED" | "DUPLICATE" | "VELVET_ALCHEMY_IDEMPOTENCY_CONFLICT";
   httpStatus?: number;
-  jobId?: string;
+  handoffId?: number;
+  taskId?: number | null;
+  code?: string;
   error?: string;
 }
 
@@ -62,20 +63,25 @@ export interface CallBrief {
   ownerName: string | null;
   websiteUrl: string;
   signals: string[];
-  estimatedMonthlyLoss: number;
+  internalScenarioMonthlyValue: number;
   openingLine: string;
   auditSummary: string;
   prestigeScore: number;
-  outcomeWebhookUrl: string;
 }
 
 // ─── Build Call Brief ─────────────────────────────────────────────────────────
 
-export async function buildCallBrief(leadId: number): Promise<CallBrief | null> {
+export async function buildCallBrief(
+  leadId: number
+): Promise<CallBrief | null> {
   const db = await getDb();
   if (!db) return null;
 
-  const leadRows = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+  const leadRows = await db
+    .select()
+    .from(leads)
+    .where(eq(leads.id, leadId))
+    .limit(1);
   const lead = leadRows[0];
   if (!lead || !lead.phone) return null;
 
@@ -89,39 +95,30 @@ export async function buildCallBrief(leadId: number): Promise<CallBrief | null> 
 
   const signals: string[] = [];
   if (lead.reviewCount && lead.reviewCount > 30) {
-    signals.push(`${lead.reviewCount} Google reviews (proven demand)`);
+    signals.push(`${lead.reviewCount} public reviews`);
   }
   if (lead.googleRating && parseFloat(String(lead.googleRating)) >= 4.2) {
-    signals.push(`${lead.googleRating}★ Google rating`);
+    signals.push(`${lead.googleRating} public rating`);
   }
   if ((audit?.prestigeScore ?? lead.prestigeScore ?? 100) < 60) {
     const score = audit?.prestigeScore ?? lead.prestigeScore;
-    signals.push(`Website prestige score ${score}/100 — significant conversion gaps`);
-  }
-  if (!lead.verifiedOwnerEmail) {
-    signals.push("No verified owner email — phone is primary contact channel");
+    signals.push(`Internal website review score: ${score}/100`);
   }
   if (lead.category) {
     signals.push(`Category: ${lead.category}`);
   }
 
-  let estimatedMonthlyLoss = 0;
+  let internalScenarioMonthlyValue = 0;
   if (lead.detailedReport) {
     try {
       const report = JSON.parse(lead.detailedReport);
-      estimatedMonthlyLoss = report?.revenue_impact?.monthly_loss ?? 0;
-    } catch { /* ignore */ }
+      internalScenarioMonthlyValue = report?.revenue_impact?.monthly_loss ?? 0;
+    } catch {
+      /* ignore */
+    }
   }
 
-  const openingLine = lead.reviewCount && lead.reviewCount > 30
-    ? `Hi, I'm calling about ${lead.companyName}. You have ${lead.reviewCount} Google reviews — clearly people love you. I wanted to share something specific about your call handling that I think is costing you jobs. Do you have 90 seconds?`
-    : `Hi, I'm calling about ${lead.companyName}. We ran a quick analysis on your business and found something specific about your phone coverage I think is worth 2 minutes of your time.`;
-
-  const baseUrl = process.env.SMIRK_BASE_URL
-    ? "https://velvetalchemy.manus.space"
-    : "https://velvetalchemy.manus.space";
-  const outcomeWebhookUrl = `${baseUrl}/api/v1/leads/${leadId}/outcome`;
-
+  const openingLine = `I noticed a possible mobile booking issue on ${lead.companyName}'s public website that may be creating friction. This is a limited observation, not evidence of lost jobs or revenue.`;
   return {
     velvetLeadId: leadId,
     businessName: lead.companyName,
@@ -129,136 +126,104 @@ export async function buildCallBrief(leadId: number): Promise<CallBrief | null> 
     ownerName: null,
     websiteUrl: lead.websiteUrl,
     signals,
-    estimatedMonthlyLoss,
+    internalScenarioMonthlyValue,
     openingLine,
     auditSummary: audit?.summary ?? "No audit available.",
     prestigeScore: audit?.prestigeScore ?? lead.prestigeScore ?? 0,
-    outcomeWebhookUrl,
   };
 }
 
 // ─── SMIRK Handoff Dispatcher ─────────────────────────────────────────────────
 
 /**
- * Send a handoff to SMIRK for a given lead.
- *
- * On 201 RECEIVED:   updates lead.status = 'smirk_queued', sets smirkHandoffAt
- * On 200 DUPLICATE:  no-op (already queued), returns success: true
- * On 409 CONFLICT:   returns success: false — caller must resolve the externalId collision
- * On 401:            returns success: false — API key rejected
- * On 404:            returns success: false — endpoint not deployed
- * On any other error: returns success: false
+ * Real prospect handoffs are blocked until SMIRK has a prospect-specific intake
+ * endpoint and Velvet has a durable, single-use contact approval. The existing
+ * SMIRK handoff endpoint records a call-shaped artifact; it does not authorize
+ * or place an outbound call.
  */
 export async function queueSmirkCall(
-  leadId: number,
-  options?: {
+  _leadId: number,
+  _options?: {
     scheduledAt?: string;
     maxAttempts?: number;
-    /** Override externalId — used for synthetic tests */
     externalId?: string;
   }
 ): Promise<SmirkHandoffResponse> {
-  const smirkBaseUrl = process.env.SMIRK_BASE_URL ?? "";
-  const smirkApiKey = process.env.SMIRK_API_KEY ?? "";
-  const smirkWorkspaceId = process.env.SMIRK_WORKSPACE_ID ?? "";
-
-  if (!smirkBaseUrl || !smirkApiKey || !smirkWorkspaceId) {
-    return {
-      success: false,
-      error: "SMIRK not configured — set SMIRK_BASE_URL, SMIRK_API_KEY, and SMIRK_WORKSPACE_ID",
-    };
-  }
-
-  const brief = await buildCallBrief(leadId);
-  if (!brief) {
-    return {
-      success: false,
-      error: "Lead not found or has no phone number — cannot queue call",
-    };
-  }
-
-  const externalId = options?.externalId ?? `velvet-${leadId}-${Date.now()}`;
-  const urgency: SmirkHandoffPayload["urgency"] =
-    brief.prestigeScore < 40 ? "high" :
-    brief.prestigeScore < 60 ? "normal" : "low";
-
-  const payload: SmirkHandoffPayload = {
-    workspaceId: Number(smirkWorkspaceId),
-    externalId,
-    caller: {
-      phone: brief.phoneNumber,
-      ...(brief.ownerName && { name: brief.ownerName }),
-    },
-    companyName: brief.businessName,
-    reason: brief.signals.join("; ") || "Qualified lead from Velvet Alchemy hunt engine",
-    urgency,
-    transcriptSnippet: brief.openingLine,
-    recommendedAction: "Schedule a demo call for SMIRK AI phone agent",
-    notes: `Audit summary: ${brief.auditSummary.slice(0, 300)}. Outcome webhook: ${brief.outcomeWebhookUrl}`,
+  const block = externalActionBlock("prospect_handoff");
+  return {
+    success: false,
+    code: block.code,
+    error: block.message,
   };
+}
 
-  try {
-    const response = await fetch(`${smirkBaseUrl}/api/integrations/velvet/handoffs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${smirkApiKey}`,
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15_000),
-    });
+type SmirkResponseBody = {
+  state?: unknown;
+  handoffId?: unknown;
+  taskId?: unknown;
+  code?: unknown;
+  error?: unknown;
+};
 
-    const httpStatus = response.status;
-    let body: any = {};
-    try { body = await response.json(); } catch { /* non-JSON body */ }
+function positiveInteger(value: unknown): number | undefined {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : undefined;
+}
 
-    // 201 = new handoff received
-    if (httpStatus === 201 && body?.state === "RECEIVED") {
-      const db = await getDb();
-      if (db) {
-        await db.update(leads).set({
-          status: "smirk_queued",
-          smirkHandoffAt: new Date(),
-          smirkWorkspaceId: String(smirkWorkspaceId),
-          updatedAt: new Date(),
-        }).where(eq(leads.id, leadId));
-      }
-      return { success: true, state: "RECEIVED", httpStatus, jobId: body?.id };
-    }
+export function parseSmirkHandoffResponse(
+  httpStatus: number,
+  rawBody: unknown
+): SmirkHandoffResponse {
+  const body =
+    rawBody && typeof rawBody === "object"
+      ? (rawBody as SmirkResponseBody)
+      : {};
 
-    // 200 = exact duplicate — already queued, treat as success
-    if (httpStatus === 200 && body?.state === "DUPLICATE") {
-      return { success: true, state: "DUPLICATE", httpStatus };
-    }
-
-    // 409 = idempotency conflict — same externalId, different payload
-    if (httpStatus === 409) {
+  if (
+    (httpStatus === 201 && body.state === "RECEIVED") ||
+    (httpStatus === 200 && body.state === "DUPLICATE")
+  ) {
+    const handoffId = positiveInteger(body.handoffId);
+    const taskId = body.taskId == null ? null : positiveInteger(body.taskId);
+    if (!handoffId || (body.taskId != null && !taskId)) {
       return {
         success: false,
-        state: "VELVET_ALCHEMY_IDEMPOTENCY_CONFLICT",
         httpStatus,
-        error: "Idempotency conflict: externalId already used with a different payload",
+        error:
+          "SMIRK acknowledged the handoff without valid persisted record identifiers.",
       };
     }
+    return {
+      success: true,
+      state: body.state,
+      httpStatus,
+      handoffId,
+      taskId,
+    };
+  }
 
-    // 401 = key rejected
-    if (httpStatus === 401) {
-      return { success: false, httpStatus, error: "SMIRK rejected the API key (401)" };
-    }
-
-    // 404 = endpoint not deployed
-    if (httpStatus === 404) {
-      return { success: false, httpStatus, error: "SMIRK handoff endpoint not found (404) — check deployment" };
-    }
-
+  if (httpStatus === 409) {
     return {
       success: false,
+      state: "VELVET_ALCHEMY_IDEMPOTENCY_CONFLICT",
       httpStatus,
-      error: `SMIRK returned unexpected status ${httpStatus}: ${JSON.stringify(body).slice(0, 200)}`,
+      code: typeof body.code === "string" ? body.code : undefined,
+      error:
+        typeof body.error === "string"
+          ? body.error
+          : "Idempotency conflict on synthetic test.",
     };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? "Unknown network error" };
   }
+
+  return {
+    success: false,
+    httpStatus,
+    code: typeof body.code === "string" ? body.code : undefined,
+    error:
+      typeof body.error === "string"
+        ? body.error
+        : `Unexpected SMIRK response (${httpStatus}).`,
+  };
 }
 
 // ─── Synthetic Test Handoff ───────────────────────────────────────────────────
@@ -270,7 +235,9 @@ export async function queueSmirkCall(
  * Phone: +12025550124 (non-routable test number)
  * externalId prefix: velvet-manus-fake-
  */
-export async function sendSyntheticTestHandoff(suffix: string): Promise<SmirkHandoffResponse> {
+export async function sendSyntheticTestHandoff(
+  suffix: string
+): Promise<SmirkHandoffResponse> {
   const smirkBaseUrl = process.env.SMIRK_BASE_URL ?? "";
   const smirkApiKey = process.env.SMIRK_API_KEY ?? "";
   const smirkWorkspaceId = process.env.SMIRK_WORKSPACE_ID ?? "";
@@ -292,40 +259,33 @@ export async function sendSyntheticTestHandoff(suffix: string): Promise<SmirkHan
     urgency: "low",
     transcriptSnippet: "This is a synthetic test handoff from Velvet Alchemy.",
     recommendedAction: "No action required — synthetic test",
-    notes: "Generated by sendSyntheticTestHandoff() for integration verification only.",
+    notes:
+      "Generated by sendSyntheticTestHandoff() for integration verification only.",
   };
 
   try {
-    const response = await fetch(`${smirkBaseUrl}/api/integrations/velvet/handoffs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${smirkApiKey}`,
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15_000),
-    });
+    const response = await fetch(
+      `${smirkBaseUrl}/api/integrations/velvet/handoffs`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${smirkApiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
 
     const httpStatus = response.status;
     let body: any = {};
-    try { body = await response.json(); } catch { /* non-JSON body */ }
-
-    if (httpStatus === 201 && body?.state === "RECEIVED") {
-      return { success: true, state: "RECEIVED", httpStatus, jobId: body?.id };
-    }
-    if (httpStatus === 200 && body?.state === "DUPLICATE") {
-      return { success: true, state: "DUPLICATE", httpStatus };
-    }
-    if (httpStatus === 409) {
-      return { success: false, state: "VELVET_ALCHEMY_IDEMPOTENCY_CONFLICT", httpStatus,
-        error: "Idempotency conflict on synthetic test" };
+    try {
+      body = await response.json();
+    } catch {
+      /* non-JSON body */
     }
 
-    return {
-      success: false,
-      httpStatus,
-      error: `Unexpected ${httpStatus}: ${JSON.stringify(body).slice(0, 200)}`,
-    };
+    return parseSmirkHandoffResponse(httpStatus, body);
   } catch (err: any) {
     return { success: false, error: err.message ?? "Network error" };
   }

@@ -1,0 +1,276 @@
+import { createHash } from "node:crypto";
+import { z } from "zod";
+import { smirkResearchPayloadSchema } from "./smirkResearch";
+import {
+  acquisitionSourcingExperimentAssignmentBindingSchema,
+  acquisitionSourcingExperimentAssignmentSchema,
+  type AcquisitionSourcingExperimentAssignment,
+} from "./acquisitionSourcingExperiment";
+
+export const SMIRK_LEAD_BATCH_REQUEST_CONTRACT =
+  "smirk-velvet.lead-batch-request.v1" as const;
+export const SMIRK_LEAD_BATCH_RESPONSE_CONTRACT =
+  "velvet-smirk.lead-batch-response.v1" as const;
+export const SMIRK_LEAD_BATCH_SCOPE = "smirk:research" as const;
+export const MAX_SMIRK_LEAD_BATCH_SIZE = 20;
+export const SMIRK_ACQUISITION_EXPERIMENT_CAMPAIGN_PREFIX =
+  "velvet-acquisition-experiment" as const;
+
+const SAFE_EXTERNAL_ID = /^[A-Za-z0-9:_-]+$/;
+
+export const smirkLeadBatchRequestSchema = z
+  .object({
+    contractVersion: z.literal(SMIRK_LEAD_BATCH_REQUEST_CONTRACT),
+    requestId: z.string().min(20).max(160).regex(SAFE_EXTERNAL_ID),
+    workspaceId: z.number().int().positive(),
+    sourceDiscoveryRequestId: z
+      .string()
+      .min(20)
+      .max(160)
+      .regex(SAFE_EXTERNAL_ID)
+      .optional(),
+    sourceAcquisitionExperimentAssignment:
+      acquisitionSourcingExperimentAssignmentBindingSchema.optional(),
+    criteria: z
+      .object({
+        limit: z.number().int().min(1).max(MAX_SMIRK_LEAD_BATCH_SIZE),
+        category: z.string().trim().min(2).max(120).optional(),
+        city: z.string().trim().min(1).max(120).optional(),
+        state: z.string().trim().min(2).max(80).optional(),
+        learningMode: z.enum([
+          "none",
+          "latest_released",
+          "latest_approved",
+        ]),
+      })
+      .strict()
+      .superRefine((criteria, ctx) => {
+        if (Boolean(criteria.city) !== Boolean(criteria.state)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "City and state must be supplied together.",
+          });
+        }
+        if (
+          isReleasedAcquisitionLearningMode(criteria.learningMode) &&
+          (criteria.category || criteria.city || criteria.state)
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "A released learning policy and manual segment filters cannot be combined.",
+          });
+        }
+      }),
+    contactActionAllowed: z.literal(false),
+    maxSpendCents: z.literal(0),
+  })
+  .strict()
+  .superRefine((request, ctx) => {
+    if (
+      request.sourceDiscoveryRequestId &&
+      (request.criteria.learningMode !== "none" ||
+        !request.criteria.category ||
+        !request.criteria.city ||
+        !request.criteria.state)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "A discovery-bound batch requires the exact manual category, city, and state returned by that discovery.",
+      });
+    }
+    if (
+      request.sourceAcquisitionExperimentAssignment &&
+      request.sourceAcquisitionExperimentAssignment.sourceDiscoveryRequestId !==
+        request.sourceDiscoveryRequestId
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sourceAcquisitionExperimentAssignment"],
+        message:
+          "The experiment assignment binding must match the source discovery request.",
+      });
+    }
+  });
+
+export const acquisitionSourcingProposalSchema = z
+  .object({
+    action: z.literal("prioritize_for_next_research_batch"),
+    dimension: z.enum(["category", "metro"]),
+    value: z.string().trim().min(2).max(160),
+    maximumNextBatchSize: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_SMIRK_LEAD_BATCH_SIZE),
+  })
+  .strict();
+
+export const appliedLearningCandidateSchema = z
+  .object({
+    id: z.number().int().positive(),
+    candidateKey: z.string().min(3).max(180),
+    version: z.number().int().positive(),
+    proposal: acquisitionSourcingProposalSchema,
+    policyReleaseId: z.string().uuid(),
+    policyReleaseReceiptHash: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+
+export const smirkLeadBatchResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    contractVersion: z.literal(SMIRK_LEAD_BATCH_RESPONSE_CONTRACT),
+    state: z.enum(["EXPORTED", "EMPTY", "DUPLICATE"]),
+    originalState: z.enum(["EXPORTED", "EMPTY"]),
+    requestId: z.string().min(20).max(160).regex(SAFE_EXTERNAL_ID),
+    requestPayloadHash: z.string().regex(/^[a-f0-9]{64}$/),
+    batchId: z.number().int().positive(),
+    prospectsHash: z.string().regex(/^[a-f0-9]{64}$/),
+    prospects: z
+      .array(smirkResearchPayloadSchema)
+      .max(MAX_SMIRK_LEAD_BATCH_SIZE),
+    appliedLearningCandidate: appliedLearningCandidateSchema.nullable(),
+    acquisitionExperimentAssignment:
+      acquisitionSourcingExperimentAssignmentSchema.nullable().default(null),
+    sourceDiscoveryRequestId: z
+      .string()
+      .min(20)
+      .max(160)
+      .regex(SAFE_EXTERNAL_ID)
+      .nullable()
+      .default(null),
+    contactActionAllowed: z.literal(false),
+    spendAuthorized: z.literal(false),
+    externalAction: z.literal("research_export_only"),
+  })
+  .strict()
+  .superRefine((response, ctx) => {
+    if (
+      (response.originalState === "EMPTY") !==
+      (response.prospects.length === 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "EMPTY state must exactly match an empty prospect list.",
+      });
+    }
+    const externalIds = new Set<string>();
+    for (let index = 0; index < response.prospects.length; index += 1) {
+      const prospect = response.prospects[index];
+      if (externalIds.has(prospect.externalId)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["prospects", index, "externalId"],
+          message: "Prospect external IDs must be unique within a batch.",
+        });
+      }
+      externalIds.add(prospect.externalId);
+    }
+  });
+
+export type SmirkLeadBatchRequest = z.infer<
+  typeof smirkLeadBatchRequestSchema
+>;
+export type AppliedLearningCandidate = z.infer<
+  typeof appliedLearningCandidateSchema
+>;
+export type SmirkLeadBatchResponse = z.infer<
+  typeof smirkLeadBatchResponseSchema
+>;
+
+export function buildSmirkAcquisitionExperimentCampaignBinding(
+  assignment: AcquisitionSourcingExperimentAssignment
+): {
+  externalId: string;
+  name: string;
+} {
+  const parsed = acquisitionSourcingExperimentAssignmentSchema.parse(
+    assignment
+  );
+  return {
+    externalId:
+      `${SMIRK_ACQUISITION_EXPERIMENT_CAMPAIGN_PREFIX}-` +
+      parsed.experimentId,
+    name: `Velvet controlled sourcing cohort ${parsed.experimentId.slice(0, 8)}`,
+  };
+}
+
+export function isReleasedAcquisitionLearningMode(
+  mode: SmirkLeadBatchRequest["criteria"]["learningMode"] | "experiment"
+): boolean {
+  return mode === "latest_released" || mode === "latest_approved";
+}
+
+export function hashSmirkLeadBatchValue(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+export function parseApprovedSourcingCandidate(input: {
+  id: number;
+  candidateKey: string;
+  version: number;
+  proposal: string;
+  policyReleaseId: string;
+  policyReleaseReceiptHash: string;
+}): AppliedLearningCandidate | null {
+  let rawProposal: unknown;
+  try {
+    rawProposal = JSON.parse(input.proposal);
+  } catch {
+    return null;
+  }
+  const parsed = appliedLearningCandidateSchema.safeParse({
+    id: input.id,
+    candidateKey: input.candidateKey,
+    version: input.version,
+    proposal: rawProposal,
+    policyReleaseId: input.policyReleaseId,
+    policyReleaseReceiptHash: input.policyReleaseReceiptHash,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+export function sourcingFiltersForRequest(
+  request: SmirkLeadBatchRequest,
+  candidate: AppliedLearningCandidate | null
+): {
+  category?: string;
+  city?: string;
+  state?: string;
+  limit: number;
+} {
+  if (isReleasedAcquisitionLearningMode(request.criteria.learningMode)) {
+    if (!candidate) {
+      throw new Error(
+        "A valid released sourcing candidate is required for this request."
+      );
+    }
+    const limit = Math.min(
+      request.criteria.limit,
+      candidate.proposal.maximumNextBatchSize
+    );
+    if (candidate.proposal.dimension === "category") {
+      return {
+        category: candidate.proposal.value.trim().toLowerCase(),
+        limit,
+      };
+    }
+    const separator = candidate.proposal.value.lastIndexOf(",");
+    const city = candidate.proposal.value.slice(0, separator).trim();
+    const state = candidate.proposal.value.slice(separator + 1).trim();
+    if (!city || !state) {
+      throw new Error(
+        "The released metro candidate is not formatted as City, State."
+      );
+    }
+    return { city, state: state.toUpperCase(), limit };
+  }
+  return {
+    category: request.criteria.category?.trim().toLowerCase(),
+    city: request.criteria.city?.trim(),
+    state: request.criteria.state?.trim().toUpperCase(),
+    limit: request.criteria.limit,
+  };
+}

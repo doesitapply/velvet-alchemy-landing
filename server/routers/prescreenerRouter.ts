@@ -3,7 +3,9 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { prescreenLead } from "../lib/prescreener";
 import { getDb } from "../db";
 import { leads } from "../../drizzle/schema";
-import { eq, isNull, desc } from "drizzle-orm";
+import { and, eq, isNull, desc } from "drizzle-orm";
+import { checkKillSwitch, checkRateLimit } from "../governor";
+import { requireCostAuthority, requireOwnedLead } from "../lib/accessControl";
 
 export const prescreenerRouter = router({
   /**
@@ -15,20 +17,13 @@ export const prescreenerRouter = router({
         leadId: z.number(),
       })
     )
-    .mutation(async ({ input }) => {
-      // Get lead from database
+    .mutation(async ({ input, ctx }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "prescreen");
+      const lead = await requireOwnedLead(input.leadId, ctx.user);
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-
-      const [lead] = await db
-        .select()
-        .from(leads)
-        .where(eq(leads.id, input.leadId))
-        .limit(1);
-
-      if (!lead) {
-        throw new Error("Lead not found");
-      }
 
       // Run pre-screening
       const result = await prescreenLead(lead.websiteUrl, "general");
@@ -53,7 +48,10 @@ export const prescreenerRouter = router({
   /**
    * Pre-screen all pending leads in batch
    */
-  prescreenAll: protectedProcedure.mutation(async () => {
+  prescreenAll: protectedProcedure.mutation(async ({ ctx }) => {
+    requireCostAuthority(ctx.user);
+    await checkKillSwitch(ctx.user.id);
+    await checkRateLimit(ctx.user.id, "prescreen");
     const db = await getDb();
     if (!db) throw new Error("Database not available");
 
@@ -61,7 +59,8 @@ export const prescreenerRouter = router({
     const pendingLeads = await db
       .select()
       .from(leads)
-      .where(isNull(leads.priorityScore));
+      .where(and(eq(leads.userId, ctx.user.id), isNull(leads.priorityScore)))
+      .limit(10);
 
     const results = [];
 
@@ -108,7 +107,7 @@ export const prescreenerRouter = router({
   /**
    * Get priority rankings for all leads
    */
-  getRankings: protectedProcedure.query(async () => {
+  getRankings: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
 
@@ -122,6 +121,7 @@ export const prescreenerRouter = router({
         status: leads.status,
       })
       .from(leads)
+      .where(eq(leads.userId, ctx.user.id))
       .orderBy(desc(leads.priorityScore)); // Sort by priority score descending (highest first)
 
     return allLeads;

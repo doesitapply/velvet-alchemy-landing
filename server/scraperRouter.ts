@@ -1,15 +1,21 @@
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
+import {
+  makeRequest,
+  PlacesSearchResult,
+  PlaceDetailsResult,
+} from "./_core/map";
 import * as db from "./db";
+import { checkKillSwitch, checkRateLimit } from "./governor";
+import { requireCostAuthority } from "./lib/accessControl";
 
 /**
  * Scraper Router — v2
- * 
+ *
  * Key improvements over v1:
  * - Pagination: fetches up to 3 pages (60 results) per query instead of 20
- * - Parallel detail fetching: 5 concurrent requests instead of sequential
+ * - Detail fetching: at most 2 concurrent cost-reserved requests
  * - Stores phone, address, city, state, rating, reviewCount, reviewSnippets, placeId
  * - Pre-filters by business_status OPERATIONAL before touching AI
  * - Heuristic filter runs before AI (review count, aggregator check)
@@ -18,19 +24,54 @@ import * as db from "./db";
  */
 
 const AGGREGATOR_DOMAINS = [
-  "yelp.com", "yellowpages.com", "facebook.com", "google.com/maps",
-  "tripadvisor.com", "angi.com", "angieslist.com", "houzz.com",
-  "thumbtack.com", "homeadvisor.com", "bbb.org", "manta.com",
-  "mapquest.com", "foursquare.com", "nextdoor.com",
+  "yelp.com",
+  "yellowpages.com",
+  "facebook.com",
+  "google.com/maps",
+  "tripadvisor.com",
+  "angi.com",
+  "angieslist.com",
+  "houzz.com",
+  "thumbtack.com",
+  "homeadvisor.com",
+  "bbb.org",
+  "manta.com",
+  "mapquest.com",
+  "foursquare.com",
+  "nextdoor.com",
 ];
 
 const CHAIN_SIGNALS = [
-  "mcdonald", "starbucks", "subway", "dunkin", "domino", "pizza hut",
-  "burger king", "wendy", "taco bell", "chick-fil", "home depot",
-  "lowe's", "walmart", "target", "costco", "best buy", "walgreens",
-  "cvs pharmacy", "dollar general", "dollar tree", "7-eleven",
-  "marriott", "hilton", "holiday inn", "comfort inn", "super 8",
-  "aspen dental", "great clips", "sport clips", "fantastic sams",
+  "mcdonald",
+  "starbucks",
+  "subway",
+  "dunkin",
+  "domino",
+  "pizza hut",
+  "burger king",
+  "wendy",
+  "taco bell",
+  "chick-fil",
+  "home depot",
+  "lowe's",
+  "walmart",
+  "target",
+  "costco",
+  "best buy",
+  "walgreens",
+  "cvs pharmacy",
+  "dollar general",
+  "dollar tree",
+  "7-eleven",
+  "marriott",
+  "hilton",
+  "holiday inn",
+  "comfort inn",
+  "super 8",
+  "aspen dental",
+  "great clips",
+  "sport clips",
+  "fantastic sams",
 ];
 
 function isAggregatorUrl(url: string): boolean {
@@ -46,12 +87,16 @@ function isNationalChain(name: string): boolean {
 /**
  * Fetch all pages of a text search (up to 3 pages = 60 results)
  */
-async function fetchAllPages(query: string): Promise<PlacesSearchResult["results"]> {
+async function fetchAllPages(
+  query: string,
+  userId: number
+): Promise<PlacesSearchResult["results"]> {
   const allResults: PlacesSearchResult["results"] = [];
 
   let page = await makeRequest<PlacesSearchResult>(
     "/maps/api/place/textsearch/json",
-    { query }
+    { query },
+    { userId, operation: "maps_scraper_text_search" }
   );
 
   if (page.status !== "OK" || !page.results) return allResults;
@@ -67,7 +112,8 @@ async function fetchAllPages(query: string): Promise<PlacesSearchResult["results
 
     page = await makeRequest<PlacesSearchResult>(
       "/maps/api/place/textsearch/json",
-      { query, pagetoken: token }
+      { query, pagetoken: token },
+      { userId, operation: "maps_scraper_text_search_page" }
     );
 
     if (page.status !== "OK" || !page.results) break;
@@ -78,20 +124,31 @@ async function fetchAllPages(query: string): Promise<PlacesSearchResult["results
 }
 
 /**
- * Fetch place details in parallel batches of 5
+ * Fetch place details in conservative parallel batches of 2
  */
-async function fetchDetailsBatch(placeIds: string[]): Promise<PlaceDetailsResult["result"][]> {
-  const BATCH_SIZE = 5;
+async function fetchDetailsBatch(
+  placeIds: string[],
+  userId: number
+): Promise<PlaceDetailsResult["result"][]> {
+  const BATCH_SIZE = 2;
   const results: PlaceDetailsResult["result"][] = [];
 
   for (let i = 0; i < placeIds.length; i += BATCH_SIZE) {
     const batch = placeIds.slice(i, i + BATCH_SIZE);
     const settled = await Promise.allSettled(
       batch.map(placeId =>
-        makeRequest<PlaceDetailsResult>("/maps/api/place/details/json", {
-          place_id: placeId,
-          fields: "name,website,formatted_address,formatted_phone_number,rating,user_ratings_total,business_status,reviews,types",
-        })
+        makeRequest<PlaceDetailsResult>(
+          "/maps/api/place/details/json",
+          {
+            place_id: placeId,
+            fields:
+              "name,website,formatted_address,formatted_phone_number,rating,user_ratings_total,business_status,reviews,types",
+          },
+          {
+            userId,
+            operation: "maps_scraper_place_details",
+          }
+        )
       )
     );
 
@@ -118,22 +175,29 @@ export const scraperRouter = router({
         limit: z.number().min(1).max(60).default(20),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "scrape_search");
       const { city, state, category, limit } = input;
       const location = state ? `${city}, ${state}` : city;
       const searchQuery = `${category} in ${location}`;
 
       try {
-        const rawResults = await fetchAllPages(searchQuery);
+        const rawResults = await fetchAllPages(searchQuery, ctx.user.id);
         const sliced = rawResults.slice(0, limit);
 
-        const details = await fetchDetailsBatch(sliced.map(r => r.place_id));
+        const details = await fetchDetailsBatch(
+          sliced.map(r => r.place_id),
+          ctx.user.id
+        );
 
         const businesses = details
           .filter(r => {
             if (!r.website) return false;
             if (isAggregatorUrl(r.website)) return false;
-            if (r.business_status && r.business_status !== "OPERATIONAL") return false;
+            if (r.business_status && r.business_status !== "OPERATIONAL")
+              return false;
             return true;
           })
           .map(r => ({
@@ -149,10 +213,18 @@ export const scraperRouter = router({
             state: state || "",
           }));
 
-        return { success: true, businesses, query: searchQuery, count: businesses.length };
+        return {
+          success: true,
+          businesses,
+          query: searchQuery,
+          count: businesses.length,
+        };
       } catch (error) {
         console.error("Business search error:", error);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to search for businesses" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to search for businesses",
+        });
       }
     }),
 
@@ -167,42 +239,68 @@ export const scraperRouter = router({
         location: z.string().min(1),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "ranking_check");
       const { businessName, keyword, location } = input;
 
       try {
         const searchQuery = `${keyword} ${location}`;
         const placesResult = await makeRequest<PlacesSearchResult>(
           "/maps/api/place/textsearch/json",
-          { query: searchQuery }
+          { query: searchQuery },
+          {
+            userId: ctx.user.id,
+            operation: "maps_ranking_text_search",
+          }
         );
 
         if (placesResult.status !== "OK" || !placesResult.results) {
-          return { success: true, businessName, keyword, location, position: null, message: `${businessName} not found` };
+          return {
+            success: true,
+            businessName,
+            keyword,
+            location,
+            position: null,
+            message: `${businessName} not found`,
+          };
         }
 
         let position: number | null = null;
         for (let i = 0; i < placesResult.results.length; i++) {
-          if (placesResult.results[i].name?.toLowerCase().includes(businessName.toLowerCase())) {
+          if (
+            placesResult.results[i].name
+              ?.toLowerCase()
+              .includes(businessName.toLowerCase())
+          ) {
             position = i + 1;
             break;
           }
         }
 
         return {
-          success: true, businessName, keyword, location, position,
-          message: position === null
-            ? `${businessName} not found in top results for "${keyword}"`
-            : `${businessName} ranks #${position} for "${keyword}"`,
+          success: true,
+          businessName,
+          keyword,
+          location,
+          position,
+          message:
+            position === null
+              ? `${businessName} not found in top results for "${keyword}"`
+              : `${businessName} ranks #${position} for "${keyword}"`,
         };
       } catch (error) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to check ranking" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to check ranking",
+        });
       }
     }),
 
   /**
    * Bulk scrape and create leads — the main pipeline entry point
-   * 
+   *
    * Filter order (fastest/cheapest first):
    * 1. Has website
    * 2. Not an aggregator URL
@@ -224,6 +322,9 @@ export const scraperRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "scrape_bulk");
       const { city, state, category, limit, skipAiFilter } = input;
       const { invokeAI } = await import("./aiProvider");
 
@@ -232,18 +333,24 @@ export const scraperRouter = router({
 
       try {
         // Step 1: Fetch up to 60 raw results (3 pages)
-        const rawResults = await fetchAllPages(searchQuery);
-        console.log(`[Scraper] Found ${rawResults.length} raw results for "${searchQuery}"`);
+        const rawResults = await fetchAllPages(searchQuery, ctx.user.id);
+        console.log(
+          `[Scraper] Found ${rawResults.length} raw results for "${searchQuery}"`
+        );
 
         // Step 2: Fetch details in parallel batches
         const sliced = rawResults.slice(0, limit);
-        const details = await fetchDetailsBatch(sliced.map(r => r.place_id));
+        const details = await fetchDetailsBatch(
+          sliced.map(r => r.place_id),
+          ctx.user.id
+        );
 
         // Step 3: Pre-filter (no AI yet)
         const preFiltered = details.filter(r => {
           if (!r.website) return false;
           if (isAggregatorUrl(r.website)) return false;
-          if (r.business_status && r.business_status !== "OPERATIONAL") return false;
+          if (r.business_status && r.business_status !== "OPERATIONAL")
+            return false;
           if (isNationalChain(r.name || "")) return false;
           const reviews = r.user_ratings_total || 0;
           if (reviews < 3) return false; // ghost listing
@@ -251,18 +358,26 @@ export const scraperRouter = router({
           return true;
         });
 
-        console.log(`[Scraper] ${preFiltered.length}/${sliced.length} passed pre-filter`);
+        console.log(
+          `[Scraper] ${preFiltered.length}/${sliced.length} passed pre-filter`
+        );
 
         // Step 4: Dedup against existing DB leads
         const dbConn = await db.getDb();
-        const { eq, or } = await import("drizzle-orm");
+        const { eq } = await import("drizzle-orm");
         const { leads } = await import("../drizzle/schema");
 
         const existingUrls = new Set<string>();
         const existingPlaceIds = new Set<string>();
 
         if (dbConn) {
-          const existing = await dbConn.select({ websiteUrl: leads.websiteUrl, googlePlaceId: leads.googlePlaceId }).from(leads);
+          const existing = await dbConn
+            .select({
+              websiteUrl: leads.websiteUrl,
+              googlePlaceId: leads.googlePlaceId,
+            })
+            .from(leads)
+            .where(eq(leads.userId, ctx.user.id));
           for (const e of existing) {
             if (e.websiteUrl) existingUrls.add(e.websiteUrl.toLowerCase());
             if (e.googlePlaceId) existingPlaceIds.add(e.googlePlaceId);
@@ -301,12 +416,12 @@ export const scraperRouter = router({
                     content: `You are screening prospects for a $3,000-$8,000 website redesign service. 
 Qualify if: owner-operated, high customer value per transaction ($500+), established but not corporate.
 Disqualify if: national chain, government, non-profit, low-ticket volume business, or <3 reviews.
-Return JSON only.`
+Return JSON only.`,
                   },
                   {
                     role: "user",
-                    content: `Name: ${r.name}\nCategory: ${category}\nAddress: ${r.formatted_address}\nReviews: ${reviews}\nRating: ${r.rating}\n\nIs this a valid high-ticket prospect?`
-                  }
+                    content: `Name: ${r.name}\nCategory: ${category}\nAddress: ${r.formatted_address}\nReviews: ${reviews}\nRating: ${r.rating}\n\nIs this a valid high-ticket prospect?`,
+                  },
                 ],
                 responseFormat: "json_schema",
                 schema: {
@@ -316,12 +431,12 @@ Return JSON only.`
                     type: "object",
                     properties: {
                       isQualified: { type: "boolean" },
-                      reason: { type: "string" }
+                      reason: { type: "string" },
                     },
                     required: ["isQualified", "reason"],
-                    additionalProperties: false
-                  }
-                }
+                    additionalProperties: false,
+                  },
+                },
               });
 
               const result = JSON.parse(qualification.content || "{}");
@@ -331,9 +446,15 @@ Return JSON only.`
                 console.log(`[AI Filter] Skipped ${r.name}: ${result.reason}`);
               }
             } catch (aiError) {
-              // AI failed — default to qualified to avoid losing leads
-              console.warn(`[AI Filter] Failed for ${r.name}, defaulting to qualified`, aiError);
-              qualified = true;
+              console.warn(
+                `[AI Filter] Failed for ${r.name}; the lead remains unqualified`,
+                aiError
+              );
+              qualified = false;
+              skipped.push({
+                name: r.name,
+                reason: "AI qualification failed; manual review is required.",
+              });
             }
           }
 
@@ -360,7 +481,8 @@ Return JSON only.`
               state: state || null,
               googleRating: r.rating ? String(r.rating) : null,
               reviewCount: r.user_ratings_total || null,
-              reviewSnippets: reviewTexts.length > 0 ? JSON.stringify(reviewTexts) : null,
+              reviewSnippets:
+                reviewTexts.length > 0 ? JSON.stringify(reviewTexts) : null,
               googlePlaceId: null, // place_id not returned in details result
               businessStatus: r.business_status || null,
               category: category,
@@ -368,15 +490,6 @@ Return JSON only.`
 
             if (lead) {
               createdLeads.push(lead);
-              // Auto-enqueue into FIFO pipeline queue (worker processes every 5 min)
-              if (lead.id) {
-                try {
-                  const { enqueueLeadForPipeline } = await import("./worker");
-                  await enqueueLeadForPipeline(lead.id);
-                } catch (enqueueError) {
-                  console.error(`Failed to enqueue lead ${lead.id} for pipeline:`, enqueueError);
-                }
-              }
             }
           } catch (error) {
             console.error(`Error creating lead for ${r.name}:`, error);
@@ -397,12 +510,18 @@ Return JSON only.`
           createdCount: createdLeads.length,
           skippedByAI: skipped.length,
           errorCount: errors.length,
+          pipelineQueued: false,
+          nextAction:
+            "Review the created leads and approve each metered audit separately.",
           leads: createdLeads,
           errors,
         };
       } catch (error) {
         console.error("Bulk scrape error:", error);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to bulk scrape businesses" });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to bulk scrape businesses",
+        });
       }
     }),
 
@@ -413,33 +532,161 @@ Return JSON only.`
     return {
       categories: [
         // Medical Aesthetics (High Ticket)
-        { value: "med_spa", label: "Med Spas", keywords: ["med spa", "medical spa", "botox clinic", "coolsculpting"] },
-        { value: "plastic_surgeon", label: "Plastic Surgeons", keywords: ["plastic surgeon", "cosmetic surgery", "breast augmentation"] },
-        { value: "dermatologist", label: "Dermatologists", keywords: ["dermatologist", "skin clinic", "laser treatment"] },
-        { value: "cosmetic_dentist", label: "Cosmetic Dentists", keywords: ["cosmetic dentist", "veneers", "dental implants", "invisalign"] },
+        {
+          value: "med_spa",
+          label: "Med Spas",
+          keywords: ["med spa", "medical spa", "botox clinic", "coolsculpting"],
+        },
+        {
+          value: "plastic_surgeon",
+          label: "Plastic Surgeons",
+          keywords: [
+            "plastic surgeon",
+            "cosmetic surgery",
+            "breast augmentation",
+          ],
+        },
+        {
+          value: "dermatologist",
+          label: "Dermatologists",
+          keywords: ["dermatologist", "skin clinic", "laser treatment"],
+        },
+        {
+          value: "cosmetic_dentist",
+          label: "Cosmetic Dentists",
+          keywords: [
+            "cosmetic dentist",
+            "veneers",
+            "dental implants",
+            "invisalign",
+          ],
+        },
 
         // Legal (High Ticket)
-        { value: "injury_lawyer", label: "Personal Injury Lawyers", keywords: ["personal injury lawyer", "accident attorney", "injury law firm"] },
-        { value: "criminal_lawyer", label: "Criminal Defense", keywords: ["criminal defense attorney", "DUI lawyer", "defense firm"] },
-        { value: "divorce_lawyer", label: "Family Law", keywords: ["divorce lawyer", "family law attorney", "custody lawyer"] },
+        {
+          value: "injury_lawyer",
+          label: "Personal Injury Lawyers",
+          keywords: [
+            "personal injury lawyer",
+            "accident attorney",
+            "injury law firm",
+          ],
+        },
+        {
+          value: "criminal_lawyer",
+          label: "Criminal Defense",
+          keywords: ["criminal defense attorney", "DUI lawyer", "defense firm"],
+        },
+        {
+          value: "divorce_lawyer",
+          label: "Family Law",
+          keywords: ["divorce lawyer", "family law attorney", "custody lawyer"],
+        },
 
         // Home Services (Big Ticket)
-        { value: "hvac", label: "HVAC Services", keywords: ["hvac replacement", "ac installation", "furnace repair"] },
-        { value: "solar", label: "Solar Installers", keywords: ["solar panel installer", "solar energy company", "commercial solar"] },
-        { value: "pool_builder", label: "Pool Builders", keywords: ["custom pool builder", "swimming pool installation", "pool contractor"] },
-        { value: "custom_home", label: "Custom Home Builders", keywords: ["custom home builder", "luxury home builder", "general contractor"] },
-        { value: "landscaper", label: "Landscape Design", keywords: ["landscape architect", "luxury landscaping", "hardscape design"] },
-        { value: "kitchen_remodel", label: "Kitchen Remodelers", keywords: ["kitchen remodeling", "bathroom remodeling", "cabinet maker"] },
-        { value: "roofing", label: "Roofing Companies", keywords: ["roofer", "roof replacement", "commercial roofing"] },
+        {
+          value: "hvac",
+          label: "HVAC Services",
+          keywords: ["hvac replacement", "ac installation", "furnace repair"],
+        },
+        {
+          value: "solar",
+          label: "Solar Installers",
+          keywords: [
+            "solar panel installer",
+            "solar energy company",
+            "commercial solar",
+          ],
+        },
+        {
+          value: "pool_builder",
+          label: "Pool Builders",
+          keywords: [
+            "custom pool builder",
+            "swimming pool installation",
+            "pool contractor",
+          ],
+        },
+        {
+          value: "custom_home",
+          label: "Custom Home Builders",
+          keywords: [
+            "custom home builder",
+            "luxury home builder",
+            "general contractor",
+          ],
+        },
+        {
+          value: "landscaper",
+          label: "Landscape Design",
+          keywords: [
+            "landscape architect",
+            "luxury landscaping",
+            "hardscape design",
+          ],
+        },
+        {
+          value: "kitchen_remodel",
+          label: "Kitchen Remodelers",
+          keywords: [
+            "kitchen remodeling",
+            "bathroom remodeling",
+            "cabinet maker",
+          ],
+        },
+        {
+          value: "roofing",
+          label: "Roofing Companies",
+          keywords: ["roofer", "roof replacement", "commercial roofing"],
+        },
 
         // Luxury & Events
-        { value: "wedding_venue", label: "Wedding Venues", keywords: ["wedding venue", "event center", "luxury reception", "banquet hall"] },
-        { value: "jeweler", label: "Luxury Jewelers", keywords: ["custom jeweler", "diamond store", "engagement rings", "fine jewelry"] },
-        { value: "boutique_hotel", label: "Boutique Hotels", keywords: ["boutique hotel", "luxury inn", "bed and breakfast"] },
+        {
+          value: "wedding_venue",
+          label: "Wedding Venues",
+          keywords: [
+            "wedding venue",
+            "event center",
+            "luxury reception",
+            "banquet hall",
+          ],
+        },
+        {
+          value: "jeweler",
+          label: "Luxury Jewelers",
+          keywords: [
+            "custom jeweler",
+            "diamond store",
+            "engagement rings",
+            "fine jewelry",
+          ],
+        },
+        {
+          value: "boutique_hotel",
+          label: "Boutique Hotels",
+          keywords: ["boutique hotel", "luxury inn", "bed and breakfast"],
+        },
 
         // Classic Staples
-        { value: "restaurant", label: "Fine Dining", keywords: ["fine dining", "steakhouse", "seafood restaurant", "upscale dining"] },
-        { value: "real_estate", label: "Real Estate Brokers", keywords: ["luxury real estate", "commercial real estate", "real estate broker"] },
+        {
+          value: "restaurant",
+          label: "Fine Dining",
+          keywords: [
+            "fine dining",
+            "steakhouse",
+            "seafood restaurant",
+            "upscale dining",
+          ],
+        },
+        {
+          value: "real_estate",
+          label: "Real Estate Brokers",
+          keywords: [
+            "luxury real estate",
+            "commercial real estate",
+            "real estate broker",
+          ],
+        },
       ],
     };
   }),

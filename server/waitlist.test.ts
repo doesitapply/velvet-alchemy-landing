@@ -2,6 +2,11 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
+const hasDatabase =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  process.env.RUN_DB_WRITE_TESTS === "1" &&
+  Boolean(process.env.DATABASE_URL);
+
 function createMockContext(): TrpcContext {
   return {
     user: null,
@@ -13,7 +18,7 @@ function createMockContext(): TrpcContext {
   };
 }
 
-describe("waitlist.join", () => {
+describe.skipIf(!hasDatabase)("waitlist.join", () => {
   it("accepts valid email and optional niche", async () => {
     const ctx = createMockContext();
     const caller = appRouter.createCaller(ctx);

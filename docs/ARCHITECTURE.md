@@ -1,5 +1,7 @@
 # Velvet Alchemy Architecture
 
+> HISTORICAL ARCHITECTURE SNAPSHOT: Delivery and autonomy descriptions below are stale. Current email/SMS/call delivery is blocked. Use `../README.md` and `../HANDOFF.md`.
+
 This document provides a comprehensive technical deep-dive into the Velvet Alchemy system architecture, including agent design, database schema, API structure, and integration patterns.
 
 ---

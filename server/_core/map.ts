@@ -8,6 +8,10 @@
  */
 
 import { ENV } from "./env";
+import {
+  reserveApiCallCost,
+  settleApiCallCostReservation,
+} from "../apiCostTracker";
 
 // ============================================================================
 // Configuration
@@ -43,6 +47,46 @@ interface RequestOptions {
   body?: Record<string, unknown>;
 }
 
+export type MapRequestContext = {
+  userId: number;
+  operation: string;
+  leadId?: number;
+  expectedCostCentsPerRequest?: number;
+};
+
+export function readMapsRequestCostConfig(
+  env: Record<string, string | undefined> = process.env
+): {
+  configured: boolean;
+  costCentsPerRequest: number | null;
+  missing: string[];
+} {
+  const costCentsPerRequest = Number(
+    String(env.MAPS_COST_CENTS_PER_REQUEST || "").trim()
+  );
+  const missing: string[] = [];
+  if (env.ENABLE_MAPS_RESEARCH !== "true") {
+    missing.push("ENABLE_MAPS_RESEARCH=true");
+  }
+  if (
+    !Number.isSafeInteger(costCentsPerRequest) ||
+    costCentsPerRequest <= 0 ||
+    costCentsPerRequest > 10_000
+  ) {
+    missing.push("MAPS_COST_CENTS_PER_REQUEST");
+  }
+  return {
+    configured: missing.length === 0,
+    costCentsPerRequest:
+      Number.isSafeInteger(costCentsPerRequest) &&
+      costCentsPerRequest > 0 &&
+      costCentsPerRequest <= 10_000
+        ? costCentsPerRequest
+        : null,
+    missing,
+  };
+}
+
 /**
  * Make authenticated requests to Google Maps APIs
  * 
@@ -54,9 +98,34 @@ interface RequestOptions {
 export async function makeRequest<T = unknown>(
   endpoint: string,
   params: Record<string, unknown> = {},
+  context: MapRequestContext,
   options: RequestOptions = {}
 ): Promise<T> {
   const { baseUrl, apiKey } = getMapsConfig();
+  const costConfig = readMapsRequestCostConfig();
+  if (!costConfig.configured || !costConfig.costCentsPerRequest) {
+    throw new Error(
+      `Google Maps research is disabled: ${costConfig.missing.join(", ")}`
+    );
+  }
+  if (
+    !Number.isSafeInteger(context.userId) ||
+    context.userId <= 0 ||
+    !context.operation.trim()
+  ) {
+    throw new Error(
+      "A valid owner and operation are required for Maps cost tracking."
+    );
+  }
+  if (
+    context.expectedCostCentsPerRequest !== undefined &&
+    context.expectedCostCentsPerRequest !==
+      costConfig.costCentsPerRequest
+  ) {
+    throw new Error(
+      "Google Maps request cost changed after operator approval; the provider request was not started."
+    );
+  }
 
   // Construct full URL: baseUrl + /v1/maps/proxy + endpoint
   const url = new URL(`${baseUrl}/v1/maps/proxy${endpoint}`);
@@ -71,22 +140,55 @@ export async function makeRequest<T = unknown>(
     }
   });
 
-  const response = await fetch(url.toString(), {
-    method: options.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
+  const reservation = await reserveApiCallCost({
+    userId: context.userId,
+    leadId: context.leadId,
+    service: "other",
+    operation: context.operation.trim().slice(0, 128),
+    estimatedCostCents: costConfig.costCentsPerRequest,
+    requestData: {
+      endpoint,
+      method: options.method || "GET",
+      parameterNames: Object.keys(params).sort(),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
   });
+  let responseStatus:
+    | "success"
+    | "error"
+    | "timeout"
+    | "outcome_unknown" = "outcome_unknown";
+  try {
+    const response = await fetch(url.toString(), {
+      method: options.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: AbortSignal.timeout(15_000),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
-    );
+    if (!response.ok) {
+      responseStatus = "error";
+      const errorText = await response.text();
+      throw new Error(
+        `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
+      );
+    }
+
+    const payload = (await response.json()) as T;
+    responseStatus = "success";
+    return payload;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError")
+    ) {
+      responseStatus = "timeout";
+    }
+    throw error;
+  } finally {
+    await settleApiCallCostReservation(reservation.id, responseStatus);
   }
-
-  return (await response.json()) as T;
 }
 
 // ============================================================================
@@ -314,7 +416,4 @@ export type RoadsResult = {
  * Output: Image URL (not JSON) - use directly in <img src={url} />
  * Note: Construct URL manually with getMapsConfig() for auth
  */
-
-
-
 

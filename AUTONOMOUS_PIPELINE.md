@@ -1,5 +1,7 @@
 # Velvet Alchemy - Fully Autonomous Sales Pipeline
 
+> HISTORICAL CONCEPT DOCUMENT: This is not the current operating contract. Automated outreach, email delivery, cold SMS, prospect calls, and autonomous closing are blocked. Use `README.md` and `HANDOFF.md`.
+
 ## 🎯 Goal: Make You Money While You Sleep
 
 **Your Role:** Quality control, visual approvals, final sign-offs, answering human questions  

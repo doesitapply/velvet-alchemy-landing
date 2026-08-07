@@ -1,9 +1,18 @@
 # Velvet Alchemy REST API v1
 
+> HISTORICAL REFERENCE: Verify every route and scope against `server/apiRouter.ts` and `HANDOFF.md`. Cost-bearing scopes are admin-only, and real-prospect handoff/outcome routes are blocked.
+
 > **External API for AI agents, automation tools, and integrations.**  
 > Base URL: `https://your-domain.com/api/v1`  
 > Auth: `Authorization: Bearer va_live_...`  
 > Generate keys at `/api-keys` in the dashboard.
+
+Cost-bearing Maps routes fail closed unless `ENABLE_MAPS_RESEARCH=true`,
+`MAPS_COST_CENTS_PER_REQUEST` is a positive owner-reviewed value, the API-key
+owner is privileged, the global kill-switch is clear, and the durable daily
+budget accepts a pre-call reservation. Failed or uncertain requests retain
+their reservation. Scraping creates review records only and does not
+automatically enqueue pipeline work or authorize outreach.
 
 ## Scopes
 
@@ -14,6 +23,8 @@
 | `scrape` | POST /scrape |
 | `audit` | POST /leads/:id/audit |
 | `pipeline` | POST /pipeline |
+| `outcome:write` | POST /leads/:id/outcome (signed feedback only) |
+| `smirk:research` | Prepare/status bounded discovery and export reviewed inventory; never approves spend or contact |
 | `*` | All endpoints |
 
 ## Endpoints
@@ -27,6 +38,112 @@
 | POST | `/api/v1/scrape` | `scrape` | Search Google Maps — returns raw results, no DB save |
 | POST | `/api/v1/leads/:id/audit` | `audit` | Run AI audit on existing lead |
 | POST | `/api/v1/pipeline` | `pipeline` | Scrape + create leads + optionally audit in one call |
+| POST | `/api/v1/leads/:id/outcome` | `outcome:write` | Record one signed SMIRK outcome; cannot contact a prospect |
+| POST | `/api/v1/smirk/lead-batches` | `smirk:research` | Reserve 1-20 audited records for SMIRK review; cannot search, contact, or spend |
+| POST | `/api/v1/smirk/discovery-requests` | `smirk:research` | Persist one bounded no-contact request and cost quote; cannot approve or execute |
+| GET | `/api/v1/smirk/discovery-requests/:requestId` | `smirk:research` | Read owner-scoped discovery status; no external action |
+
+### POST /api/v1/smirk/discovery-requests
+
+This route prepares discovery; it does not run discovery. The request must
+explicitly set both `contactActionAllowed` and `spendAuthorized` to `false`.
+Its `Idempotency-Key` must exactly match `requestId`.
+
+```json
+{
+  "contractVersion": "smirk-velvet.discovery-request.v2",
+  "requestId": "smirk_discovery_20260730_example_0001",
+  "workspaceId": 1,
+  "criteria": {
+    "limit": 5,
+    "category": "plumbing",
+    "city": "Reno",
+    "state": "NV",
+    "learningMode": "none"
+  },
+  "contactActionAllowed": false,
+  "spendAuthorized": false
+}
+```
+
+A new request returns `201 PREPARED`; an exact replay returns `200 DUPLICATE`.
+The response binds the request hash, quote hash, effective criteria, separate
+Maps and Hunter request/unit-cost/maximum-cost line items, and exact combined
+maximums. Only a privileged Velvet
+browser session can approve the exact quote and separately queue it.
+
+### GET /api/v1/smirk/discovery-requests/:requestId
+
+Returns one owner-scoped state receipt:
+`PREPARED`, `APPROVED`, `QUEUED`, `RUNNING`, `COMPLETED`, `EMPTY`, `PARTIAL`,
+`FAILED`, `REJECTED`, `CANCELLED`, or `EXPIRED`. Counts are research receipts,
+not contact, delivery, conversion, or revenue proof.
+
+### POST /api/v1/smirk/lead-batches
+
+This endpoint is the guarded Velvet-to-SMIRK research source. An administrator
+must grant a dedicated API key the `smirk:research` scope. The key owner can
+export only their own already-audited leads. This route never invokes a
+scraper, pipeline, LLM, email, SMS, or telephony provider.
+
+The `Idempotency-Key` header must exactly match `requestId`. Requests fail
+closed unless they explicitly prohibit contact and spending.
+
+```http
+POST /api/v1/smirk/lead-batches
+Authorization: Bearer va_live_<dedicated-key>
+Idempotency-Key: smirk_batch_20260730_example_0001
+Content-Type: application/json
+```
+
+```json
+{
+  "contractVersion": "smirk-velvet.lead-batch-request.v1",
+  "requestId": "smirk_batch_20260730_example_0001",
+  "workspaceId": 1,
+  "criteria": {
+    "limit": 3,
+    "category": "plumber",
+    "city": "Reno",
+    "state": "NV",
+    "learningMode": "none"
+  },
+  "contactActionAllowed": false,
+  "maxSpendCents": 0
+}
+```
+
+Use either manual category/metro filters or
+`"learningMode": "latest_approved"`, never both. Learned mode can apply only
+one previously human-approved sourcing candidate and can only narrow the
+segment or lower the batch size.
+
+New reservations return `201 EXPORTED` or `201 EMPTY`. An exact replay returns
+`200 DUPLICATE` with the original stored response. Reusing a request ID with
+different bytes returns `409`.
+
+```json
+{
+  "ok": true,
+  "contractVersion": "velvet-smirk.lead-batch-response.v1",
+  "state": "EMPTY",
+  "originalState": "EMPTY",
+  "requestId": "smirk_batch_20260730_example_0001",
+  "requestPayloadHash": "<sha256>",
+  "batchId": 42,
+  "prospectsHash": "<sha256>",
+  "prospects": [],
+  "appliedLearningCandidate": null,
+  "contactActionAllowed": false,
+  "spendAuthorized": false,
+  "externalAction": "research_export_only"
+}
+```
+
+The empty response above shows the control fields without including prospect
+data. Successful `EXPORTED` responses contain one to twenty unique
+`velvet-smirk.prospect.v1` records in `prospects`; `EMPTY` responses contain
+none. See `HANDOFF.md` for the complete prospect and activation contracts.
 
 ### POST /api/v1/pipeline (Power Endpoint)
 ```json
@@ -60,9 +177,9 @@
 
 # API REFERENCE 📡
 
-**Last Updated:** January 26, 2026 at 4:26 AM PST  
-**Version:** 1.0.0  
-**Status:** Production Ready
+**Last Updated:** July 30, 2026
+**Version:** 1.0.0
+**Status:** Historical tRPC reference; verify current routes before use
 
 ---
 

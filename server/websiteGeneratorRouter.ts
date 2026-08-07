@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
-import { getLeadById } from "./db";
 import { generateWebsite } from "./lib/websiteGenerator";
-import * as fs from 'fs';
-import * as path from 'path';
-import archiver from 'archiver';
+import { checkKillSwitch, checkRateLimit } from "./governor";
+import { requireCostAuthority, requireOwnedLead } from "./lib/accessControl";
+import * as fs from "fs";
+import * as path from "path";
+import { ZipArchive, type ArchiverError } from "archiver";
 
-const WEBSITES_DIR = '/tmp/generated-websites';
+const WEBSITES_DIR = "/tmp/generated-websites";
 
 // Ensure websites directory exists
 if (!fs.existsSync(WEBSITES_DIR)) {
@@ -18,34 +19,39 @@ export const websiteGeneratorRouter = router({
    * Generate website from lead audit data
    */
   generate: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-    }))
+    .input(
+      z.object({
+        leadId: z.number(),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
-      // Get lead details
-      const lead = await getLeadById(input.leadId);
-      if (!lead) {
-        throw new Error("Lead not found");
-      }
+      requireCostAuthority(ctx.user);
+      await checkKillSwitch(ctx.user.id);
+      await checkRateLimit(ctx.user.id, "website_generate");
+      const lead = await requireOwnedLead(input.leadId, ctx.user);
 
-      if (lead.status !== 'audited') {
+      if (lead.status !== "audited") {
         throw new Error("Lead must be audited before generating website");
       }
 
       if (!lead.detailedReport) {
-        throw new Error("Lead must have detailed report before generating website");
+        throw new Error(
+          "Lead must have detailed report before generating website"
+        );
       }
 
       // Parse detailed report
       const detailedReport = JSON.parse(lead.detailedReport);
 
-      console.log(`[WebsiteGenerator] Starting generation for lead ${input.leadId}: ${lead.companyName}`);
+      console.log(
+        `[WebsiteGenerator] Starting generation for lead ${input.leadId}: ${lead.companyName}`
+      );
 
       // Generate website using AI
       const website = await generateWebsite({
         companyName: lead.companyName,
         websiteUrl: lead.websiteUrl,
-        businessCategory: 'default', // TODO: Add businessCategory field to leads table
+        businessCategory: "default", // TODO: Add businessCategory field to leads table
         prestigeScore: lead.prestigeScore || 50,
         detailedReport,
       });
@@ -57,17 +63,22 @@ export const websiteGeneratorRouter = router({
       }
 
       // Write files
-      fs.writeFileSync(path.join(projectDir, 'index.html'), website.html);
-      fs.writeFileSync(path.join(projectDir, 'styles.css'), website.css);
-      fs.writeFileSync(path.join(projectDir, 'script.js'), website.js);
-      fs.writeFileSync(path.join(projectDir, 'design-data.json'), JSON.stringify(website.designData, null, 2));
+      fs.writeFileSync(path.join(projectDir, "index.html"), website.html);
+      fs.writeFileSync(path.join(projectDir, "styles.css"), website.css);
+      fs.writeFileSync(path.join(projectDir, "script.js"), website.js);
+      fs.writeFileSync(
+        path.join(projectDir, "design-data.json"),
+        JSON.stringify(website.designData, null, 2)
+      );
 
-      console.log(`[WebsiteGenerator] Website generated successfully at: ${projectDir}`);
+      console.log(
+        `[WebsiteGenerator] Website generated successfully at: ${projectDir}`
+      );
 
       return {
         leadId: input.leadId,
         companyName: lead.companyName,
-        status: 'preview',
+        status: "preview",
         designData: website.designData,
         projectPath: projectDir,
         html: website.html,
@@ -78,30 +89,37 @@ export const websiteGeneratorRouter = router({
    * Get website project by lead ID
    */
   getByLeadId: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-    }))
-    .query(async ({ input }) => {
+    .input(
+      z.object({
+        leadId: z.number(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      await requireOwnedLead(input.leadId, ctx.user);
       const projectDir = path.join(WEBSITES_DIR, `lead-${input.leadId}`);
-      
+
       if (!fs.existsSync(projectDir)) {
         return null;
       }
 
-      const htmlPath = path.join(projectDir, 'index.html');
-      const cssPath = path.join(projectDir, 'styles.css');
-      const jsPath = path.join(projectDir, 'script.js');
-      const designDataPath = path.join(projectDir, 'design-data.json');
+      const htmlPath = path.join(projectDir, "index.html");
+      const cssPath = path.join(projectDir, "styles.css");
+      const jsPath = path.join(projectDir, "script.js");
+      const designDataPath = path.join(projectDir, "design-data.json");
 
       if (!fs.existsSync(htmlPath)) {
         return null;
       }
 
-      const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-      const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
-      const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf-8') : '';
-      const designData = fs.existsSync(designDataPath) 
-        ? JSON.parse(fs.readFileSync(designDataPath, 'utf-8'))
+      const htmlContent = fs.readFileSync(htmlPath, "utf-8");
+      const cssContent = fs.existsSync(cssPath)
+        ? fs.readFileSync(cssPath, "utf-8")
+        : "";
+      const jsContent = fs.existsSync(jsPath)
+        ? fs.readFileSync(jsPath, "utf-8")
+        : "";
+      const designData = fs.existsSync(designDataPath)
+        ? JSON.parse(fs.readFileSync(designDataPath, "utf-8"))
         : {};
 
       return {
@@ -118,27 +136,34 @@ export const websiteGeneratorRouter = router({
    * Get website preview HTML (combined)
    */
   getPreview: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-    }))
-    .query(async ({ input }) => {
+    .input(
+      z.object({
+        leadId: z.number(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      await requireOwnedLead(input.leadId, ctx.user);
       const projectDir = path.join(WEBSITES_DIR, `lead-${input.leadId}`);
-      
+
       if (!fs.existsSync(projectDir)) {
         throw new Error("Website not generated yet");
       }
 
-      const htmlPath = path.join(projectDir, 'index.html');
-      const cssPath = path.join(projectDir, 'styles.css');
-      const jsPath = path.join(projectDir, 'script.js');
+      const htmlPath = path.join(projectDir, "index.html");
+      const cssPath = path.join(projectDir, "styles.css");
+      const jsPath = path.join(projectDir, "script.js");
 
       if (!fs.existsSync(htmlPath)) {
         throw new Error("Website files not found");
       }
 
-      const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-      const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf-8') : '';
-      const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf-8') : '';
+      const htmlContent = fs.readFileSync(htmlPath, "utf-8");
+      const cssContent = fs.existsSync(cssPath)
+        ? fs.readFileSync(cssPath, "utf-8")
+        : "";
+      const jsContent = fs.existsSync(jsPath)
+        ? fs.readFileSync(jsPath, "utf-8")
+        : "";
 
       // Combine into single preview HTML
       const previewHtml = `
@@ -170,102 +195,123 @@ export const websiteGeneratorRouter = router({
    * Download website as ZIP file
    */
   downloadZip: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-    }))
-    .mutation(async ({ input }) => {
+    .input(
+      z.object({
+        leadId: z.number(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const lead = await requireOwnedLead(input.leadId, ctx.user);
       const projectDir = path.join(WEBSITES_DIR, `lead-${input.leadId}`);
-      
+
       if (!fs.existsSync(projectDir)) {
         throw new Error("Website not generated yet");
       }
 
-      const htmlPath = path.join(projectDir, 'index.html');
+      const htmlPath = path.join(projectDir, "index.html");
       if (!fs.existsSync(htmlPath)) {
         throw new Error("Website files not found");
       }
 
-      // Get lead info for filename
-      const lead = await getLeadById(input.leadId);
-      const companyName = lead?.companyName.replace(/[^a-z0-9]/gi, '-').toLowerCase() || `lead-${input.leadId}`;
-      
+      const companyName = lead.companyName
+        .replace(/[^a-z0-9]/gi, "-")
+        .toLowerCase();
+
       // Create ZIP file
-      const zipPath = path.join('/tmp', `${companyName}-website.zip`);
+      const zipPath = path.join("/tmp", `${companyName}-website.zip`);
       const output = fs.createWriteStream(zipPath);
-      const archive = archiver('zip', {
-        zlib: { level: 9 } // Maximum compression
+      const archive = new ZipArchive({
+        zlib: { level: 9 }, // Maximum compression
       });
 
-      return new Promise<{ zipPath: string; filename: string }>((resolve, reject) => {
-        output.on('close', () => {
-          console.log(`[WebsiteGenerator] ZIP created: ${archive.pointer()} bytes`);
-          resolve({
-            zipPath,
-            filename: `${companyName}-website.zip`,
+      return new Promise<{ zipPath: string; filename: string }>(
+        (resolve, reject) => {
+          output.on("close", () => {
+            console.log(
+              `[WebsiteGenerator] ZIP created: ${archive.pointer()} bytes`
+            );
+            resolve({
+              zipPath,
+              filename: `${companyName}-website.zip`,
+            });
           });
-        });
 
-        archive.on('error', (err) => {
-          reject(err);
-        });
+          archive.on("error", (err: ArchiverError) => {
+            reject(err);
+          });
 
-        archive.pipe(output);
+          archive.pipe(output);
 
-        // Add all files from project directory
-        archive.directory(projectDir, false);
+          // Add all files from project directory
+          archive.directory(projectDir, false);
 
-        archive.finalize();
-      });
+          archive.finalize();
+        }
+      );
     }),
 
   /**
    * Save customizations and regenerate website
    */
   saveCustomizations: protectedProcedure
-    .input(z.object({
-      leadId: z.number(),
-      customizations: z.object({
-        primaryColor: z.string(),
-        secondaryColor: z.string(),
-        backgroundColor: z.string(),
-        businessName: z.string(),
-        headline: z.string(),
-        services: z.string(),
-        contactInfo: z.string(),
-      }),
-    }))
-    .mutation(async ({ input }) => {
+    .input(
+      z.object({
+        leadId: z.number(),
+        customizations: z.object({
+          primaryColor: z.string(),
+          secondaryColor: z.string(),
+          backgroundColor: z.string(),
+          businessName: z.string(),
+          headline: z.string(),
+          services: z.string(),
+          contactInfo: z.string(),
+        }),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      await requireOwnedLead(input.leadId, ctx.user);
       const projectDir = path.join(WEBSITES_DIR, `lead-${input.leadId}`);
-      
+
       if (!fs.existsSync(projectDir)) {
         throw new Error("Website not generated yet");
       }
 
-      const htmlPath = path.join(projectDir, 'index.html');
+      const htmlPath = path.join(projectDir, "index.html");
       if (!fs.existsSync(htmlPath)) {
         throw new Error("Website files not found");
       }
 
       // Read existing HTML
-      let html = fs.readFileSync(htmlPath, 'utf-8');
+      let html = fs.readFileSync(htmlPath, "utf-8");
 
       // Apply color customizations
       html = html.replace(/#3b82f6/g, input.customizations.primaryColor);
       html = html.replace(/#8b5cf6/g, input.customizations.secondaryColor);
-      html = html.replace(/background-color:\s*#ffffff/g, `background-color: ${input.customizations.backgroundColor}`);
+      html = html.replace(
+        /background-color:\s*#ffffff/g,
+        `background-color: ${input.customizations.backgroundColor}`
+      );
 
       // Apply content customizations
       if (input.customizations.businessName) {
-        html = html.replace(/<h1[^>]*>.*?<\/h1>/, `<h1>${input.customizations.businessName}</h1>`);
+        html = html.replace(
+          /<h1[^>]*>.*?<\/h1>/,
+          `<h1>${input.customizations.businessName}</h1>`
+        );
       }
       if (input.customizations.headline) {
-        html = html.replace(/<h2[^>]*>.*?<\/h2>/, `<h2>${input.customizations.headline}</h2>`);
+        html = html.replace(
+          /<h2[^>]*>.*?<\/h2>/,
+          `<h2>${input.customizations.headline}</h2>`
+        );
       }
 
       // Save updated HTML
       fs.writeFileSync(htmlPath, html);
 
-      console.log(`[WebsiteGenerator] Customizations saved for lead ${input.leadId}`);
+      console.log(
+        `[WebsiteGenerator] Customizations saved for lead ${input.leadId}`
+      );
 
       return {
         success: true,
@@ -273,4 +319,3 @@ export const websiteGeneratorRouter = router({
       };
     }),
 });
-

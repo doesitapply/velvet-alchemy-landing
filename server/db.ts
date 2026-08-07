@@ -1,7 +1,18 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, waitlist, InsertWaitlist, leads, InsertLead, audits, InsertAudit, Lead, Audit } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import {
+  InsertUser,
+  users,
+  waitlist,
+  InsertWaitlist,
+  leads,
+  InsertLead,
+  audits,
+  InsertAudit,
+  Lead,
+  Audit,
+} from "../drizzle/schema";
+import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -56,8 +67,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
+      values.role = "admin";
+      updateSet.role = "admin";
     }
 
     if (!values.lastSignedIn) {
@@ -84,13 +95,20 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
 
 // Waitlist functions
-export async function addToWaitlist(email: string, targetNiche?: string): Promise<{ success: boolean; message: string }> {
+export async function addToWaitlist(
+  email: string,
+  targetNiche?: string
+): Promise<{ success: boolean; message: string }> {
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot add to waitlist: database not available");
@@ -107,7 +125,11 @@ export async function addToWaitlist(email: string, targetNiche?: string): Promis
     return { success: true, message: "Successfully added to waitlist" };
   } catch (error: any) {
     // Check for duplicate entry error (MySQL error code)
-    if (error?.code === 'ER_DUP_ENTRY' || error?.cause?.code === 'ER_DUP_ENTRY' || error?.message?.includes('Duplicate')) {
+    if (
+      error?.code === "ER_DUP_ENTRY" ||
+      error?.cause?.code === "ER_DUP_ENTRY" ||
+      error?.message?.includes("Duplicate")
+    ) {
       return { success: true, message: "Email already registered" };
     }
     console.error("[Database] Failed to add to waitlist:", error);
@@ -136,9 +158,13 @@ export async function createLead(lead: InsertLead): Promise<Lead | null> {
   try {
     const result = await db.insert(leads).values(lead);
     const insertId = Number(result[0].insertId);
-    
+
     // Fetch the created lead
-    const created = await db.select().from(leads).where(eq(leads.id, insertId)).limit(1);
+    const created = await db
+      .select()
+      .from(leads)
+      .where(eq(leads.id, insertId))
+      .limit(1);
     return created[0] || null;
   } catch (error) {
     console.error("[Database] Failed to create lead:", error);
@@ -153,14 +179,13 @@ export async function getLeadsByUserId(userId: number): Promise<Lead[]> {
     return [];
   }
 
-  // Return ALL audited leads regardless of userId (single-user system)
-  // Show leads with any prestige score to see what's in the system
+  // Every non-privileged lead list must stay within the authenticated tenant.
   const { desc } = await import("drizzle-orm");
   return await db
     .select()
     .from(leads)
-    .where(eq(leads.status, "audited"))
-    .orderBy(desc(leads.prestigeScore));
+    .where(eq(leads.userId, userId))
+    .orderBy(desc(leads.createdAt));
 }
 
 export async function getAllLeads(): Promise<Lead[]> {
@@ -172,10 +197,7 @@ export async function getAllLeads(): Promise<Lead[]> {
 
   // Return ALL leads regardless of status or userId (for orchestrator/admin views)
   const { desc } = await import("drizzle-orm");
-  return await db
-    .select()
-    .from(leads)
-    .orderBy(desc(leads.createdAt));
+  return await db.select().from(leads).orderBy(desc(leads.createdAt));
 }
 
 export async function getLeadById(id: number): Promise<Lead | null> {
@@ -189,7 +211,10 @@ export async function getLeadById(id: number): Promise<Lead | null> {
   return result[0] || null;
 }
 
-export async function updateLead(id: number, updates: Partial<InsertLead>): Promise<Lead | null> {
+export async function updateLead(
+  id: number,
+  updates: Partial<InsertLead>
+): Promise<Lead | null> {
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot update lead: database not available");
@@ -216,8 +241,12 @@ export async function createAudit(audit: InsertAudit): Promise<Audit | null> {
   try {
     const result = await db.insert(audits).values(audit);
     const insertId = Number(result[0].insertId);
-    
-    const created = await db.select().from(audits).where(eq(audits.id, insertId)).limit(1);
+
+    const created = await db
+      .select()
+      .from(audits)
+      .where(eq(audits.id, insertId))
+      .limit(1);
     return created[0] || null;
   } catch (error) {
     console.error("[Database] Failed to create audit:", error);
@@ -232,18 +261,24 @@ export async function getAuditByLeadId(leadId: number): Promise<Audit | null> {
     return null;
   }
 
-  const result = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
+  const result = await db
+    .select()
+    .from(audits)
+    .where(eq(audits.leadId, leadId))
+    .limit(1);
   return result[0] || null;
 }
 
 export async function updateLeadAssetsStatus(
-  id: number, 
-  status: 'not_requested' | 'generating' | 'ready' | 'failed',
+  id: number,
+  status: "not_requested" | "generating" | "ready" | "failed",
   generatedAt?: Date
 ): Promise<void> {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot update assets status: database not available");
+    console.warn(
+      "[Database] Cannot update assets status: database not available"
+    );
     return;
   }
 
@@ -252,7 +287,7 @@ export async function updateLeadAssetsStatus(
     if (generatedAt) {
       updates.assetsGeneratedAt = generatedAt;
     }
-    if (status === 'ready') {
+    if (status === "ready") {
       updates.hasAssets = true;
     }
     await db.update(leads).set(updates).where(eq(leads.id, id));
@@ -272,7 +307,7 @@ export async function deleteLead(id: number): Promise<boolean> {
   try {
     // Delete related audits first (foreign key constraint)
     await db.delete(audits).where(eq(audits.leadId, id));
-    
+
     // Delete the lead
     await db.delete(leads).where(eq(leads.id, id));
     return true;

@@ -1,6 +1,6 @@
 import { getDb } from "./db";
 import { apiCalls, systemConfig } from "../drizzle/schema";
-import { eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 /**
  * API Cost Tracker — logs all API usage and enforces a daily spend budget.
@@ -18,7 +18,113 @@ import { eq, gte, sql } from "drizzle-orm";
  */
 
 /** Default daily budget in cents ($10.00). Override via DB systemConfig key. */
-const DEFAULT_DAILY_BUDGET_CENTS = 1_000;
+export const DEFAULT_DAILY_BUDGET_CENTS = 1_000;
+
+export type DailyBudgetDecision = {
+  allowed: boolean;
+  totalCents: number;
+  budgetCents: number;
+  reserveCents: number;
+  remainingCents: number;
+};
+
+export function evaluateDailyBudget(
+  totalCents: number,
+  budgetCents: number,
+  reserveCents = 0
+): DailyBudgetDecision {
+  const normalizedTotal = Math.max(0, Math.floor(totalCents));
+  const normalizedBudget = Math.max(1, Math.floor(budgetCents));
+  const normalizedReserve = Math.max(0, Math.ceil(reserveCents));
+  return {
+    allowed:
+      normalizedTotal < normalizedBudget &&
+      normalizedTotal + normalizedReserve <= normalizedBudget,
+    totalCents: normalizedTotal,
+    budgetCents: normalizedBudget,
+    reserveCents: normalizedReserve,
+    remainingCents: Math.max(0, normalizedBudget - normalizedTotal),
+  };
+}
+
+async function getBudgetState(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>
+): Promise<{ totalCents: number; budgetCents: number }> {
+  const todayMidnight = new Date();
+  todayMidnight.setUTCHours(0, 0, 0, 0);
+
+  const rows = await db
+    .select({ total: sql<number>`COALESCE(SUM(estimatedCost), 0)` })
+    .from(apiCalls)
+    .where(gte(apiCalls.createdAt, todayMidnight));
+  const budgetRow = await db
+    .select()
+    .from(systemConfig)
+    .where(eq(systemConfig.key, "daily_cost_budget_cents"))
+    .limit(1);
+  const configured = Number.parseInt(budgetRow[0]?.value ?? "", 10);
+
+  return {
+    totalCents: Number(rows[0]?.total ?? 0),
+    budgetCents:
+      Number.isSafeInteger(configured) && configured > 0
+        ? configured
+        : DEFAULT_DAILY_BUDGET_CENTS,
+  };
+}
+
+async function tripGlobalKillSwitch(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  description: string
+): Promise<void> {
+  const [existing] = await db
+    .select()
+    .from(systemConfig)
+    .where(eq(systemConfig.key, "global_kill_switch"))
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(systemConfig)
+      .set({ value: "true", description, updatedAt: new Date() })
+      .where(eq(systemConfig.key, "global_kill_switch"));
+    return;
+  }
+
+  await db.insert(systemConfig).values({
+    key: "global_kill_switch",
+    value: "true",
+    description,
+  });
+}
+
+export async function assertDailyBudgetAvailable(
+  reserveCents = 0
+): Promise<DailyBudgetDecision> {
+  const db = await getDb();
+  if (!db) {
+    throw new Error(
+      "Cost state is unavailable; the external API request was not started."
+    );
+  }
+
+  const state = await getBudgetState(db);
+  const decision = evaluateDailyBudget(
+    state.totalCents,
+    state.budgetCents,
+    reserveCents
+  );
+  if (!decision.allowed) {
+    await tripGlobalKillSwitch(
+      db,
+      `Auto-tripped before external API call: daily cost $${(decision.totalCents / 100).toFixed(2)}, reserved $${(decision.reserveCents / 100).toFixed(2)}, budget $${(decision.budgetCents / 100).toFixed(2)} at ${new Date().toISOString()}`
+    );
+    throw new Error(
+      `Daily API budget would be exceeded: ${decision.remainingCents} cents remain and ${decision.reserveCents} cents are reserved for this request.`
+    );
+  }
+  return decision;
+}
 
 interface TrackApiCallParams {
   userId: number;
@@ -29,6 +135,160 @@ interface TrackApiCallParams {
   estimatedCostCents: number; // e.g., 50 = $0.50
   requestData?: Record<string, any>;
   responseStatus: "success" | "error" | "timeout";
+}
+
+export type ApiCostReservationParams = {
+  userId: number;
+  leadId?: number;
+  service: "llm" | "screenshot" | "storage" | "other";
+  operation: string;
+  estimatedCostCents: number;
+  requestData?: Record<string, unknown>;
+};
+
+export type ApiCostReservation = {
+  id: number;
+  estimatedCostCents: number;
+  dailyTotalBeforeReservationCents: number;
+  dailyBudgetCents: number;
+};
+
+/**
+ * Persist a cost reservation before an external request begins.
+ *
+ * Locking the budget configuration row serializes reservations across app
+ * instances. Reserved rows count toward the daily total even if the provider
+ * call later fails or its outcome is uncertain.
+ */
+export async function reserveApiCallCost(
+  params: ApiCostReservationParams
+): Promise<ApiCostReservation> {
+  const estimatedCostCents = Math.ceil(params.estimatedCostCents);
+  if (
+    !Number.isSafeInteger(estimatedCostCents) ||
+    estimatedCostCents <= 0 ||
+    estimatedCostCents > 100_000
+  ) {
+    throw new Error("External API cost reservation must be 1-100000 cents.");
+  }
+  const db = await getDb();
+  if (!db) {
+    throw new Error(
+      "Cost state is unavailable; the external API request was not started."
+    );
+  }
+
+  return db.transaction(async tx => {
+    const budgetRows = await tx
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, "daily_cost_budget_cents"))
+      .limit(1)
+      .for("update");
+    const configured = Number.parseInt(budgetRows[0]?.value ?? "", 10);
+    if (
+      !budgetRows[0] ||
+      !Number.isSafeInteger(configured) ||
+      configured <= 0
+    ) {
+      throw new Error(
+        "A valid daily_cost_budget_cents configuration is required before external API use."
+      );
+    }
+
+    const todayMidnight = new Date();
+    todayMidnight.setUTCHours(0, 0, 0, 0);
+    const totals = await tx
+      .select({ total: sql<number>`COALESCE(SUM(estimatedCost), 0)` })
+      .from(apiCalls)
+      .where(gte(apiCalls.createdAt, todayMidnight));
+    const totalCents = Number(totals[0]?.total ?? 0);
+    const decision = evaluateDailyBudget(
+      totalCents,
+      configured,
+      estimatedCostCents
+    );
+    if (!decision.allowed) {
+      const description = `Auto-tripped before external API reservation: daily cost $${(decision.totalCents / 100).toFixed(2)}, requested $${(decision.reserveCents / 100).toFixed(2)}, budget $${(decision.budgetCents / 100).toFixed(2)} at ${new Date().toISOString()}`;
+      const killSwitchRows = await tx
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.key, "global_kill_switch"))
+        .limit(1)
+        .for("update");
+      if (killSwitchRows[0]) {
+        await tx
+          .update(systemConfig)
+          .set({ value: "true", description, updatedAt: new Date() })
+          .where(eq(systemConfig.key, "global_kill_switch"));
+      } else {
+        await tx.insert(systemConfig).values({
+          key: "global_kill_switch",
+          value: "true",
+          description,
+        });
+      }
+      throw new Error(
+        `Daily API budget would be exceeded: ${decision.remainingCents} cents remain and ${decision.reserveCents} cents are required.`
+      );
+    }
+
+    const inserted = await tx
+      .insert(apiCalls)
+      .values({
+        userId: params.userId,
+        leadId: params.leadId,
+        service: params.service,
+        operation: params.operation,
+        estimatedCost: estimatedCostCents,
+        requestData: params.requestData
+          ? JSON.stringify(params.requestData)
+          : null,
+        responseStatus: "reserved",
+      })
+      .$returningId();
+    const id = Number(inserted[0]?.id || 0);
+    if (!id) {
+      throw new Error(
+        "The external API cost reservation was not persisted; the request was not started."
+      );
+    }
+    return {
+      id,
+      estimatedCostCents,
+      dailyTotalBeforeReservationCents: decision.totalCents,
+      dailyBudgetCents: decision.budgetCents,
+    };
+  });
+}
+
+export async function settleApiCallCostReservation(
+  reservationId: number,
+  responseStatus: "success" | "error" | "timeout" | "outcome_unknown"
+): Promise<void> {
+  if (!Number.isSafeInteger(reservationId) || reservationId <= 0) {
+    throw new Error("A valid API cost reservation ID is required.");
+  }
+  const db = await getDb();
+  if (!db) {
+    throw new Error(
+      "Cost state is unavailable; the provider outcome remains uncertain."
+    );
+  }
+  const updated = await db
+    .update(apiCalls)
+    .set({ responseStatus })
+    .where(
+      and(
+        eq(apiCalls.id, reservationId),
+        eq(apiCalls.responseStatus, "reserved")
+      )
+    );
+  if (Number(updated[0]?.affectedRows ?? 0) !== 1) {
+    throw new Error(
+      "The API cost reservation was missing or already settled."
+    );
+  }
 }
 
 /**
@@ -50,7 +310,9 @@ export async function trackApiCall(params: TrackApiCallParams): Promise<void> {
       operation: params.operation,
       tokensUsed: params.tokensUsed,
       estimatedCost: params.estimatedCostCents,
-      requestData: params.requestData ? JSON.stringify(params.requestData) : null,
+      requestData: params.requestData
+        ? JSON.stringify(params.requestData)
+        : null,
       responseStatus: params.responseStatus,
     });
 
@@ -65,54 +327,22 @@ export async function trackApiCall(params: TrackApiCallParams): Promise<void> {
  * Sum all API costs since midnight UTC today.
  * If the total exceeds the configured budget, flip global_kill_switch to "true".
  */
-async function checkDailyBudget(db: Awaited<ReturnType<typeof getDb>>): Promise<void> {
+async function checkDailyBudget(
+  db: Awaited<ReturnType<typeof getDb>>
+): Promise<void> {
   if (!db) return;
 
   try {
-    // Midnight UTC today
-    const todayMidnight = new Date();
-    todayMidnight.setUTCHours(0, 0, 0, 0);
-
-    // Sum all costs today
-    const rows = await db
-      .select({ total: sql<number>`COALESCE(SUM(estimatedCost), 0)` })
-      .from(apiCalls)
-      .where(gte(apiCalls.createdAt, todayMidnight));
-
-    const dailyTotalCents = Number(rows[0]?.total ?? 0);
-
-    // Read configured budget (allows operator to change it without a deploy)
-    const budgetRow = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.key, "daily_cost_budget_cents"))
-      .limit(1);
-
-    const budgetCents = budgetRow.length > 0
-      ? parseInt(budgetRow[0].value, 10) || DEFAULT_DAILY_BUDGET_CENTS
-      : DEFAULT_DAILY_BUDGET_CENTS;
-
-    if (dailyTotalCents >= budgetCents) {
-      // Flip the kill-switch
-      const existing = await db
-        .select()
-        .from(systemConfig)
-        .where(eq(systemConfig.key, "global_kill_switch"))
-        .limit(1);
-
-      if (existing.length > 0 && existing[0].value !== "true") {
-        await db
-          .update(systemConfig)
-          .set({
-            value: "true",
-            description: `Auto-tripped: daily cost $${(dailyTotalCents / 100).toFixed(2)} exceeded budget $${(budgetCents / 100).toFixed(2)} at ${new Date().toISOString()}`,
-          })
-          .where(eq(systemConfig.key, "global_kill_switch"));
-
-        console.warn(
-          `[CostTracker] 🚨 KILL-SWITCH TRIPPED — daily cost $${(dailyTotalCents / 100).toFixed(2)} exceeded budget $${(budgetCents / 100).toFixed(2)}`
-        );
-      }
+    const state = await getBudgetState(db);
+    const decision = evaluateDailyBudget(state.totalCents, state.budgetCents);
+    if (!decision.allowed) {
+      await tripGlobalKillSwitch(
+        db,
+        `Auto-tripped: daily cost $${(decision.totalCents / 100).toFixed(2)} reached budget $${(decision.budgetCents / 100).toFixed(2)} at ${new Date().toISOString()}`
+      );
+      console.warn(
+        `[CostTracker] Kill-switch tripped at $${(decision.totalCents / 100).toFixed(2)} of $${(decision.budgetCents / 100).toFixed(2)}.`
+      );
     }
   } catch (err) {
     // Don't let budget check crash the tracker
@@ -124,8 +354,11 @@ async function checkDailyBudget(db: Awaited<ReturnType<typeof getDb>>): Promise<
  * Estimate cost for LLM API call based on token counts.
  * GPT-4 pricing: ~$0.03/1K input, ~$0.06/1K output
  */
-export function estimateLLMCost(inputTokens: number, outputTokens: number): number {
-  const inputCostPer1K = 3;  // cents
+export function estimateLLMCost(
+  inputTokens: number,
+  outputTokens: number
+): number {
+  const inputCostPer1K = 3; // cents
   const outputCostPer1K = 6; // cents
   const inputCost = (inputTokens / 1000) * inputCostPer1K;
   const outputCost = (outputTokens / 1000) * outputCostPer1K;
@@ -138,7 +371,10 @@ export const SCREENSHOT_COST_CENTS = 1; // $0.01
 /**
  * Estimate cost for an S3 storage operation.
  */
-export function estimateStorageCost(sizeBytes: number, operation: "upload" | "download"): number {
+export function estimateStorageCost(
+  sizeBytes: number,
+  operation: "upload" | "download"
+): number {
   const sizeGB = sizeBytes / (1024 * 1024 * 1024);
   if (operation === "upload") {
     return Math.max(1, Math.ceil(sizeGB * 2.3));
@@ -159,17 +395,24 @@ export async function getUserApiCosts(userId: number): Promise<{
 }> {
   const db = await getDb();
   if (!db) {
-    return { totalCostCents: 0, llmCostCents: 0, screenshotCostCents: 0, storageCostCents: 0, callCount: 0 };
+    throw new Error("Cost state is unavailable.");
   }
 
-  const calls = await db.select().from(apiCalls).where(eq(apiCalls.userId, userId));
+  const calls = await db
+    .select()
+    .from(apiCalls)
+    .where(eq(apiCalls.userId, userId));
 
-  let totalCost = 0, llmCost = 0, screenshotCost = 0, storageCost = 0;
+  let totalCost = 0,
+    llmCost = 0,
+    screenshotCost = 0,
+    storageCost = 0;
 
   for (const call of calls) {
     totalCost += call.estimatedCost;
     if (call.service === "llm") llmCost += call.estimatedCost;
-    else if (call.service === "screenshot") screenshotCost += call.estimatedCost;
+    else if (call.service === "screenshot")
+      screenshotCost += call.estimatedCost;
     else if (call.service === "storage") storageCost += call.estimatedCost;
   }
 
@@ -187,7 +430,7 @@ export async function getUserApiCosts(userId: number): Promise<{
  */
 export async function getDailyTotalCostCents(): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  if (!db) throw new Error("Cost state is unavailable.");
 
   const todayMidnight = new Date();
   todayMidnight.setUTCHours(0, 0, 0, 0);

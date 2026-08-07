@@ -5,7 +5,17 @@
 import { describe, it, expect } from "vitest";
 import { invokeAI } from "./aiProvider";
 
-describe("Scraper AI Qualification", () => {
+const hasLlmCredentials =
+  process.env.RUN_INTEGRATION_TESTS === "1" &&
+  process.env.RUN_COSTED_TESTS === "1" &&
+  (Boolean(
+    process.env.BUILT_IN_FORGE_API_URL && process.env.BUILT_IN_FORGE_API_KEY
+  ) ||
+    Boolean(process.env.GOOGLE_AI_API_KEY) ||
+    Boolean(process.env.OPENAI_API_KEY) ||
+    Boolean(process.env.ANTHROPIC_API_KEY));
+
+describe.skipIf(!hasLlmCredentials)("Scraper AI Qualification", () => {
   it("should qualify a business via invokeAI → invokeLLM fallback chain", async () => {
     const result = await invokeAI({
       messages: [

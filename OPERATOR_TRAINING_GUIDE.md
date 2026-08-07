@@ -1,5 +1,7 @@
 # Velvet Alchemy Operator Training Guide
 
+> HISTORICAL TRAINING DOCUMENT: Several send, billing, and automation instructions below no longer match the fail-closed code. No cold SMS, automated prospect calls, email delivery, or bulk send is authorized. Use `README.md` and `HANDOFF.md`.
+
 **Last Updated:** January 26, 2026 at 4:22 AM PST  
 **Version:** 2.1.0  
 **Status:** Production Ready (Payment Integration Complete)

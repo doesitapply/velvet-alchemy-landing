@@ -1,5 +1,6 @@
 import { invokeLLM } from "./_core/llm";
 import type { Lead, Audit, Asset } from "../drizzle/schema";
+import { assertSafeExternalCopy } from "./lib/externalActionPolicy";
 
 export interface OutreachCopyResult {
   subject: string;
@@ -29,16 +30,18 @@ export async function generateOutreachCopy(
   // Extract key issues from visual debt
   const keyIssues: string[] = [];
   if (visualDebt?.categories) {
-    Object.entries(visualDebt.categories).forEach(([category, issues]: [string, any]) => {
-      if (Array.isArray(issues) && issues.length > 0) {
-        // Take top 2 issues from each category
-        issues.slice(0, 2).forEach((issue: any) => {
-          if (issue.description) {
-            keyIssues.push(`${category}: ${issue.description}`);
-          }
-        });
+    Object.entries(visualDebt.categories).forEach(
+      ([category, issues]: [string, any]) => {
+        if (Array.isArray(issues) && issues.length > 0) {
+          // Take top 2 issues from each category
+          issues.slice(0, 2).forEach((issue: any) => {
+            if (issue.description) {
+              keyIssues.push(`${category}: ${issue.description}`);
+            }
+          });
+        }
       }
-    });
+    );
   }
 
   // Extract strengths
@@ -48,13 +51,13 @@ export async function generateOutreachCopy(
   }
 
   // Build asset URLs for email
-  const assetUrls = assets.map((asset) => ({
+  const assetUrls = assets.map(asset => ({
     type: asset.type,
     url: asset.url,
   }));
 
   // Generate outreach copy using LLM
-  const prompt = `You are "The Charmer," an elite copywriter for a luxury digital transformation agency. Your job is to write a personalized, seductive outreach email to a high-net-worth business owner.
+  const prompt = `Write a concise, factual outreach draft for a local business owner.
 
 **Target Lead:**
 - Company: ${lead.companyName}
@@ -62,26 +65,26 @@ export async function generateOutreachCopy(
 - Prestige Score: ${audit?.prestigeScore || "N/A"}/100
 
 **Visual Audit Findings:**
-${keyIssues.length > 0 ? `Key Issues:\n${keyIssues.map((issue) => `- ${issue}`).join("\n")}` : "No specific issues identified."}
+${keyIssues.length > 0 ? `Key Issues:\n${keyIssues.map(issue => `- ${issue}`).join("\n")}` : "No specific issues identified."}
 
-${strengths.length > 0 ? `\nStrengths:\n${strengths.map((s) => `- ${s}`).join("\n")}` : ""}
+${strengths.length > 0 ? `\nStrengths:\n${strengths.map(s => `- ${s}`).join("\n")}` : ""}
 
 **Generated Assets:**
-${assetUrls.length > 0 ? assetUrls.map((a) => `- ${a.type}: ${a.url}`).join("\n") : "No assets generated yet."}
+${assetUrls.length > 0 ? assetUrls.map(a => `- ${a.type}: ${a.url}`).join("\n") : "No assets generated yet."}
 
 **Your Task:**
-Write a short, high-impact outreach email (150-200 words) that:
+Write a short outreach email (100-150 words) that:
 1. Opens with a compliment about their strengths (if any)
-2. Subtly identifies 1-2 specific visual debt issues without being insulting
-3. Teases the generated assets as a "gift" or "vision" of their upgraded brand
-4. Creates urgency and curiosity without being salesy
-5. Ends with a soft CTA (e.g., "Would you like to see the full transformation?")
+2. Describes at most one observed issue as a possible source of friction
+3. Clearly says the review does not prove lost customers or revenue
+4. Avoids urgency, accusation, and invented facts
+5. Ends with a low-pressure review-only CTA
 
 **Tone:**
-- Confident, not arrogant
-- Seductive, not desperate
-- Specific, not generic
-- Luxury, not cheap
+- Direct and respectful
+- Specific and evidence-bound
+- Plain language
+- No unsupported revenue or conversion claims
 
 **Output Format (JSON):**
 {
@@ -97,7 +100,7 @@ Generate the email now.`;
       {
         role: "system",
         content:
-          "You are The Charmer, an elite copywriter specializing in luxury outreach. You write seductive, high-converting emails that make business owners feel seen and valued.",
+          "Write evidence-bound business outreach. Never claim an audit proves lost customers, jobs, leads, money, revenue, or conversion impact.",
       },
       {
         role: "user",
@@ -137,17 +140,20 @@ Generate the email now.`;
     throw new Error("LLM returned empty response");
   }
 
-  const content = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
+  const content =
+    typeof message.content === "string"
+      ? message.content
+      : JSON.stringify(message.content);
   const parsed = JSON.parse(content);
 
-  // Use verified owner email from enrichment pipeline.
-  // Falls back to contact@domain only if no verified email was found.
-  // The pending_approval gate ensures a human reviews before any send.
-  const recipientEmail = (lead as any).verifiedOwnerEmail
-    ? (lead as any).verifiedOwnerEmail
-    : lead.websiteUrl
-    ? `contact@${new URL(lead.websiteUrl).hostname}`
-    : "contact@example.com";
+  const recipientEmail = String((lead as any).verifiedOwnerEmail || "").trim();
+  if (!recipientEmail) {
+    throw new Error(
+      "A verified public business email is required before preparing outreach."
+    );
+  }
+
+  assertSafeExternalCopy(parsed.subject, parsed.body);
 
   return {
     subject: parsed.subject,

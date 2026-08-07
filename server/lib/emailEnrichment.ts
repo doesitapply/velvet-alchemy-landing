@@ -1,18 +1,24 @@
 /**
  * Email Enrichment Service
  *
- * Finds verified owner/founder/CEO email addresses for a domain using
- * Hunter.io as primary, Snov.io as fallback.
+ * Finds a verified owner/founder/CEO email address for a domain using a
+ * single-result Hunter.io lookup.
  *
- * If no verified email is found, the lead is routed to SMS via Twilio.
+ * If no verified email is found, the lead remains research-only. Cold SMS is disabled.
  *
  * Environment variables required:
- *   HUNTER_API_KEY   — Hunter.io API key (https://hunter.io/api-keys)
- *   SNOV_CLIENT_ID   — Snov.io client ID (optional fallback)
- *   SNOV_CLIENT_SECRET — Snov.io client secret (optional fallback)
+ *   ENABLE_HUNTER_OWNER_ENRICHMENT=true
+ *   HUNTER_API_KEY
+ *   HUNTER_COST_CENTS_PER_CREDIT
  */
 
-const OWNER_TITLE_PATTERN = /owner|founder|ceo|president|managing director|proprietor/i;
+import {
+  reserveApiCallCost,
+  settleApiCallCostReservation,
+} from "../apiCostTracker";
+
+const OWNER_TITLE_PATTERN =
+  /owner|founder|ceo|president|managing director|proprietor/i;
 
 export interface EnrichedContact {
   email: string;
@@ -20,7 +26,77 @@ export interface EnrichedContact {
   lastName?: string;
   title?: string;
   confidence: number; // 0-100
-  source: "hunter" | "snov" | "fallback";
+  source: "hunter";
+}
+
+export type EmailEnrichmentContext = {
+  userId: number;
+  leadId?: number;
+  approvedCostCentsPerCredit?: number;
+};
+
+export function readHunterOwnerEnrichmentConfig(
+  env: Record<string, string | undefined> = process.env
+): {
+  configured: boolean;
+  apiKey: string;
+  costCentsPerCredit: number | null;
+  missing: string[];
+} {
+  const apiKey = String(env.HUNTER_API_KEY || "").trim();
+  const costCentsPerCredit = Number(
+    String(env.HUNTER_COST_CENTS_PER_CREDIT || "").trim()
+  );
+  const missing: string[] = [];
+  if (env.ENABLE_HUNTER_OWNER_ENRICHMENT !== "true") {
+    missing.push("ENABLE_HUNTER_OWNER_ENRICHMENT=true");
+  }
+  if (!apiKey) missing.push("HUNTER_API_KEY");
+  if (
+    !Number.isSafeInteger(costCentsPerCredit) ||
+    costCentsPerCredit <= 0 ||
+    costCentsPerCredit > 10_000
+  ) {
+    missing.push("HUNTER_COST_CENTS_PER_CREDIT");
+  }
+  return {
+    configured: missing.length === 0,
+    apiKey,
+    costCentsPerCredit:
+      Number.isSafeInteger(costCentsPerCredit) &&
+      costCentsPerCredit > 0 &&
+      costCentsPerCredit <= 10_000
+        ? costCentsPerCredit
+        : null,
+    missing,
+  };
+}
+
+export function assertApprovedHunterOwnerEnrichmentConfig(
+  config: ReturnType<typeof readHunterOwnerEnrichmentConfig>,
+  approvedCostCentsPerCredit: number | undefined
+): void {
+  if (approvedCostCentsPerCredit === undefined) return;
+  if (!config.configured || !config.costCentsPerCredit) {
+    throw new Error(
+      `The approved owner-email lookup is no longer configured: ${config.missing.join(", ")}`
+    );
+  }
+  if (approvedCostCentsPerCredit !== config.costCentsPerCredit) {
+    throw new Error(
+      "The Hunter unit cost no longer matches the exact approved discovery quote."
+    );
+  }
+}
+
+export function ownerContactMatchesRequestedDomain(
+  contact: EnrichedContact,
+  requestedDomain: string
+): boolean {
+  const emailDomain = contact.email.split("@")[1]?.trim().toLowerCase();
+  return Boolean(
+    emailDomain && emailDomain === requestedDomain.trim().toLowerCase()
+  );
 }
 
 /**
@@ -28,7 +104,8 @@ export interface EnrichedContact {
  * Returns null if no verified contact is found.
  */
 export async function findVerifiedOwnerEmail(
-  domain: string
+  domain: string,
+  context: EmailEnrichmentContext
 ): Promise<EnrichedContact | null> {
   // Normalize domain: strip protocol and path
   const cleanDomain = domain
@@ -38,12 +115,16 @@ export async function findVerifiedOwnerEmail(
     .split("?")[0];
 
   // Try Hunter.io first
-  const hunterResult = await tryHunter(cleanDomain);
-  if (hunterResult) return hunterResult;
-
-  // Fallback to Snov.io
-  const snovResult = await trySnov(cleanDomain);
-  if (snovResult) return snovResult;
+  const hunterResult = await tryHunter(cleanDomain, context);
+  if (hunterResult) {
+    if (!ownerContactMatchesRequestedDomain(hunterResult, cleanDomain)) {
+      console.warn(
+        "[EmailEnrichment] Hunter returned an owner email outside the requested domain."
+      );
+      return null;
+    }
+    return hunterResult;
+  }
 
   return null;
 }
@@ -52,137 +133,103 @@ export async function findVerifiedOwnerEmail(
  * Hunter.io domain search
  * Docs: https://hunter.io/api/v2/domain-search
  */
-async function tryHunter(domain: string): Promise<EnrichedContact | null> {
-  const apiKey = process.env.HUNTER_API_KEY;
-  if (!apiKey) {
-    console.warn("[EmailEnrichment] HUNTER_API_KEY not set, skipping Hunter.io");
+async function tryHunter(
+  domain: string,
+  context: EmailEnrichmentContext
+): Promise<EnrichedContact | null> {
+  const config = readHunterOwnerEnrichmentConfig();
+  assertApprovedHunterOwnerEnrichmentConfig(
+    config,
+    context.approvedCostCentsPerCredit
+  );
+  if (!config.configured || !config.costCentsPerCredit) {
+    console.warn(
+      `[EmailEnrichment] Hunter owner lookup disabled: ${config.missing.join(", ")}`
+    );
     return null;
   }
-
+  const reservation = await reserveApiCallCost({
+    userId: context.userId,
+    leadId: context.leadId,
+    service: "other",
+    operation: "hunter_owner_domain_search_one_credit_max",
+    estimatedCostCents: config.costCentsPerCredit,
+    requestData: { domain, maximumResults: 1 },
+  });
+  let responseStatus: "success" | "error" | "timeout" | "outcome_unknown" =
+    "outcome_unknown";
   try {
-    const url = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${apiKey}&limit=10`;
+    const params = new URLSearchParams({
+      domain,
+      api_key: config.apiKey,
+      limit: "1",
+      type: "personal",
+      decision_maker: "true",
+      verification_status: "valid",
+      required_field: "position",
+    });
+    const url = `https://api.hunter.io/v2/domain-search?${params.toString()}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
 
     if (!res.ok) {
-      console.warn(`[EmailEnrichment] Hunter.io returned ${res.status} for ${domain}`);
+      console.warn(
+        `[EmailEnrichment] Hunter.io returned ${res.status} for ${domain}`
+      );
       return null;
     }
 
     const data = (await res.json()) as HunterDomainSearchResponse;
-    const emails = data?.data?.emails ?? [];
-
-    // Filter for owner-level titles, sort by confidence descending
-    const ownerEmails = emails
-      .filter(
-        (e) =>
-          e.confidence >= 50 &&
-          e.position &&
-          OWNER_TITLE_PATTERN.test(e.position)
-      )
-      .sort((a, b) => b.confidence - a.confidence);
-
-    // Fall back to highest-confidence email if no owner title found
-    const best =
-      ownerEmails[0] ??
-      emails.sort((a, b) => b.confidence - a.confidence)[0];
-
-    if (!best) return null;
-
-    return {
-      email: best.value,
-      firstName: best.first_name ?? undefined,
-      lastName: best.last_name ?? undefined,
-      title: best.position ?? undefined,
-      confidence: best.confidence,
-      source: "hunter",
-    };
+    responseStatus = "success";
+    return selectHunterVerifiedOwner(data?.data?.emails ?? []);
   } catch (err) {
     console.error("[EmailEnrichment] Hunter.io error:", err);
+    responseStatus =
+      err instanceof Error && err.name === "TimeoutError" ? "timeout" : "error";
     return null;
-  }
-}
-
-/**
- * Snov.io domain search (fallback)
- * Docs: https://snov.io/api
- */
-async function trySnov(domain: string): Promise<EnrichedContact | null> {
-  const clientId = process.env.SNOV_CLIENT_ID;
-  const clientSecret = process.env.SNOV_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-
-  try {
-    // Get OAuth access token
-    const tokenRes = await fetch("https://api.snov.io/v1/oauth/access_token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!tokenRes.ok) return null;
-    const { access_token } = (await tokenRes.json()) as { access_token: string };
-
-    // Domain search
-    const searchRes = await fetch(
-      `https://api.snov.io/v2/domain-emails-with-info?domain=${encodeURIComponent(domain)}&type=all&limit=10`,
-      {
-        headers: { Authorization: `Bearer ${access_token}` },
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
-    if (!searchRes.ok) return null;
-    const searchData = (await searchRes.json()) as SnovDomainResponse;
-    const contacts = searchData?.emails ?? [];
-
-    const ownerContacts = contacts
-      .filter(
-        (c) =>
-          c.emailStatus === "valid" &&
-          c.position &&
-          OWNER_TITLE_PATTERN.test(c.position)
-      )
-      .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
-
-    const best = ownerContacts[0] ?? contacts.filter((c) => c.emailStatus === "valid")[0];
-    if (!best) return null;
-
-    return {
-      email: best.email,
-      firstName: best.firstName ?? undefined,
-      lastName: best.lastName ?? undefined,
-      title: best.position ?? undefined,
-      confidence: best.confidence ?? 60,
-      source: "snov",
-    };
-  } catch (err) {
-    console.error("[EmailEnrichment] Snov.io error:", err);
-    return null;
+  } finally {
+    await settleApiCallCostReservation(reservation.id, responseStatus);
   }
 }
 
 // ─── Type definitions ────────────────────────────────────────────────────────
 
-interface HunterEmail {
+export interface HunterEmail {
   value: string;
   confidence: number;
+  type?: string;
+  decision_maker?: boolean | null;
   position?: string;
   first_name?: string;
   last_name?: string;
+  verification?: {
+    status?: string;
+  };
 }
 
 interface HunterDomainSearchResponse {
   data?: { emails: HunterEmail[] };
 }
 
-interface SnovEmail {
-  email: string;
-  emailStatus: string;
-  confidence?: number;
-  position?: string;
-  firstName?: string;
-  lastName?: string;
-}
-
-interface SnovDomainResponse {
-  emails?: SnovEmail[];
+export function selectHunterVerifiedOwner(
+  emails: HunterEmail[]
+): EnrichedContact | null {
+  const best = [...emails]
+    .filter(
+      email =>
+        email.type === "personal" &&
+        email.decision_maker === true &&
+        email.verification?.status === "valid" &&
+        email.confidence >= 70 &&
+        Boolean(email.position && OWNER_TITLE_PATTERN.test(email.position))
+    )
+    .sort((a, b) => b.confidence - a.confidence)[0];
+  if (!best) return null;
+  return {
+    email: best.value,
+    firstName: best.first_name ?? undefined,
+    lastName: best.last_name ?? undefined,
+    title: best.position,
+    confidence: best.confidence,
+    source: "hunter",
+  };
 }

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+// Portable transformation tests: no database, credentials, or external services.
 import { extractBusinessDNA } from "./visionary";
 
 describe("Visionary", () => {
   describe("extractBusinessDNA", () => {
     it("extracts default DNA when no visual debt provided", () => {
-      const dna = extractBusinessDNA("Test Company", "https://example.com", null);
+      const dna = extractBusinessDNA(
+        "Test Company",
+        "https://example.com",
+        null
+      );
 
       expect(dna.companyName).toBe("Test Company");
       expect(dna.primaryColor).toBeDefined();
@@ -53,7 +58,8 @@ describe("Visionary", () => {
         categories: {
           design: [
             {
-              description: "Primary color #FF5733 clashes with secondary #C70039",
+              description:
+                "Primary color #FF5733 clashes with secondary #C70039",
             },
           ],
         },

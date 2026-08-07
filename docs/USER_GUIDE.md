@@ -1,5 +1,7 @@
 # Velvet Alchemy User Guide
 
+> HISTORICAL USER GUIDE: Current approval is review-only and never sends. Cold SMS, automated prospect calls, bulk send, and real-prospect SMIRK handoff are blocked. Use `../README.md` and `../HANDOFF.md`.
+
 This guide provides step-by-step instructions for using Velvet Alchemy's autonomous revenue system. Whether you are creating your first lead or monitoring a full pipeline execution, this document will walk you through each workflow.
 
 ---

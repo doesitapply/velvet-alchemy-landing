@@ -1,50 +1,21 @@
 import { invokeLLM } from "../_core/llm";
-import { findVerifiedOwnerEmail, type EnrichedContact } from "./emailEnrichment";
-import { sendSmsOutreach } from "./smsOutreach";
+import {
+  findVerifiedOwnerEmail,
+  type EnrichedContact,
+} from "./emailEnrichment";
 
-/**
- * Revenue Calculator
- * Estimates annual revenue loss based on prestige score and business category
- */
-export function calculateRevenueLoss(prestigeScore: number, category: string): {
-  annualLoss: number;
-  monthlyLoss: number;
+export function buildNotMeasuredRevenueImpact(): {
+  status: "not_measured";
+  annualLoss: null;
+  monthlyLoss: null;
   explanation: string;
 } {
-  // Base conversion rate assumptions
-  const avgMonthlyTraffic = 500; // Conservative estimate for local businesses
-  const avgConversionRate = 0.02; // 2% baseline
-  
-  // Calculate lost conversion rate based on prestige gap
-  const prestigeGap = 100 - prestigeScore;
-  const lostConversionRate = (prestigeGap / 100) * avgConversionRate;
-  
-  // Category-specific average transaction values
-  const categoryValues: Record<string, number> = {
-    electrician: 850,
-    plumber: 650,
-    roofer: 4500,
-    hvac: 3200,
-    salon: 120,
-    restaurant: 35,
-    default: 500,
-  };
-  
-  const avgTransactionValue = categoryValues[category.toLowerCase()] || categoryValues.default;
-  
-  // Calculate lost customers per month
-  const lostCustomersPerMonth = avgMonthlyTraffic * lostConversionRate;
-  
-  // Calculate revenue loss
-  const monthlyLoss = Math.round(lostCustomersPerMonth * avgTransactionValue);
-  const annualLoss = monthlyLoss * 12;
-  
-  const explanation = `Based on an estimated ${avgMonthlyTraffic} monthly visitors and a prestige gap of ${prestigeGap} points, your website is likely losing ${lostCustomersPerMonth.toFixed(1)} potential customers per month at $${avgTransactionValue} average transaction value.`;
-  
   return {
-    annualLoss,
-    monthlyLoss,
-    explanation,
+    status: "not_measured",
+    annualLoss: null,
+    monthlyLoss: null,
+    explanation:
+      "Velvet did not measure customer loss or revenue impact. Modeled loss is excluded from prospect evidence and outreach.",
   };
 }
 
@@ -53,45 +24,41 @@ export function calculateRevenueLoss(prestigeScore: number, category: string): {
  * Analyzes website for technical issues that impact conversions
  */
 export async function performTechnicalAudit(websiteUrl: string): Promise<{
-  loadSpeed: string;
-  mobileFriendly: boolean;
-  sslEnabled: boolean;
+  loadSpeed: null;
+  mobileFriendly: null;
+  httpsUrl: boolean;
+  sslEnabled: null;
+  measurementStatus: "not_measured";
   issues: string[];
 }> {
   const issues: string[] = [];
-  
+
   try {
-    // Check SSL
-    const sslEnabled = websiteUrl.startsWith('https://');
-    if (!sslEnabled) {
-      issues.push("No SSL certificate - browsers show 'Not Secure' warning");
+    const url = new URL(websiteUrl);
+    const httpsUrl = url.protocol === "https:";
+    if (!httpsUrl) {
+      issues.push(
+        "The recorded public website URL uses HTTP rather than HTTPS. Certificate behavior was not independently tested."
+      );
     }
-    
-    // Simulate page speed check (in production, use Lighthouse API)
-    const loadSpeed = "3.2s"; // Placeholder
-    if (parseFloat(loadSpeed) > 3.0) {
-      issues.push(`Slow load time (${loadSpeed}) - 53% of users abandon sites that take >3s to load`);
-    }
-    
-    // Simulate mobile-friendly check
-    const mobileFriendly = Math.random() > 0.3; // 70% chance of being mobile-friendly
-    if (!mobileFriendly) {
-      issues.push("Not mobile-optimized - 60% of traffic is mobile");
-    }
-    
+
     return {
-      loadSpeed,
-      mobileFriendly,
-      sslEnabled,
+      loadSpeed: null,
+      mobileFriendly: null,
+      httpsUrl,
+      sslEnabled: null,
+      measurementStatus: "not_measured",
       issues,
     };
   } catch (error) {
-    console.error('[TechnicalAudit] Error:', error);
+    console.error("[TechnicalAudit] Error:", error);
     return {
-      loadSpeed: "unknown",
-      mobileFriendly: false,
-      sslEnabled: false,
-      issues: ["Unable to complete technical audit"],
+      loadSpeed: null,
+      mobileFriendly: null,
+      httpsUrl: false,
+      sslEnabled: null,
+      measurementStatus: "not_measured",
+      issues: ["The recorded website URL could not be parsed for review."],
     };
   }
 }
@@ -100,20 +67,24 @@ export async function performTechnicalAudit(websiteUrl: string): Promise<{
  * Conversion Leak Detector
  * Uses AI to identify missing CTAs, forms, and conversion elements
  */
-export async function detectConversionLeaks(screenshotUrl: string, companyName: string): Promise<string[]> {
+export async function detectConversionLeaks(
+  screenshotUrl: string,
+  companyName: string
+): Promise<string[]> {
   try {
     const response = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: "You are a conversion rate optimization expert. Analyze websites for missing conversion elements.",
+          content:
+            "You review website screenshots. Describe only visible interface details. Use cautious language such as 'appears' or 'may create friction'. Never claim a screenshot proves lost revenue, lost customers, ranking impact, page speed, mobile compatibility, or conversion impact.",
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `Analyze this ${companyName} website screenshot and list 3-5 specific conversion leaks (missing CTAs, unclear value props, hidden contact info, poor navigation, etc.). Be specific and actionable. Format as a JSON array of strings.`,
+              text: `Review this ${companyName} website screenshot and list up to five visible interface observations that may create contact or booking friction, such as a hard-to-find CTA, unclear service description, hidden contact path, or confusing navigation. Do not infer anything that is not visible in the screenshot. Format as a JSON array of strings.`,
             },
             {
               type: "image_url",
@@ -145,13 +116,15 @@ export async function detectConversionLeaks(screenshotUrl: string, companyName: 
         },
       },
     });
-    
+
     const content = response.choices[0].message.content;
-    const result = JSON.parse(typeof content === 'string' ? content : JSON.stringify(content));
+    const result = JSON.parse(
+      typeof content === "string" ? content : JSON.stringify(content)
+    );
     return result.leaks || [];
   } catch (error) {
-    console.error('[ConversionLeaks] Error:', error);
-    return ["Unable to analyze conversion leaks"];
+    console.error("[ConversionLeaks] Error:", error);
+    return [];
   }
 }
 
@@ -159,36 +132,46 @@ export async function detectConversionLeaks(screenshotUrl: string, companyName: 
  * Competitor Analysis
  * Finds better-ranked competitors in the same niche
  */
-export async function findCompetitorGaps(companyName: string, category: string, location: string): Promise<{
-  competitorUrl: string;
-  gapFound: string;
+export async function findCompetitorGaps(
+  companyName: string,
+  category: string,
+  location: string
+): Promise<{
+  status: "not_measured";
+  competitorUrl: null;
+  gapFound: null;
 }> {
-  // In production, use Google Search API or SerpAPI
-  // For now, return placeholder data
+  void companyName;
+  void category;
+  void location;
   return {
-    competitorUrl: `https://example-competitor.com`,
-    gapFound: `Top-ranked competitor has professional photography, clear pricing, and 50+ reviews. ${companyName} lacks all three.`,
+    status: "not_measured",
+    competitorUrl: null,
+    gapFound: null,
   };
 }
 
 export interface EnrichmentResult {
   detailedReport: any;
-  revenueLoss: { annual: number; monthly: number };
+  revenueLoss: {
+    status: "not_measured";
+    annual: null;
+    monthly: null;
+  };
   /** Verified owner email if found, null otherwise */
   verifiedEmail: string | null;
-  /** Which outreach channel was selected */
-  outreachChannel: "email" | "sms" | "none";
-  /** Whether an SMS was sent (only true if phone existed and Twilio is configured) */
-  smsSent: boolean;
+  /** Review channel selected from verified public data. Phones remain research-only. */
+  outreachChannel: "email" | "none";
 }
 
 /**
  * Complete Enrichment Pipeline
  * Combines all analysis functions to populate detailedReport.
- * Also runs email enrichment and routes to email or SMS outreach.
+ * Also runs public email enrichment. It never sends or prepares cold SMS.
  */
 export async function enrichLead(lead: {
   id: number;
+  userId: number;
   companyName: string;
   websiteUrl: string;
   category: string;
@@ -198,55 +181,63 @@ export async function enrichLead(lead: {
   phone?: string | null;
 }): Promise<EnrichmentResult> {
   console.log(`[Enrichment] Starting enrichment for ${lead.companyName}`);
-  
-  // Calculate revenue loss
-  const revenueLoss = calculateRevenueLoss(lead.prestigeScore || 50, lead.category);
-  
+  const revenueImpact = buildNotMeasuredRevenueImpact();
+
   // Technical audit
   const technicalAudit = await performTechnicalAudit(lead.websiteUrl);
-  
+
   // Conversion leaks (only if screenshot exists)
   let conversionLeaks: string[] = [];
   if (lead.screenshotUrl) {
-    conversionLeaks = await detectConversionLeaks(lead.screenshotUrl, lead.companyName);
+    conversionLeaks = await detectConversionLeaks(
+      lead.screenshotUrl,
+      lead.companyName
+    );
   }
-  
+
   // Competitor analysis
   const competitorAnalysis = await findCompetitorGaps(
     lead.companyName,
     lead.category,
     lead.location
   );
-  
+
   // Build detailed report
   const detailedReport = {
+    report_version: "velvet.audit-report.v2",
     visual_audit: {
       score: lead.prestigeScore || 0,
-      critique: `Prestige score of ${lead.prestigeScore}/100 indicates ${lead.prestigeScore && lead.prestigeScore < 60 ? 'significant' : 'moderate'} room for improvement in visual design and user experience.`,
+      basis: "inferred",
+      critique: `Screenshot review score: ${lead.prestigeScore ?? "not available"}/100. This is an internal visual-review heuristic, not a measurement of revenue, rankings, mobile compatibility, or conversion performance.`,
     },
     technical_audit: {
       load_speed: technicalAudit.loadSpeed,
       mobile_friendly: technicalAudit.mobileFriendly,
+      https_url: technicalAudit.httpsUrl,
       ssl_enabled: technicalAudit.sslEnabled,
+      measurement_status: technicalAudit.measurementStatus,
       issues: technicalAudit.issues,
     },
     conversion_leaks: conversionLeaks,
+    conversion_observation_basis: "inferred_from_screenshot",
     competitor_analysis: {
+      status: competitorAnalysis.status,
       competitor_url: competitorAnalysis.competitorUrl,
       gap_found: competitorAnalysis.gapFound,
     },
     revenue_impact: {
-      annual_loss: revenueLoss.annualLoss,
-      monthly_loss: revenueLoss.monthlyLoss,
-      explanation: revenueLoss.explanation,
+      status: revenueImpact.status,
+      annual_loss: revenueImpact.annualLoss,
+      monthly_loss: revenueImpact.monthlyLoss,
+      explanation: revenueImpact.explanation,
     },
-    suggested_fix: `Redesign with modern UI, optimize for mobile, add clear CTAs, and improve page speed to recover an estimated $${revenueLoss.annualLoss.toLocaleString()}/year in lost revenue.`,
+    suggested_fix:
+      "Review the classified visual, navigation, and contact-path observations. Measure mobile behavior and performance separately before making technical or business-impact claims.",
   };
-  
+
   // ── Email Enrichment & Outreach Routing ──────────────────────────────────
   let verifiedEmail: string | null = null;
-  let outreachChannel: "email" | "sms" | "none" = "none";
-  let smsSent = false;
+  let outreachChannel: "email" | "none" = "none";
 
   try {
     const domain = lead.websiteUrl
@@ -254,37 +245,49 @@ export async function enrichLead(lead: {
       .replace(/^www\./, "")
       .split("/")[0];
 
-    const contact: EnrichedContact | null = await findVerifiedOwnerEmail(domain);
+    const contact: EnrichedContact | null = await findVerifiedOwnerEmail(
+      domain,
+      {
+        userId: lead.userId,
+        leadId: lead.id,
+      }
+    );
 
     if (contact) {
       verifiedEmail = contact.email;
       outreachChannel = "email";
       console.log(
-        `[Enrichment] Found verified email for ${lead.companyName}: ${contact.email} (${contact.confidence}% confidence via ${contact.source})`
+        `[Enrichment] Found a verified owner email for ${lead.companyName} (${contact.confidence}% confidence via ${contact.source})`
       );
     } else if (lead.phone) {
-      // No verified email — mark SMS as available channel but DO NOT auto-send.
-      // Operator must explicitly approve an SMS draft before any message is sent.
-      outreachChannel = "sms";
-      console.log(`[Enrichment] No email found for ${lead.companyName} — SMS channel available (phone: ${lead.phone}). Requires operator approval before sending.`);
-      // smsSent remains false — no automatic outreach
+      outreachChannel = "none";
+      console.log(
+        `[Enrichment] No verified email found for ${lead.companyName}. The public phone is retained for research only; cold SMS is disabled.`
+      );
     } else {
-      console.log(`[Enrichment] No email or phone for ${lead.companyName} — no outreach channel available`);
+      console.log(
+        `[Enrichment] No email or phone for ${lead.companyName} — no outreach channel available`
+      );
     }
   } catch (enrichErr) {
-    console.error(`[Enrichment] Email enrichment error for ${lead.companyName}:`, enrichErr);
+    console.error(
+      `[Enrichment] Email enrichment error for ${lead.companyName}:`,
+      enrichErr
+    );
   }
 
-  console.log(`[Enrichment] Completed for ${lead.companyName} - Annual loss: $${revenueLoss.annualLoss} | Channel: ${outreachChannel}`);
+  console.log(
+    `[Enrichment] Completed for ${lead.companyName} - Revenue impact not measured | Channel: ${outreachChannel}`
+  );
 
   return {
     detailedReport,
     revenueLoss: {
-      annual: revenueLoss.annualLoss,
-      monthly: revenueLoss.monthlyLoss,
+      status: "not_measured",
+      annual: null,
+      monthly: null,
     },
     verifiedEmail,
     outreachChannel,
-    smsSent,
   };
 }
