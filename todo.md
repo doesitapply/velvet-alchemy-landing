@@ -1097,3 +1097,7 @@
 - [ ] Set `VELVET_ALCHEMY_HANDOFF_API_KEY` in SMIRK Railway to a dedicated Velvet Alchemy `outcome:write` API key
 - [ ] Set `VELVET_ALCHEMY_WORKSPACE_ID=1` in SMIRK Railway and restart/redeploy the receiver
 - [ ] Run `pnpm test:smirk-live` after the receiver configuration is installed; require 201 RECEIVED then 200 DUPLICATE
+
+## API Keys Navigation Regression (CURRENT)
+- [x] Remove duplicate `/leads` navigation key causing React reconciliation warnings on `/api-keys`
+- [x] Add a regression test that enforces unique navigation route paths

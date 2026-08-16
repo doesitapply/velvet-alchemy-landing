@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Key, Plus, Trash2, Copy, CheckCircle, AlertCircle, Clock, Zap, Phone, ExternalLink } from "lucide-react";
+import { getApiEndpointKey } from "@shared/apiEndpointKey";
 
 const SCOPE_OPTIONS = [
   { value: "leads:read", label: "Read Leads", description: "GET /leads, GET /leads/:id" },
@@ -412,7 +413,7 @@ export default function ApiKeys() {
               { method: "POST", path: "/leads/:id/handoff", desc: "Queue SMIRK call", scope: "handoff:write" },
               { method: "POST", path: "/leads/:id/outcome", desc: "Post call result", scope: "outcome:write" },
             ].map(ep => (
-              <div key={ep.path} className="flex items-center gap-2 p-2 bg-muted/40 rounded">
+              <div key={getApiEndpointKey(ep)} className="flex items-center gap-2 p-2 bg-muted/40 rounded">
                 <Badge
                   variant={ep.method === "GET" ? "secondary" : "default"}
                   className="text-xs w-12 justify-center shrink-0"
