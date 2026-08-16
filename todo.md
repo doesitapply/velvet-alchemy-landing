@@ -1110,3 +1110,6 @@
 - [x] Consolidate API key and integration setup into an operator-grade SMIRK connection panel
 - [x] Preserve fail-closed behavior: no automatic contact, no simulated operational metrics, and clear missing-configuration states
 - [x] Add regression tests for the rebuilt console’s state derivation and handoff gating
+
+## Console Metadata Cleanup (CURRENT)
+- [x] Replace the legacy browser title "Revenue Instrument" with the private SMIRK operator-console identity
