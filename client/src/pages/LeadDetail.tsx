@@ -1,828 +1,105 @@
-import { Link, useRoute } from "wouter";
-import { useState } from "react";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign, PhoneCall, CheckCircle2, XCircle, PhoneMissed } from "lucide-react";
-import { toast } from "sonner";
-import { getLoginUrl } from "@/const";
-import { EmailComposeDialog } from "@/components/EmailComposeDialog";
-import AppHeader from "@/components/AppHeader";
-import { AuditProgressBar } from "@/components/AuditProgressBar";
-import { ReportDrawer } from "@/components/ReportDrawer";
-import { WebsiteEditorModal, WebsiteCustomizations } from "@/components/WebsiteEditorModal";
+import { OperatorShell, SmirkReceiverPill } from "@/components/OperatorShell";
+import { trpc } from "@/lib/trpc";
 import { buildSmirkHandoffConfirmation } from "@shared/smirkHandoffConfirmation";
+import { isReadyForSmirkReview } from "@shared/smirkLifecycle";
+import { ArrowLeft, CheckCircle2, ChevronRight, CircleAlert, ExternalLink, Loader2, MapPin, PhoneCall, PhoneMissed, Play, Radio, ShieldCheck, Sparkles, XCircle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, useRoute } from "wouter";
+import { toast } from "sonner";
+
+function leadStatus(status: string, outcome?: string | null) {
+  if (outcome) return { label: outcome.replace(/_/g, " "), className: "border-cyan-300/20 bg-cyan-300/10 text-cyan-100" };
+  if (status === "smirk_queued") return { label: "Queued in SMIRK", className: "border-violet-300/20 bg-violet-300/10 text-violet-100" };
+  if (status === "smirk_contacted") return { label: "SMIRK contacted", className: "border-blue-300/20 bg-blue-300/10 text-blue-100" };
+  if (status === "audited") return { label: "Ready for review", className: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100" };
+  if (status === "pending") return { label: "Audit pending", className: "border-amber-300/20 bg-amber-300/10 text-amber-100" };
+  return { label: status.replace(/_/g, " "), className: "border-white/[0.1] bg-white/[0.04] text-slate-300" };
+}
+
+function OutcomeIcon({ outcome }: { outcome?: string | null }) {
+  if (outcome === "interested" || outcome === "booked") return <CheckCircle2 className="h-4 w-4 text-emerald-300" />;
+  if (outcome === "not_interested") return <XCircle className="h-4 w-4 text-rose-300" />;
+  if (outcome === "no_answer" || outcome === "voicemail") return <PhoneMissed className="h-4 w-4 text-amber-300" />;
+  return <PhoneCall className="h-4 w-4 text-cyan-300" />;
+}
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
-  const leadId = params?.id ? parseInt(params.id) : null;
-  const { user, loading: authLoading } = useAuth();
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [reportDrawerOpen, setReportDrawerOpen] = useState(false);
-  const [editorModalOpen, setEditorModalOpen] = useState(false);
-  const [generatedHtml, setGeneratedHtml] = useState<string>("");
-  const [selectedPackage, setSelectedPackage] = useState<'basic' | 'standard' | 'premium'>('standard');
+  const leadId = params?.id ? Number(params.id) : null;
   const [handoffConfirmOpen, setHandoffConfirmOpen] = useState(false);
-
-  const { data, isLoading, error, refetch } = trpc.leads.getById.useQuery(
-    { id: leadId! },
-    { enabled: !!leadId && !!user }
-  );
-
-  const { data: assets, isLoading: assetsLoading, refetch: refetchAssets } = trpc.visionary.getAssets.useQuery(
-    { leadId: leadId! },
-    { enabled: !!leadId && !!user }
-  );
-
-  const generateAssets = trpc.visionary.generateAssets.useMutation({
-    onSuccess: () => {
-      toast.success("Assets generated successfully!");
-      refetchAssets();
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate assets: ${error.message}`);
-    },
-  });
-
-  const generateDraft = trpc.charmer.generateDraft.useMutation({
-    onSuccess: () => {
-      toast.success("Draft generated! Check the Charmer page to review.");
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate draft: ${error.message}`);
-    },
-  });
-
-  const generateOutreach = trpc.outreach.generateOutreachEmail.useMutation({
-    onSuccess: () => {
-      toast.success("Outreach email generated! Check the Approval Queue to review.");
-      window.location.href = "/outreach-approval";
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate outreach: ${error.message}`);
-    },
-  });
-
-  const generateWebsite = trpc.websiteGenerator.generate.useMutation({
-    onSuccess: (data) => {
-      toast.success("Website generated! Opening editor...");
-      setGeneratedHtml(data.html || "");
-      setEditorModalOpen(true);
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to generate website: ${error.message}`);
-    },
-  });
-
-  const saveCustomizations = trpc.websiteGenerator.saveCustomizations.useMutation({
-    onSuccess: () => {
-      toast.success("Website updated successfully!");
-      setEditorModalOpen(false);
-      refetch();
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to save customizations: ${error.message}`);
-    },
-  });
-
-  const handleSaveCustomizations = (customizations: WebsiteCustomizations) => {
-    saveCustomizations.mutate({
-      leadId: leadId!,
-      customizations,
-    });
-  };
-
-  const downloadWebsite = trpc.websiteGenerator.downloadZip.useMutation({
-    onSuccess: async (data) => {
-      toast.success("Downloading website...");
-      // Trigger browser download
-      const link = document.createElement('a');
-      link.href = `/api/download/${data.filename}`;
-      link.download = data.filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to download website: ${error.message}`);
-    },
-  });
-
-  const createInvoice = trpc.payment.createCheckoutSession.useMutation({
-    onSuccess: (data) => {
-      if (data.checkoutUrl) {
-        // Copy to clipboard
-        navigator.clipboard.writeText(data.checkoutUrl);
-        toast.success("Payment link copied to clipboard!");
-        // Open in new tab
-        window.open(data.checkoutUrl, "_blank", "noopener,noreferrer");
-      }
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to create payment link: ${error.message}`);
-    },
-  });
-
-
-
-  const triggerHandoff = trpc.leads.triggerHandoff.useMutation({
-    onSuccess: (data) => {
-      toast.success(`SMIRK handoff accepted — ${data.state}`);
-      setHandoffConfirmOpen(false);
-      refetch();
-    },
-    onError: (error: any) => {
-      toast.error(`Handoff failed: ${error.message}`);
-    },
-  });
-
-  const sendDirectEmail = trpc.charmer.sendDirectEmail.useMutation({
-    onSuccess: () => {
-      toast.success("Email sent successfully!");
-      setEmailDialogOpen(false);
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to send email: ${error.message}`);
-    },
-  });
-
-  // Email generation query (returns email content for manual sending via Gmail MCP)
-  const [emailData, setEmailData] = useState<any>(null);
-  
-  const handleGenerateEmail = async () => {
-    try {
-      const utils = trpc.useUtils();
-      const result = await utils.email.generateOutreach.fetch({ leadId: leadId! });
-      setEmailData(result);
-      
-      // Copy email to clipboard for easy pasting
-      const emailText = `To: ${result.to}\nSubject: ${result.subject}\n\n${result.body}`;
-      await navigator.clipboard.writeText(emailText);
-      
-      toast.success("Email content copied to clipboard! Use Gmail to send.");
-    } catch (error: any) {
-      toast.error(`Failed to generate email: ${error.message}`);
-    }
-  };
-
+  const detailQuery = trpc.leads.getById.useQuery({ id: leadId ?? 0 }, { enabled: Boolean(leadId) });
+  const smirkQuery = trpc.leads.smirkStats.useQuery(undefined, { refetchInterval: 30_000 });
   const startAudit = trpc.orchestrator.executePipeline.useMutation({
-    onSuccess: () => {
-      toast.success("Audit started! This will take 2-3 minutes.");
-      // No need to refetch - AuditProgressBar will handle updates
+    onSuccess: () => toast.success("Audit started. This record will refresh as stages complete."),
+    onError: error => toast.error(`Audit could not start: ${error.message}`),
+  });
+  const triggerHandoff = trpc.leads.triggerHandoff.useMutation({
+    onSuccess: result => {
+      toast.success(`SMIRK handoff accepted — ${result.state}`);
+      setHandoffConfirmOpen(false);
+      detailQuery.refetch();
+      smirkQuery.refetch();
     },
-    onError: (error: any) => {
-      toast.error(`Failed to start audit: ${error.message}`);
-    },
+    onError: error => toast.error(`Handoff blocked: ${error.message}`),
   });
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+  const parsedAudit = useMemo(() => {
+    const raw = detailQuery.data?.audit?.visualDebtData;
+    if (!raw) return null;
+    try { return JSON.parse(raw) as { strengths?: string[]; weaknesses?: string[]; visualDebt?: Array<{ severity?: string; category?: string; issue?: string; recommendation?: string }> }; }
+    catch { return null; }
+  }, [detailQuery.data?.audit?.visualDebtData]);
+
+  const record = detailQuery.data;
+
+  if (!leadId || detailQuery.isError || (!detailQuery.isLoading && !record)) {
+    return <OperatorShell eyebrow="LEAD INTELLIGENCE" title="Lead unavailable" description="This record could not be loaded or is no longer available."><Link href="/smirk-queue"><Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" /> Back to queue</Button></Link></OperatorShell>;
+  }
+  if (detailQuery.isLoading) {
+    return <OperatorShell eyebrow="LEAD INTELLIGENCE" title="Loading lead record"><div className="grid min-h-72 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-violet-300" /></div></OperatorShell>;
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="p-8 max-w-md text-center space-y-4">
-          <h2 className="text-2xl font-serif italic">Authentication Required</h2>
-          <Button asChild className="w-full">
-            <a href={getLoginUrl()}>Login</a>
-          </Button>
-        </Card>
-      </div>
-    );
+  if (!record) {
+    return <OperatorShell eyebrow="LEAD INTELLIGENCE" title="Loading lead record"><div className="grid min-h-72 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-violet-300" /></div></OperatorShell>;
   }
 
-  if (!leadId) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="p-8 max-w-md text-center space-y-4">
-          <h2 className="text-2xl font-serif italic">Invalid Lead ID</h2>
-          <Button asChild>
-            <Link href="/command-center">Back to Dashboard</Link>
-          </Button>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="p-8 max-w-md text-center space-y-4">
-          <h2 className="text-2xl font-serif italic">Lead Not Found</h2>
-          <p className="text-muted-foreground font-mono text-sm">
-            {error?.message || "The requested lead could not be found."}
-          </p>
-          <Button asChild>
-            <Link href="/command-center">Back to Dashboard</Link>
-          </Button>
-        </Card>
-      </div>
-    );
-  }
-
-  const { lead, audit } = data;
-  const handoffConfirmation = buildSmirkHandoffConfirmation({
-    leadId: lead.id,
-    companyName: lead.companyName,
-    phone: String((lead as any).phone ?? ""),
-  });
+  const { lead, audit } = record;
+  const canHandoff = isReadyForSmirkReview(lead);
+  const status = leadStatus(lead.status, lead.smirkCallOutcome);
+  const handoffConfirmation = buildSmirkHandoffConfirmation({ leadId: lead.id, companyName: lead.companyName, phone: String(lead.phone ?? "") });
+  const auditScore = audit?.prestigeScore ?? lead.prestigeScore;
+  const auditScoreColor = auditScore === null || auditScore === undefined ? "text-slate-400" : auditScore < 40 ? "text-rose-200" : auditScore < 60 ? "text-amber-200" : "text-emerald-200";
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader />
-
-      {/* Main Content */}
-      <main className="container py-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Lead Header */}
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-4xl font-serif italic mb-2">{lead.companyName}</h1>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground font-mono">
-                <span>Created: {new Date(lead.createdAt).toLocaleDateString()}</span>
-                <span>•</span>
-                <span className={`px-2 py-1 rounded-sm ${
-                  lead.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
-                  lead.status === 'audited' ? 'bg-green-500/10 text-green-500' :
-                  lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-500' :
-                  lead.status === 'smirk_queued' ? 'bg-violet-500/10 text-violet-400' :
-                  lead.status === 'smirk_contacted' ? 'bg-indigo-500/10 text-indigo-400' :
-                  'bg-gray-500/10 text-gray-500'
-                }`}>
-                  {lead.status === 'smirk_queued' ? '⚡ SMIRK QUEUED' :
-                   lead.status === 'smirk_contacted' ? '⚡ SMIRK CONTACTED' :
-                   lead.status.toUpperCase()}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {['audited', 'contacted'].includes(lead.status) && (lead as any).phone && (
-                <Button
-                  onClick={() => setHandoffConfirmOpen(true)}
-                  disabled={triggerHandoff.isPending}
-                  size="lg"
-                  className="gap-2 bg-violet-600 hover:bg-violet-500 text-white border border-violet-400/30"
-                >
-                  {triggerHandoff.isPending ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Queuing...</>
-                  ) : (
-                    <><PhoneCall className="h-4 w-4" />Review SMIRK Handoff</>
-                  )}
-                </Button>
-              )}
-              {lead.status === 'pending' && (
-                <Button
-                  onClick={() => startAudit.mutate({ leadId: lead.id })}
-                  disabled={startAudit.isPending}
-                  size="lg"
-                  className="gap-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 text-xl px-8 py-6 font-bold shadow-lg shadow-cyan-500/50 border-2 border-cyan-400/50 transition-all duration-300 hover:scale-105"
-                >
-                  {startAudit.isPending ? (
-                    <>
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                      Starting Audit...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-6 w-6" />
-                      START AUDIT NOW
-                    </>
-                  )}
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="lg"
-                className="border-2 border-white/30 gap-2"
-                onClick={() => window.open(lead.websiteUrl, "_blank", "noopener,noreferrer")}
-              >
-                Visit Site
-                <ExternalLink className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-
-          <AlertDialog open={handoffConfirmOpen} onOpenChange={setHandoffConfirmOpen}>
-            <AlertDialogContent className="border-violet-500/40">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="flex items-center gap-2">
-                  <PhoneCall className="h-5 w-5 text-violet-400" />
-                  {handoffConfirmation.title}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {handoffConfirmation.description}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1 text-sm">
-                {handoffConfirmation.target.map(([label, value]) => (
-                  <p key={label}><span className="text-muted-foreground">{label}:</span> {value}</p>
-                ))}
-                <p className="pt-2 text-xs text-muted-foreground">{handoffConfirmation.warning}</p>
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={triggerHandoff.isPending}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={triggerHandoff.isPending}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    triggerHandoff.mutate({ id: lead.id });
-                  }}
-                  className="bg-violet-600 hover:bg-violet-500"
-                >
-                  {triggerHandoff.isPending ? "Submitting…" : handoffConfirmation.actionLabel}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Progress Bar */}
-          {lead.status === 'pending' && (
-            <AuditProgressBar 
-              leadId={lead.id} 
-              onComplete={() => {
-                toast.success("Audit completed!");
-                refetch(); // Refetch lead data instead of reloading page
-              }}
-              onError={(error) => {
-                toast.error(`Audit failed: ${error}`);
-              }}
-            />
-          )}
-
-          {/* Screenshot */}
-          {lead.screenshotUrl && (
-            <Card className="p-4">
-              <h2 className="text-xl font-serif italic mb-4">Visual Capture</h2>
-              <div className="border border-border rounded-sm overflow-hidden">
-                <img 
-                  src={lead.screenshotUrl} 
-                  alt={`Screenshot of ${lead.companyName}`}
-                  className="w-full h-auto"
-                />
-              </div>
-            </Card>
-          )}
-
-          {/* Audit Summary */}
-          {audit && (
-            <Card className="p-6">
-              <h2 className="text-xl font-serif italic mb-4">Audit Report</h2>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-mono text-muted-foreground mb-2">SUMMARY</h3>
-                  <p className="text-sm">{audit.summary || "No summary available"}</p>
-                </div>
-                
-                {audit.prestigeScore !== null && (
-                  <div>
-                    <h3 className="text-sm font-mono text-muted-foreground mb-2">PRESTIGE SCORE</h3>
-                    <div className="flex items-center gap-4">
-                      <div className="text-5xl font-serif italic">{audit.prestigeScore}</div>
-                      <div className="flex-1">
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all ${
-                              audit.prestigeScore >= 80 ? 'bg-green-500' :
-                              audit.prestigeScore >= 60 ? 'bg-yellow-500' :
-                              audit.prestigeScore >= 40 ? 'bg-orange-500' :
-                              'bg-red-500'
-                            }`}
-                            style={{ width: `${audit.prestigeScore}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {audit.prestigeScore >= 80 ? 'Exceptional' :
-                           audit.prestigeScore >= 60 ? 'Good' :
-                           audit.prestigeScore >= 40 ? 'Needs Improvement' :
-                           'Critical Issues'}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => setReportDrawerOpen(true)}
-                      variant="outline"
-                      className="mt-4"
-                    >
-                      View Detailed Report
-                    </Button>
-                  </div>
-                )}
-
-                {/* Visual Debt Breakdown */}
-                {audit.visualDebtData && (() => {
-                  try {
-                    const auditData = JSON.parse(audit.visualDebtData);
-                    return (
-                      <>
-                        {/* Strengths & Weaknesses */}
-                        <div className="grid md:grid-cols-2 gap-4">
-                          {auditData.strengths && auditData.strengths.length > 0 && (
-                            <div>
-                              <h3 className="text-sm font-mono text-muted-foreground mb-2">STRENGTHS</h3>
-                              <ul className="space-y-1">
-                                {auditData.strengths.map((strength: string, i: number) => (
-                                  <li key={i} className="text-sm flex items-start gap-2">
-                                    <span className="text-green-500 mt-0.5">✓</span>
-                                    <span>{strength}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {auditData.weaknesses && auditData.weaknesses.length > 0 && (
-                            <div>
-                              <h3 className="text-sm font-mono text-muted-foreground mb-2">WEAKNESSES</h3>
-                              <ul className="space-y-1">
-                                {auditData.weaknesses.map((weakness: string, i: number) => (
-                                  <li key={i} className="text-sm flex items-start gap-2">
-                                    <span className="text-red-500 mt-0.5">✗</span>
-                                    <span>{weakness}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Visual Debt Items */}
-                        {auditData.visualDebt && auditData.visualDebt.length > 0 && (
-                          <div>
-                            <h3 className="text-sm font-mono text-muted-foreground mb-3">VISUAL DEBT ANALYSIS</h3>
-                            <div className="space-y-3">
-                              {auditData.visualDebt.map((item: any, i: number) => (
-                                <div key={i} className="border border-border rounded-sm p-4 space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-xs px-2 py-1 rounded-sm font-mono ${
-                                      item.severity === 'critical' ? 'bg-red-500/10 text-red-500' :
-                                      item.severity === 'high' ? 'bg-orange-500/10 text-orange-500' :
-                                      item.severity === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
-                                      'bg-blue-500/10 text-blue-500'
-                                    }`}>
-                                      {item.severity.toUpperCase()}
-                                    </span>
-                                    <span className="text-xs px-2 py-1 rounded-sm font-mono bg-muted">
-                                      {item.category.toUpperCase()}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium">{item.issue}</p>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      <span className="font-mono text-xs">→</span> {item.recommendation}
-                                    </p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    );
-                  } catch (e) {
-                    return null;
-                  }
-                })()}
-
-                <div>
-                  <h3 className="text-sm font-mono text-muted-foreground mb-2">AUDIT DATE</h3>
-                  <p className="text-sm">{new Date(audit.createdAt).toLocaleString()}</p>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* SMIRK Outcome Panel */}
-          {(lead.status === 'smirk_queued' || lead.status === 'smirk_contacted' || (lead as any).smirkCallOutcome) && (
-            <Card className="p-6 border-violet-500/20 bg-violet-500/5">
-              <div className="flex items-center gap-3 mb-4">
-                <PhoneCall className="h-5 w-5 text-violet-400" />
-                <h2 className="text-xl font-serif italic text-violet-300">SMIRK Call Intelligence</h2>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div>
-                  <h3 className="text-xs font-mono text-muted-foreground mb-1">STATUS</h3>
-                  <span className={`text-sm font-mono px-2 py-0.5 rounded-sm ${
-                    lead.status === 'smirk_queued' ? 'bg-violet-500/20 text-violet-300' :
-                    lead.status === 'smirk_contacted' ? 'bg-indigo-500/20 text-indigo-300' :
-                    'bg-white/10 text-white/60'
-                  }`}>
-                    {lead.status === 'smirk_queued' ? 'Queued' :
-                     lead.status === 'smirk_contacted' ? 'Contacted' : lead.status}
-                  </span>
-                </div>
-                {(lead as any).smirkCallOutcome && (
-                  <div>
-                    <h3 className="text-xs font-mono text-muted-foreground mb-1">OUTCOME</h3>
-                    <div className="flex items-center gap-1.5">
-                      {(lead as any).smirkCallOutcome === 'interested' ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-400" />
-                      ) : (lead as any).smirkCallOutcome === 'not_interested' ? (
-                        <XCircle className="h-4 w-4 text-red-400" />
-                      ) : (lead as any).smirkCallOutcome === 'no_answer' ? (
-                        <PhoneMissed className="h-4 w-4 text-amber-400" />
-                      ) : (
-                        <PhoneCall className="h-4 w-4 text-blue-400" />
-                      )}
-                      <span className="text-sm font-mono capitalize">
-                        {((lead as any).smirkCallOutcome as string).replace(/_/g, ' ')}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {(lead as any).smirkHandoffAt && (
-                  <div>
-                    <h3 className="text-xs font-mono text-muted-foreground mb-1">QUEUED AT</h3>
-                    <p className="text-sm font-mono">{new Date((lead as any).smirkHandoffAt).toLocaleString()}</p>
-                  </div>
-                )}
-                {(lead as any).smirkWorkspaceId && (
-                  <div>
-                    <h3 className="text-xs font-mono text-muted-foreground mb-1">WORKSPACE</h3>
-                    <p className="text-sm font-mono text-muted-foreground">{(lead as any).smirkWorkspaceId}</p>
-                  </div>
-                )}
-              </div>
-              {(lead as any).smirkCallSummary && (
-                <div className="border-t border-violet-500/20 pt-4">
-                  <h3 className="text-xs font-mono text-muted-foreground mb-2">CALL SUMMARY</h3>
-                  <p className="text-sm leading-relaxed">{(lead as any).smirkCallSummary}</p>
-                </div>
-              )}
-            </Card>
-          )}
-
-          {/* Assets Section */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-serif italic">Generated Assets</h2>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => generateAssets.mutate({ leadId: leadId! })}
-                  disabled={generateAssets.isPending || assetsLoading}
-                  variant="default"
-                >
-                  {generateAssets.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate Assets
-                    </>
-                  )}
-                </Button>
-                {lead.status === 'audited' && lead.detailedReport && (
-                  <>
-                    <Button
-                      onClick={() => generateWebsite.mutate({ leadId: leadId! })}
-                      disabled={generateWebsite.isPending}
-                      variant="default"
-                      className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500"
-                    >
-                      {generateWebsite.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Generating Website...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Generate Website
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={() => downloadWebsite.mutate({ leadId: leadId! })}
-                      disabled={downloadWebsite.isPending}
-                      variant="outline"
-                      className="border-green-500 text-green-500 hover:bg-green-500/10"
-                    >
-                      {downloadWebsite.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Preparing...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Download ZIP
-                        </>
-                      )}
-                    </Button>
-                    <Select
-                      value={selectedPackage}
-                      onValueChange={(value: 'basic' | 'standard' | 'premium') => setSelectedPackage(value)}
-                    >
-                      <SelectTrigger className="w-[280px] border-2 border-gold/30 bg-background/50">
-                        <SelectValue placeholder="Select package" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="basic">
-                          <div className="flex flex-col">
-                            <span className="font-bold">💎 Basic - $3,000</span>
-                            <span className="text-xs text-muted-foreground">Single-page website</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="standard">
-                          <div className="flex flex-col">
-                            <span className="font-bold">🏆 Standard - $5,000</span>
-                            <span className="text-xs text-muted-foreground">Multi-page website</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="premium">
-                          <div className="flex flex-col">
-                            <span className="font-bold">👑 Premium - $8,000</span>
-                            <span className="text-xs text-muted-foreground">Full website + extras</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={() => createInvoice.mutate({ 
-                        leadId: leadId!,
-                        packageType: selectedPackage
-                      })}
-                      disabled={createInvoice.isPending}
-                      variant="default"
-                      className="bg-gradient-to-r from-gold to-yellow-600 hover:from-gold/90 hover:to-yellow-500 text-black font-bold"
-                    >
-                      {createInvoice.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        <>
-                          <DollarSign className="mr-2 h-4 w-4" />
-                          Send Invoice
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {assetsLoading ? (
-              <div className="flex items-center justify-center p-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : assets && assets.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {assets.map((asset: any) => (
-                  <div key={asset.id} className="border border-border rounded-sm p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-mono uppercase text-muted-foreground">
-                        {asset.type.replace(/_/g, " ")}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(asset.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <img
-                      src={asset.url}
-                      alt={asset.type}
-                      className="w-full rounded-sm border border-border"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => window.open(asset.url, "_blank")}
-                    >
-                      View Full Size
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 space-y-4">
-                <Sparkles className="h-12 w-12 mx-auto text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  No assets generated yet. Click "Generate Assets" to create high-fidelity visual assets for this lead.
-                </p>
-              </div>
-            )}
-          </Card>
-
-          {/* Outreach Section */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-serif italic">Outreach</h2>
-              <div className="flex items-center gap-2">
-                {data.lead.status === 'audited' && data.lead.detailedReport && (
-                  <Button
-                    onClick={handleGenerateEmail}
-                    variant="default"
-                  >
-                    <Send className="mr-2 h-4 w-4" />
-                    Copy Email to Clipboard
-                  </Button>
-                )}
-                <Button
-                  onClick={() => setEmailDialogOpen(true)}
-                  variant="outline"
-                >
-                  <Mail className="mr-2 h-4 w-4" />
-                  Custom Email
-                </Button>
-                <Button
-                  onClick={() => generateDraft.mutate({ leadId: leadId! })}
-                  disabled={generateDraft.isPending}
-                  variant="outline"
-                >
-                  {generateDraft.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Draft...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Generate Draft (Old)
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={() => {
-                    generateOutreach.mutate({ leadId: leadId! });
-                  }}
-                  disabled={generateOutreach.isPending}
-                >
-                  {generateOutreach.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate AI Outreach
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Send an email directly or generate a personalized draft based on the visual audit.
-            </p>
-          </Card>
-
-          {/* Email Compose Dialog */}
-          <EmailComposeDialog
-            open={emailDialogOpen}
-            onOpenChange={setEmailDialogOpen}
-            defaultTo=""
-            defaultSubject={`Website Audit Results - ${lead.companyName}`}
-            defaultBody={audit ? `Hi,\n\nI recently reviewed ${lead.companyName}'s website (${lead.websiteUrl}) and wanted to share some insights.\n\nPrestige Score: ${audit.prestigeScore}/100\n\nSummary: ${audit.summary}\n\nI'd love to discuss how we can help improve your online presence.\n\nBest regards` : `Hi,\n\nI wanted to reach out regarding ${lead.companyName}'s website.\n\nBest regards`}
-            onSend={async (data) => {
-              await sendDirectEmail.mutateAsync({
-                leadId: leadId!,
-                to: data.to,
-                subject: data.subject,
-                body: data.body,
-              });
-            }}
-            isLoading={sendDirectEmail.isPending}
-          />
-
-          {/* Report Drawer */}
-          <ReportDrawer
-            isOpen={reportDrawerOpen}
-            onClose={() => setReportDrawerOpen(false)}
-            companyName={lead.companyName}
-            prestigeScore={audit?.prestigeScore || 0}
-            detailedReport={lead.detailedReport ? JSON.parse(lead.detailedReport) : null}
-          />
-
-          {/* Website Editor Modal */}
-          <WebsiteEditorModal
-            open={editorModalOpen}
-            onOpenChange={setEditorModalOpen}
-            leadId={leadId!}
-            initialHtml={generatedHtml}
-            onSave={handleSaveCustomizations}
-            isSaving={saveCustomizations.isPending}
-          />
+    <OperatorShell
+      eyebrow="LEAD INTELLIGENCE"
+      title={lead.companyName}
+      description="The evidence and decision record for this specific business. SMIRK receives a brief only after explicit operator confirmation."
+      actions={<Link href="/smirk-queue"><Button size="sm" variant="outline" className="border-white/[0.1] bg-white/[0.03] text-slate-200 hover:bg-white/[0.08]"><ArrowLeft className="mr-2 h-3.5 w-3.5" /> Queue</Button></Link>}
+    >
+      <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="rounded-2xl border border-white/[0.08] bg-[#0d0f17]/85 p-5 md:p-6">
+          <div className="flex flex-col gap-5 md:flex-row md:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Badge className={`border text-xs capitalize ${status.className}`}>{status.label}</Badge>{lead.category && <Badge variant="outline" className="border-white/[0.1] bg-white/[0.025] text-xs text-slate-400">{lead.category}</Badge>}</div><h2 className="mt-4 text-2xl font-semibold tracking-tight text-white md:text-3xl">{lead.companyName}</h2><div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">{lead.phone && <span className="flex items-center gap-1.5"><PhoneCall className="h-3.5 w-3.5 text-slate-600" />{lead.phone}</span>}{(lead.city || lead.state) && <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-600" />{[lead.city, lead.state].filter(Boolean).join(", ")}</span>}<span>Created {new Date(lead.createdAt).toLocaleDateString()}</span></div></div><Button variant="outline" className="h-9 shrink-0 border-white/[0.1] bg-white/[0.025] text-slate-300 hover:bg-white/[0.08]" onClick={() => window.open(lead.websiteUrl, "_blank", "noopener,noreferrer")}>Open website <ExternalLink className="ml-2 h-3.5 w-3.5" /></Button></div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3"><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-600">AUDIT SCORE</p><p className={`mt-2 text-2xl font-semibold ${auditScoreColor}`}>{auditScore ?? "—"}</p></div><div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3"><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-600">PHONE</p><p className="mt-2 text-sm font-medium text-slate-200">{lead.phone ? "Present" : "Missing"}</p></div><div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3"><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-600">HANDOFF</p><p className="mt-2 text-sm font-medium text-slate-200">{lead.smirkHandoffAt ? new Date(lead.smirkHandoffAt).toLocaleDateString() : "Not submitted"}</p></div></div>
         </div>
-      </main>
-    </div>
+
+        <aside className="rounded-2xl border border-violet-300/20 bg-gradient-to-br from-violet-400/[0.12] to-[#0d0f17] p-5"><div className="flex items-start justify-between"><div><p className="text-[11px] font-semibold tracking-[0.16em] text-violet-200">SMIRK DECISION</p><h2 className="mt-2 text-lg font-semibold text-white">{canHandoff ? "Ready for operator review" : "Not ready to hand off"}</h2></div><Radio className="h-5 w-5 text-violet-200" /></div><div className="mt-4"><SmirkReceiverPill state={smirkQuery.data?.diagnostics.state} /></div><p className="mt-4 text-xs leading-5 text-slate-300">{canHandoff ? "Open the confirmation step to inspect the exact target before the brief is submitted to SMIRK." : lead.status === "pending" ? "Run the audit first. A lead cannot reach SMIRK before evidence is captured." : "A phone number and audited lead state are required before a SMIRK handoff can be reviewed."}</p><div className="mt-5">{lead.status === "pending" ? <Button className="w-full bg-cyan-500 text-white hover:bg-cyan-400" disabled={startAudit.isPending} onClick={() => startAudit.mutate({ leadId: lead.id })}>{startAudit.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Starting audit</> : <><Play className="mr-2 h-4 w-4" /> Start audit</>}</Button> : canHandoff ? <Button className="w-full bg-violet-500 text-white hover:bg-violet-400" disabled={triggerHandoff.isPending || smirkQuery.data?.diagnostics.state !== "reachable"} onClick={() => setHandoffConfirmOpen(true)}><PhoneCall className="mr-2 h-4 w-4" /> Review SMIRK handoff</Button> : <Button className="w-full" variant="outline" disabled><CircleAlert className="mr-2 h-4 w-4" /> Missing handoff requirements</Button>}</div></aside>
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="space-y-5">
+          <Card className="rounded-2xl border-white/[0.08] bg-[#0d0f17]/80 p-5 shadow-none"><div className="flex items-center justify-between"><div><p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">AUDIT EVIDENCE</p><h2 className="mt-1 text-lg font-semibold text-white">What Velvet observed</h2></div><Sparkles className="h-4 w-4 text-cyan-200" /></div>{audit ? <div className="mt-5 space-y-5"><p className="text-sm leading-6 text-slate-300">{audit.summary || "No audit summary is available for this lead."}</p>{parsedAudit && <div className="grid gap-4 md:grid-cols-2">{parsedAudit.strengths?.length ? <div className="rounded-xl border border-emerald-300/10 bg-emerald-300/[0.035] p-4"><p className="text-[10px] font-semibold tracking-[0.15em] text-emerald-200">SIGNALS TO PRESERVE</p><ul className="mt-3 space-y-2">{parsedAudit.strengths.slice(0, 5).map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-xs leading-5 text-slate-300"><CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300" />{item}</li>)}</ul></div> : null}{parsedAudit.weaknesses?.length ? <div className="rounded-xl border border-rose-300/10 bg-rose-300/[0.035] p-4"><p className="text-[10px] font-semibold tracking-[0.15em] text-rose-200">CALL-RELEVANT GAPS</p><ul className="mt-3 space-y-2">{parsedAudit.weaknesses.slice(0, 5).map((item, index) => <li key={`${item}-${index}`} className="flex gap-2 text-xs leading-5 text-slate-300"><CircleAlert className="mt-0.5 h-3 w-3 shrink-0 text-rose-300" />{item}</li>)}</ul></div> : null}</div>}{parsedAudit?.visualDebt?.length ? <div><p className="text-[10px] font-semibold tracking-[0.16em] text-slate-500">EVIDENCE LOG</p><div className="mt-3 space-y-2">{parsedAudit.visualDebt.slice(0, 5).map((item, index) => <div key={`${item.issue}-${index}`} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"><div className="flex flex-wrap items-center gap-2"><Badge className="border-amber-300/15 bg-amber-300/[0.07] text-[10px] uppercase text-amber-100">{item.severity ?? "observed"}</Badge>{item.category && <span className="text-[10px] uppercase tracking-wide text-slate-600">{item.category}</span>}</div><p className="mt-2 text-sm text-slate-200">{item.issue}</p>{item.recommendation && <p className="mt-1 text-xs leading-5 text-slate-500">{item.recommendation}</p>}</div>)}</div></div> : null}</div> : <div className="mt-5 rounded-xl border border-dashed border-white/[0.1] p-6 text-center text-sm text-slate-500">No audit evidence has been captured yet.</div>}</Card>
+          {lead.screenshotUrl && <Card className="overflow-hidden rounded-2xl border-white/[0.08] bg-[#0d0f17]/80 p-5 shadow-none"><p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">VISUAL CAPTURE</p><img src={lead.screenshotUrl} alt={`Captured website for ${lead.companyName}`} className="mt-4 w-full rounded-xl border border-white/[0.08]" /></Card>}
+        </div>
+
+        <aside className="space-y-5"><Card className="rounded-2xl border-white/[0.08] bg-[#0d0f17]/80 p-5 shadow-none"><div className="flex items-center justify-between"><div><p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">CALL INTELLIGENCE</p><h2 className="mt-1 text-lg font-semibold text-white">SMIRK outcome</h2></div><OutcomeIcon outcome={lead.smirkCallOutcome} /></div>{lead.smirkHandoffAt ? <div className="mt-5 space-y-4 text-sm"><div><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-600">RECEIVER RECORD</p><p className="mt-1.5 text-slate-300">Submitted {new Date(lead.smirkHandoffAt).toLocaleString()}</p></div>{lead.smirkWorkspaceId && <div><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-600">WORKSPACE</p><p className="mt-1.5 text-slate-300">{lead.smirkWorkspaceId}</p></div>}{lead.smirkCallOutcome && <div><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-600">OUTCOME</p><p className="mt-1.5 capitalize text-slate-200">{lead.smirkCallOutcome.replace(/_/g, " ")}</p></div>}{lead.smirkCallSummary && <div className="border-t border-white/[0.07] pt-4"><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-600">RETURNED SUMMARY</p><p className="mt-2 text-xs leading-5 text-slate-400">{lead.smirkCallSummary}</p></div>}</div> : <div className="mt-5 rounded-xl border border-dashed border-white/[0.1] p-5 text-xs leading-5 text-slate-500">No handoff has been accepted by SMIRK for this lead. There is no call state to infer.</div>}</Card><Card className="rounded-2xl border-white/[0.08] bg-[#0d0f17]/80 p-5 shadow-none"><p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">SAFETY BOUNDARY</p><div className="mt-4 flex gap-3"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-300" /><p className="text-xs leading-5 text-slate-400">This view does not send email or SMS. A call brief can only be submitted through the explicit SMIRK confirmation step after the audit and phone requirements are met.</p></div></Card></aside>
+      </section>
+
+      <AlertDialog open={handoffConfirmOpen} onOpenChange={setHandoffConfirmOpen}><AlertDialogContent className="border-violet-300/25 bg-[#11131d] text-slate-100"><AlertDialogHeader><AlertDialogTitle className="flex items-center gap-2 text-white"><Radio className="h-4 w-4 text-violet-200" />{handoffConfirmation.title}</AlertDialogTitle><AlertDialogDescription className="leading-6 text-slate-400">{handoffConfirmation.description}</AlertDialogDescription></AlertDialogHeader><div className="rounded-xl border border-white/[0.08] bg-black/20 p-4">{handoffConfirmation.target.map(([label, value]) => <p key={label} className="flex justify-between gap-4 py-1.5 text-sm"><span className="text-slate-500">{label}</span><span className="text-right text-slate-200">{value}</span></p>)}<p className="mt-3 border-t border-white/[0.07] pt-3 text-xs leading-5 text-slate-500">{handoffConfirmation.warning}</p></div><AlertDialogFooter><AlertDialogCancel disabled={triggerHandoff.isPending}>Cancel</AlertDialogCancel><AlertDialogAction disabled={triggerHandoff.isPending || smirkQuery.data?.diagnostics.state !== "reachable"} onClick={event => { event.preventDefault(); triggerHandoff.mutate({ id: lead.id }); }} className="bg-violet-500 text-white hover:bg-violet-400">{triggerHandoff.isPending ? "Submitting…" : handoffConfirmation.actionLabel}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    </OperatorShell>
   );
 }

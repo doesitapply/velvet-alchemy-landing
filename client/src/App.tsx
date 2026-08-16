@@ -25,6 +25,7 @@ import OutreachApproval from "./pages/OutreachApproval";
 import VoiceSetup from "./pages/VoiceSetup";
 import AIProviders from "./pages/AIProviders";
 import ApiKeys from "./pages/ApiKeys";
+import SmirkQueue from "./pages/SmirkQueue";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -38,6 +39,7 @@ function Router() {
            <Route path={"/charmer"} component={Charmer} />
       <Route path={"/orchestrator"} component={Orchestrator} />
       <Route path="/command-center" component={CommandCenter} />
+      <Route path="/smirk-queue" component={SmirkQueue} />
       <Route path="/dashboard">
         <Redirect to="/command-center" />
       </Route>

@@ -12,6 +12,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { Key, Plus, Trash2, Copy, CheckCircle, AlertCircle, Clock, Zap, Phone, ExternalLink } from "lucide-react";
 import { getApiEndpointKey } from "@shared/apiEndpointKey";
+import { OperatorShell } from "@/components/OperatorShell";
+import { buildSmirkOutcomeContract, SMIRK_RAILWAY_BASE_URL, SMIRK_RAILWAY_CALLBACK_KEY, SMIRK_RAILWAY_WORKSPACE_ID } from "@shared/smirkIntegrationContract";
 
 const SCOPE_OPTIONS = [
   { value: "leads:read", label: "Read Leads", description: "GET /leads, GET /leads/:id" },
@@ -29,7 +31,7 @@ const PRESETS = [
   {
     id: "smirk-outcome",
     label: "SMIRK Outcome Webhook",
-    description: "For Railway env var VELVET_ALCHEMY_OUTCOME_KEY — lets SMIRK post call results back",
+    description: "For Railway env var VELVET_ALCHEMY_HANDOFF_API_KEY — lets SMIRK post call results back",
     scopes: ["outcome:write"],
     name: "SMIRK Outcome Webhook",
   },
@@ -110,19 +112,24 @@ export default function ApiKeys() {
   const outcomeWebhookUrl = `${baseUrl}/api/v1/leads/:id/outcome`;
   const readyLeadsUrl = `${baseUrl}/api/v1/leads/ready`;
   const smirkDiagnosticsUrl = `${baseUrl}/api/v1/integrations/smirk/diagnostics`;
-  const smirkOutcomeContract = `POST ${outcomeWebhookUrl}\nAuthorization: Bearer <VELVET_ALCHEMY_OUTCOME_KEY>\nContent-Type: application/json\n\n{\n  "outcome": "interested | not_interested | callback | booked | no_answer | voicemail",\n  "summary": "SMIRK post-call summary",\n  "workspaceId": 1,\n  "callDuration": 86,\n  "calledAt": "2026-08-15T12:34:56.000Z"\n}`;
+  const smirkOutcomeContract = buildSmirkOutcomeContract(baseUrl);
 
   return (
-    <div className="container max-w-4xl py-8 space-y-6">
+    <OperatorShell
+      eyebrow="SMIRK CONNECTION"
+      title="Integration boundary"
+      description="Create narrowly scoped credentials, install the verified callback contract, and inspect receiver diagnostics. This is the security boundary between Velvet’s evidence layer and SMIRK’s calling system."
+    >
+    <div className="max-w-5xl space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Key className="h-6 w-6 text-primary" />
-            API Keys
+            Connection keys
           </h1>
           <p className="text-muted-foreground mt-1">
-            Connect SMIRK, external agents, and automation tools to your pipeline.
+            Connect SMIRK and approved operator tooling with the smallest required scope.
           </p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -209,7 +216,7 @@ export default function ApiKeys() {
                   <Phone className="h-3.5 w-3.5" /> Set this in SMIRK Railway env vars:
                 </p>
                 <p className="font-mono text-xs text-muted-foreground">
-                  VELVET_ALCHEMY_OUTCOME_KEY=<span className="text-foreground">{newKeyResult.key}</span>
+                  {SMIRK_RAILWAY_CALLBACK_KEY}=<span className="text-foreground">{newKeyResult.key}</span>
                 </p>
                 <p className="font-mono text-xs text-muted-foreground">
                   VELVET_ALCHEMY_BASE_URL=<span className="text-foreground">{baseUrl}</span>
@@ -269,9 +276,9 @@ export default function ApiKeys() {
             </p>
             <div className="space-y-1.5">
               {[
-                { key: "VELVET_ALCHEMY_OUTCOME_KEY", value: "<key from Step 1>", copyId: null },
-                { key: "VELVET_ALCHEMY_BASE_URL", value: baseUrl, copyId: "base-url" },
-                { key: "VELVET_ALCHEMY_WORKSPACE_ID", value: "1", copyId: "ws-id" },
+                { key: SMIRK_RAILWAY_CALLBACK_KEY, value: "<key from Step 1>", copyId: null },
+                { key: SMIRK_RAILWAY_BASE_URL, value: baseUrl, copyId: "base-url" },
+                { key: SMIRK_RAILWAY_WORKSPACE_ID, value: "1", copyId: "ws-id" },
               ].map(row => (
                 <div key={row.key} className="flex items-center gap-2 bg-background border border-border rounded px-3 py-1.5">
                   <code className="text-xs text-muted-foreground w-52 shrink-0">{row.key}</code>
@@ -537,5 +544,6 @@ export default function ApiKeys() {
         )}
       </div>
     </div>
+    </OperatorShell>
   );
 }

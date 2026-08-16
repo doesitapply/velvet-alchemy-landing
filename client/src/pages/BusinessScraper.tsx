@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AppHeader from "@/components/AppHeader";
+import { OperatorShell } from "@/components/OperatorShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,15 +64,14 @@ export default function BusinessScraper() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader />
-
-      <div className="container py-8 max-w-6xl">
+    <OperatorShell
+      eyebrow="HUNT ENGINE"
+      title="Find candidates"
+      description="Search real Google Maps businesses, remove obvious noise, and create lead records for Velvet’s audit pipeline. A hunt does not contact any business."
+    >
+      <div className="max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-4xl font-serif italic text-gold mb-2">Lead Scraper</h1>
-          <p className="text-muted-foreground">
-            Pulls up to 60 real businesses per search from Google Maps. Filters out chains, aggregators, and ghost listings automatically.
-          </p>
+          <p className="text-sm text-slate-500">Pulls up to 60 real businesses per search from Google Maps, then filters obvious chains, aggregators, and ghost listings before records enter the audit workflow.</p>
         </div>
 
         {/* How it works */}
@@ -327,6 +326,6 @@ export default function BusinessScraper() {
           </Card>
         )}
       </div>
-    </div>
+    </OperatorShell>
   );
 }

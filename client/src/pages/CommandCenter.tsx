@@ -1,485 +1,66 @@
-import AppHeader from "@/components/AppHeader";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { OperatorShell, SmirkReceiverPill } from "@/components/OperatorShell";
 import { trpc } from "@/lib/trpc";
-import { Loader2, TrendingUp, Users, CheckCircle2, Zap, Search, Play, Activity, Phone, ExternalLink } from "lucide-react";
+import { getSmirkLifecycleCounts, isReadyForSmirkReview } from "@shared/smirkLifecycle";
+import { Activity, ArrowRight, CheckCircle2, ChevronRight, CircleAlert, Crosshair, PhoneCall, Radio, Search, Settings2, Sparkles } from "lucide-react";
+import { useMemo } from "react";
 import { Link } from "wouter";
-import { useState } from "react";
-import { toast } from "sonner";
-import { CircularProgress } from "@/components/CircularProgress";
-import { ActivityFeed } from "@/components/ActivityFeed";
-import { OperatorWizard } from "@/components/OperatorWizard";
+
+function StatusDot({ color }: { color: "violet" | "emerald" | "cyan" | "amber" }) {
+  const colors = { violet: "bg-violet-300", emerald: "bg-emerald-300", cyan: "bg-cyan-300", amber: "bg-amber-300" };
+  return <span className={`h-1.5 w-1.5 rounded-full ${colors[color]}`} />;
+}
 
 export default function CommandCenter() {
-  const [isAuditingAll, setIsAuditingAll] = useState(false);
-  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
-  const [isPreScreening, setIsPreScreening] = useState(false);
+  const leadsQuery = trpc.leads.list.useQuery();
+  const smirkQuery = trpc.leads.smirkStats.useQuery(undefined, { refetchInterval: 30_000, refetchOnWindowFocus: true });
+  const leads = leadsQuery.data ?? [];
+  const smirk = smirkQuery.data;
 
-  const metricsQuery = trpc.dashboard.getMetrics.useQuery();
-  const pipelineQuery = trpc.dashboard.getPipelineStats.useQuery();
-  const activityQuery = trpc.dashboard.getRecentActivity.useQuery();
-  const scoreDistQuery = trpc.dashboard.getScoreDistribution.useQuery();
-  const batchAuditMutation = trpc.orchestrator.batchAuditAll.useMutation();
-  const prescreenAllMutation = trpc.prescreener.prescreenAll.useMutation();
-  const smirkStatsQuery = trpc.leads.smirkStats.useQuery();
-  const smirkStats = smirkStatsQuery.data;
+  const lifecycle = useMemo(() => getSmirkLifecycleCounts(leads), [leads]);
 
-  const metrics = metricsQuery.data;
-  const pipeline = pipelineQuery.data;
-  const activity = activityQuery.data;
-  const scoreDist = scoreDistQuery.data;
-
-  const isLoading = metricsQuery.isLoading || pipelineQuery.isLoading;
-
-  const handlePreScreenAll = async () => {
-    if (!metrics?.pendingAudits) return;
-    
-    setIsPreScreening(true);
-    toast.info(`Pre-screening ${metrics.pendingAudits} leads...`);
-
-    try {
-      const result = await prescreenAllMutation.mutateAsync();
-      toast.success(`Pre-screened ${result.processed} leads! Check Leads page to see priority scores.`);
-      metricsQuery.refetch();
-    } catch (error) {
-      toast.error(`Pre-screening failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsPreScreening(false);
-    }
-  };
-
-  const handleAuditAll = async () => {
-    if (!metrics?.pendingAudits) return;
-    
-    const confirmed = confirm(`Start batch audit for all ${metrics.pendingAudits} pending leads? This may take several minutes.`);
-    if (!confirmed) return;
-
-    setIsAuditingAll(true);
-    setBatchProgress({ current: 0, total: metrics.pendingAudits });
-    toast.info(`Starting batch audit for ${metrics.pendingAudits} leads...`);
-
-    try {
-      await batchAuditMutation.mutateAsync();
-      toast.success(`Batch audit completed successfully!`);
-      metricsQuery.refetch();
-      pipelineQuery.refetch();
-    } catch (error) {
-      toast.error(`Batch audit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsAuditingAll(false);
-      setBatchProgress({ current: 0, total: 0 });
-    }
-  };
+  const latestCandidates = useMemo(() => leads
+    .filter(isReadyForSmirkReview)
+    .sort((a, b) => (a.prestigeScore ?? 999) - (b.prestigeScore ?? 999))
+    .slice(0, 4), [leads]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader />
-      
-      <main className="container py-8">
-        <div className="space-y-8">
-          {/* Header */}
-          <div>
-            <h1 className="text-4xl font-serif italic text-gold mb-2">Command Center</h1>
-            <p className="text-muted-foreground">
-              Orchestrate your lead generation and outreach operations
-            </p>
-          </div>
-
-          {/* Operator Wizard */}
-          <OperatorWizard />
-
-          {/* Loading State */}
-          {isLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-gold" />
-            </div>
-          )}
-
-          {/* Metrics Grid */}
-          {!isLoading && metrics && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Total Leads */}
-              <Card className="bg-black/50 border-white/10">
-                <CardHeader className="pb-3">
-                  <CardDescription className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-blue-400" />
-                    Total Leads
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-blue-400">{metrics.totalLeads}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    +{metrics.leadsToday} today
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Pending Audits */}
-              <Card className="bg-black/50 border-white/10">
-                <CardHeader className="pb-3">
-                  <CardDescription className="flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-yellow-400" />
-                    Pending Audits
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-yellow-400">{metrics.pendingAudits}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Awaiting analysis
-                  </p>
-                  {metrics.pendingAudits > 0 && (
-                    <div className="space-y-2 mt-4">
-                      <Button
-                        onClick={() => handlePreScreenAll()}
-                        disabled={isPreScreening || isAuditingAll}
-                        variant="outline"
-                        className="w-full border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10"
-                      >
-                        {isPreScreening ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Pre-screening...
-                          </>
-                        ) : (
-                          <>
-                            <Search className="mr-2 h-4 w-4" />
-                            Pre-Screen All (Quick)
-                          </>
-                        )}
-                      </Button>
-                      <Link href="/leads">
-                        <Button
-                          variant="outline"
-                          className="w-full border-gold/50 text-gold hover:bg-gold/10"
-                        >
-                          Select Leads to Audit →
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Completed Audits */}
-              <Card className="bg-black/50 border-white/10">
-                <CardHeader className="pb-3">
-                  <CardDescription className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-400" />
-                    Completed Audits
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-green-400">{metrics.completedAudits}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Avg score: {metrics.avgPrestigeScore}/100
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Conversion Rate */}
-              <Card className="bg-black/50 border-white/10">
-                <CardHeader className="pb-3">
-                  <CardDescription className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-gold" />
-                    Conversion Rate
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center pt-4">
-                  <CircularProgress
-                    value={metrics.conversionRate}
-                    size={100}
-                    strokeWidth={10}
-                    color="#D4AF37"
-                  />
-                  <p className="text-xs text-muted-foreground mt-4">
-                    {metrics.withOutreach} outreach sent
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Pipeline Funnel */}
-          {!isLoading && pipeline && (
-            <Card className="bg-black/50 border-white/10">
-              <CardHeader>
-                <CardTitle className="text-gold">Lead Pipeline</CardTitle>
-                <CardDescription>Track leads through each stage of the process</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {/* Scraped */}
-                  <div className="relative">
-                    <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Scraped</div>
-                      <div className="text-2xl font-bold text-blue-400">{pipeline.scraped}</div>
-                    </div>
-                    <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
-                  </div>
-
-                  {/* Audited */}
-                  <div className="relative">
-                    <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Audited</div>
-                      <div className="text-2xl font-bold text-green-400">{pipeline.audited}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {pipeline.scraped > 0 ? Math.round((pipeline.audited / pipeline.scraped) * 100) : 0}% of total
-                      </div>
-                    </div>
-                    <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
-                  </div>
-
-                  {/* Assets Generated */}
-                  <div className="relative">
-                    <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Assets</div>
-                      <div className="text-2xl font-bold text-purple-400">{pipeline.assets}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {pipeline.audited > 0 ? Math.round((pipeline.assets / pipeline.audited) * 100) : 0}% of audited
-                      </div>
-                    </div>
-                    <div className="hidden md:block absolute top-1/2 -right-2 w-4 h-0.5 bg-white/20"></div>
-                  </div>
-
-                  {/* Outreach Sent */}
-                  <div>
-                    <div className="bg-gold/20 border border-gold/30 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Outreach</div>
-                      <div className="text-2xl font-bold text-gold">{pipeline.outreach}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {pipeline.assets > 0 ? Math.round((pipeline.outreach / pipeline.assets) * 100) : 0}% of assets
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Run Scraper */}
-            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20 hover:border-blue-500/40 transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-400">
-                  <Search className="h-5 w-5" />
-                  Business Scraper
-                </CardTitle>
-                <CardDescription>
-                  Find local businesses and bulk-create leads
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/scraper">
-                  <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white">
-                    <Search className="mr-2 h-4 w-4" />
-                    Launch Scraper
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* Start Orchestrator */}
-            <Card className="bg-gradient-to-br from-gold/10 to-gold/5 border-gold/20 hover:border-gold/40 transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-gold">
-                  <Play className="h-5 w-5" />
-                  Orchestrator
-                </CardTitle>
-                <CardDescription>
-                  Automate the full pipeline for all leads
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/orchestrator">
-                  <Button className="w-full bg-gold hover:bg-gold/90 text-black">
-                    <Play className="mr-2 h-4 w-4" />
-                    Run Pipeline
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* View Leads */}
-            <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20 hover:border-green-500/40 transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-400">
-                  <Users className="h-5 w-5" />
-                  Manage Leads
-                </CardTitle>
-                <CardDescription>
-                  View, filter, and manage all your leads
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/leads">
-                  <Button className="w-full bg-green-500 hover:bg-green-600 text-white">
-                    <Users className="mr-2 h-4 w-4" />
-                    View All Leads
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recent Activity & Score Distribution */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Recent Activity */}
-            {!isLoading && activity && (
-              <Card className="bg-black/50 border-white/10">
-                <CardHeader>
-                  <CardTitle className="text-gold">Recent Activity</CardTitle>
-                  <CardDescription>Latest updates across all leads</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {activity.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No activity yet. Start by scraping some leads!
-                      </p>
-                    ) : (
-                      activity.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-start justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0"
-                        >
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{item.companyName}</p>
-                            <p className="text-xs text-muted-foreground">{item.activity}</p>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(item.timestamp).toLocaleDateString()}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Score Distribution */}
-            {!isLoading && scoreDist && (
-              <Card className="bg-black/50 border-white/10">
-                <CardHeader>
-                  <CardTitle className="text-gold">Prestige Score Distribution</CardTitle>
-                  <CardDescription>Quality breakdown of audited leads</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Excellent */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="text-sm">Excellent (80-100)</span>
-                      </div>
-                      <span className="text-sm font-semibold text-green-400">{scoreDist.excellent}</span>
-                    </div>
-
-                    {/* Good */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm">Good (60-79)</span>
-                      </div>
-                      <span className="text-sm font-semibold text-blue-400">{scoreDist.good}</span>
-                    </div>
-
-                    {/* Fair */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                        <span className="text-sm">Fair (40-59)</span>
-                      </div>
-                      <span className="text-sm font-semibold text-yellow-400">{scoreDist.fair}</span>
-                    </div>
-
-                    {/* Poor */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                        <span className="text-sm">Poor (0-39)</span>
-                      </div>
-                      <span className="text-sm font-semibold text-red-400">{scoreDist.poor}</span>
-                    </div>
-
-                    {scoreDist.excellent + scoreDist.good + scoreDist.fair + scoreDist.poor === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No audited leads yet
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* SMIRK Integration Status */}
-          <Card className="bg-black/50 border-violet-500/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Phone className="h-4 w-4 text-violet-400" />
-                SMIRK Connection
-                {smirkStats?.diagnostics.state === "reachable"
-                  ? <Badge className="text-xs bg-green-600/20 text-green-400 border-green-500/30">Receiver Reachable</Badge>
-                  : <Badge className="text-xs bg-red-600/20 text-red-400 border-red-500/30">Action Blocked</Badge>
-                }
-              </CardTitle>
-              <CardDescription>
-                {smirkStats?.diagnostics.message ?? "Checking SMIRK configuration and receiver route…"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                {[
-                  { label: "Queued", value: smirkStats?.queued ?? 0, color: "text-violet-400" },
-                  { label: "Contacted", value: smirkStats?.contacted ?? 0, color: "text-blue-400" },
-                  { label: "Interested", value: smirkStats?.interested ?? 0, color: "text-green-400" },
-                  { label: "Booked", value: smirkStats?.booked ?? 0, color: "text-amber-400" },
-                ].map(stat => (
-                  <div key={stat.label} className="bg-muted/30 rounded p-3 text-center">
-                    <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-              {smirkStats?.diagnostics.receiverUrl && (
-                <div className="rounded-md border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-xs text-muted-foreground space-y-1 mb-3">
-                  <p><span className="text-foreground">Receiver:</span> <code className="break-all">{smirkStats.diagnostics.receiverUrl}</code></p>
-                  <p>
-                    <span className="text-foreground">Workspace:</span> {smirkStats.diagnostics.workspaceId}
-                    {smirkStats.diagnostics.receiverHttpStatus !== undefined && (
-                      <span> · Receiver HTTP {smirkStats.diagnostics.receiverHttpStatus}</span>
-                    )}
-                  </p>
-                  {smirkStats.lastHandoff && (
-                    <p>
-                      <span className="text-foreground">Latest handoff:</span> {smirkStats.lastHandoff.companyName} · {new Date(smirkStats.lastHandoff.handoffAt!).toLocaleString()}
-                      {smirkStats.lastHandoff.outcome ? ` · ${smirkStats.lastHandoff.outcome.replace(/_/g, " ")}` : ""}
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Link href="/leads">
-                  <Button size="sm" variant="outline" className="text-xs gap-1">
-                    <Phone className="h-3 w-3" /> View Leads
-                  </Button>
-                </Link>
-                <Link href="/api-keys">
-                  <Button size="sm" variant="outline" className="text-xs gap-1 border-violet-500/30 text-violet-400 hover:bg-violet-500/10">
-                    <ExternalLink className="h-3 w-3" /> SMIRK Setup
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Activity Feed */}
-          <ActivityFeed />
+    <OperatorShell
+      eyebrow="PRIVATE OPERATOR CONSOLE"
+      title="Operations"
+      description="Velvet supplies the evidence and qualification layer. SMIRK receives only deliberately approved call briefs, while this console keeps the handoff and outcome record visible."
+      actions={<Link href="/smirk-queue"><Button size="sm" className="gap-2 bg-violet-500 text-white hover:bg-violet-400"><Radio className="h-3.5 w-3.5" /> Open live queue</Button></Link>}
+    >
+      <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="overflow-hidden rounded-2xl border border-violet-300/20 bg-gradient-to-br from-violet-400/[0.15] via-[#121322] to-cyan-400/[0.045] p-5 md:p-7">
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start"><div><div className="flex items-center gap-2"><StatusDot color="violet" /><p className="text-[11px] font-semibold tracking-[0.18em] text-violet-200">SMIRK HANDOFF LAYER</p></div><h2 className="mt-4 max-w-2xl text-3xl font-semibold tracking-tight text-white md:text-4xl">Operate the lead-to-call loop without losing the evidence.</h2><p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">Review real audit evidence, approve a specific target, and capture the post-call signal. No automatic SMS, email, or call submission occurs from this console.</p></div><div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4 md:min-w-48"><p className="text-[10px] font-semibold tracking-[0.15em] text-slate-500">RECEIVER</p><div className="mt-3"><SmirkReceiverPill state={smirk?.diagnostics.state} /></div><p className="mt-3 text-xs leading-5 text-slate-400">{smirk?.diagnostics.message ?? "Checking connection state…"}</p></div></div>
+          <div className="mt-7 flex flex-wrap gap-2"><Link href="/scraper"><Button variant="outline" className="border-violet-300/30 bg-white/[0.05] text-white hover:bg-white/[0.1]"><Search className="mr-2 h-4 w-4 text-violet-200" /> Hunt candidates</Button></Link><Link href="/smirk-queue"><Button variant="ghost" className="text-slate-300 hover:bg-white/[0.06] hover:text-white">Review live queue <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
         </div>
-      </main>
-    </div>
+
+        <div className="rounded-2xl border border-white/[0.08] bg-[#0d0f17]/85 p-5"><div className="flex items-center justify-between"><div><p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">OUTCOME SIGNALS</p><h2 className="mt-1 text-lg font-semibold text-white">Recorded by SMIRK</h2></div><Activity className="h-4 w-4 text-cyan-300" /></div><div className="mt-6 grid grid-cols-2 gap-3">{[
+          { label: "Queued", value: smirk?.queued ?? 0, color: "text-violet-200" },
+          { label: "Contacted", value: smirk?.contacted ?? 0, color: "text-blue-200" },
+          { label: "Interested", value: smirk?.interested ?? 0, color: "text-emerald-200" },
+          { label: "Booked", value: smirk?.booked ?? 0, color: "text-amber-200" },
+        ].map(stat => <div key={stat.label} className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3"><p className={`text-2xl font-semibold ${stat.color}`}>{stat.value}</p><p className="mt-1 text-xs text-slate-500">{stat.label}</p></div>)}</div><Link href="/smirk-queue" className="mt-5 flex items-center justify-between rounded-xl border border-white/[0.07] px-3 py-2.5 text-xs text-slate-400 transition-colors hover:border-cyan-300/20 hover:bg-cyan-300/[0.04] hover:text-cyan-100">Open outcome queue <ArrowRight className="h-3.5 w-3.5" /></Link></div>
+      </section>
+
+      <section className="mt-5 grid gap-4 md:grid-cols-4">
+        {[
+          { label: "Audited", value: lifecycle.audited, helper: "Evidence captured", icon: Sparkles, color: "text-cyan-200" },
+          { label: "Ready", value: lifecycle.ready, helper: "Needs review", icon: CircleAlert, color: "text-emerald-200" },
+          { label: "Queued", value: lifecycle.queued, helper: "Accepted by SMIRK", icon: PhoneCall, color: "text-violet-200" },
+          { label: "Outcomes", value: lifecycle.outcomes, helper: "Signal returned", icon: CheckCircle2, color: "text-amber-200" },
+        ].map(metric => { const Icon = metric.icon; return <div key={metric.label} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"><Icon className={`h-4 w-4 ${metric.color}`} /><p className="mt-5 text-3xl font-semibold text-white">{metric.value}</p><p className="mt-1 text-sm text-slate-300">{metric.label}</p><p className="mt-0.5 text-xs text-slate-600">{metric.helper}</p></div>; })}
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="rounded-2xl border border-white/[0.08] bg-[#0d0f17]/80"><div className="flex flex-col gap-3 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">NEXT FOR REVIEW</p><h2 className="mt-1 text-lg font-semibold text-white">Qualified candidates</h2></div><Link href="/smirk-queue"><Button variant="ghost" size="sm" className="text-xs text-violet-200 hover:bg-violet-300/[0.08] hover:text-violet-100">See full queue <ArrowRight className="ml-1.5 h-3.5 w-3.5" /></Button></Link></div>
+          <div className="divide-y divide-white/[0.055]">{leadsQuery.isLoading ? <div className="p-8 text-center text-sm text-slate-600">Loading live lead state…</div> : latestCandidates.length === 0 ? <div className="p-8 text-center"><Crosshair className="mx-auto h-5 w-5 text-slate-700" /><p className="mt-3 text-sm text-slate-400">No audit-qualified leads with a phone number yet.</p><Link href="/scraper" className="mt-3 inline-block text-xs text-violet-300 hover:text-violet-200">Start a hunt</Link></div> : latestCandidates.map(lead => <Link key={lead.id} href={`/leads/${lead.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-white/[0.025]"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-400/[0.08] text-emerald-200"><Crosshair className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-200">{lead.companyName}</p><p className="mt-1 truncate text-xs text-slate-600">{[lead.city, lead.state, lead.phone].filter(Boolean).join(" · ")}</p></div><div className="hidden text-right sm:block"><p className="text-[10px] tracking-wide text-slate-600">AUDIT SCORE</p><p className="mt-1 text-sm font-semibold text-slate-300">{lead.prestigeScore ?? "—"}</p></div><ChevronRight className="h-4 w-4 text-slate-700 group-hover:text-violet-300" /></Link>)}</div>
+        </div>
+        <div className="rounded-2xl border border-white/[0.08] bg-[#0d0f17]/80 p-5"><div className="flex items-center justify-between"><div><p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">OPERATOR CONTROLS</p><h2 className="mt-1 text-lg font-semibold text-white">Keep the boundary tight</h2></div><Settings2 className="h-4 w-4 text-slate-500" /></div><div className="mt-5 space-y-3 text-sm"><Link href="/api-keys" className="group flex items-start gap-3 rounded-xl border border-white/[0.06] p-3 transition-colors hover:border-violet-300/20 hover:bg-violet-300/[0.04]"><div className="mt-0.5 grid h-7 w-7 place-items-center rounded-lg bg-violet-300/[0.1] text-violet-200"><Radio className="h-3.5 w-3.5" /></div><div><p className="font-medium text-slate-200">SMIRK connection</p><p className="mt-1 text-xs leading-5 text-slate-500">Keys, callback contract, and receiver diagnostics.</p></div></Link><Link href="/governor" className="group flex items-start gap-3 rounded-xl border border-white/[0.06] p-3 transition-colors hover:border-cyan-300/20 hover:bg-cyan-300/[0.04]"><div className="mt-0.5 grid h-7 w-7 place-items-center rounded-lg bg-cyan-300/[0.1] text-cyan-200"><Settings2 className="h-3.5 w-3.5" /></div><div><p className="font-medium text-slate-200">Safety controls</p><p className="mt-1 text-xs leading-5 text-slate-500">Rate limits, cost guardrails, and the global kill switch.</p></div></Link></div></div>
+      </section>
+    </OperatorShell>
   );
 }

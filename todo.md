@@ -1101,3 +1101,12 @@
 ## API Keys Navigation Regression (CURRENT)
 - [x] Remove duplicate `/leads` navigation key causing React reconciliation warnings on `/api-keys`
 - [x] Add a regression test that enforces unique navigation route paths
+
+## SMIRK-Centered Operator Console Rebuild (CURRENT)
+- [x] Replace the legacy revenue-machine navigation and workflow language with a SMIRK-centered private operator console
+- [x] Build a new command center showing real SMIRK configuration state, queue lifecycle, latest handoff, and outcome counts
+- [x] Build a dedicated live queue surface for qualified leads, explicit approval, call brief review, and outcome tracking
+- [x] Rework lead intelligence surfaces around audit evidence, call readiness, handoff approval, and SMIRK outcomes
+- [x] Consolidate API key and integration setup into an operator-grade SMIRK connection panel
+- [x] Preserve fail-closed behavior: no automatic contact, no simulated operational metrics, and clear missing-configuration states
+- [x] Add regression tests for the rebuilt console’s state derivation and handoff gating
