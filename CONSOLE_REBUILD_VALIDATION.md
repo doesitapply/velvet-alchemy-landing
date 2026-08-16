@@ -17,3 +17,7 @@ On a subsequent fresh navigation to Live Queue, the list query returned no recor
 The queue resolved normally after its query settled and rendered all 46 real review-ready records. The temporary zero state was the initial client loading phase, not missing data. A real lead-detail record was then opened and correctly entered its explicit loading state while its detail query resolved.
 
 The loaded lead-detail page rendered the real audit summary and handoff readiness. Selecting **Review SMIRK handoff** opened a confirmation dialog showing the exact business, phone number, lead ID, the downstream-contact warning, and a separate **Confirm Handoff to SMIRK** action. The confirmation action was not invoked; no handoff, call, text, or email was triggered during validation.
+
+## 2026-08-16 — Opt-in Live SMIRK Contract Check
+
+The opt-in `pnpm test:smirk-live` check was executed using only the approved synthetic fixture. Both the initial submission and exact replay returned HTTP 503 rather than the required `201 RECEIVED` and `200 DUPLICATE`, so the test correctly failed. This remains the documented external Railway deployment gate: SMIRK must be configured with a dedicated Velvet Alchemy `outcome:write` key under `VELVET_ALCHEMY_HANDOFF_API_KEY` and `VELVET_ALCHEMY_WORKSPACE_ID=1`. No real prospect was contacted.
