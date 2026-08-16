@@ -231,12 +231,27 @@ Content-Type: application/json
 {
   outcome: "interested" | "not_interested" | "callback" | "no_answer" | "voicemail" | "booked",
   summary?: string,
+  workspaceId: number,
   callDuration?: number,
-  recordingUrl?: string,
+  calledAt?: string,
 }
 ```
 
-SMIRK must set `VELVET_ALCHEMY_OUTCOME_KEY` in Railway env vars — generate this key from the Velvet Alchemy API Keys page with `outcome:write` scope.
+SMIRK must set both Railway environment variables below. Generate the key from Velvet Alchemy’s API Keys page using the **SMIRK Outcome Webhook** preset. Do not use `DASHBOARD_API_KEY` or a general-purpose admin credential.
+
+| Variable | Required value |
+|---|---|
+| `VELVET_ALCHEMY_HANDOFF_API_KEY` | A dedicated Velvet Alchemy API key with `outcome:write` scope. The legacy name is retained by SMIRK, but the key authorizes its callback to Velvet. |
+| `VELVET_ALCHEMY_WORKSPACE_ID` | `1` for the currently bound workspace. |
+
+### Receiver Diagnostics
+
+```text
+GET /api/v1/integrations/smirk/diagnostics
+Authorization: Bearer <handoff:write scoped API key>
+```
+
+The diagnostics route sends only a non-contacting `OPTIONS` probe to the exact SMIRK receiver route. It cannot queue a handoff, call, text, or email anyone. A `404`, rejected bearer token, network failure, or receiver 5xx response is action-blocking. A reachable result proves only route availability; the opt-in synthetic handoff test remains the proof of receiver acceptance.
 
 ---
 
@@ -254,6 +269,7 @@ All endpoints require `Authorization: Bearer <api_key>`.
 | POST | `/api/v1/scrape` | `scrape` | Trigger Google Maps scrape |
 | POST | `/api/v1/audit/:id` | `audit` | Trigger audit on lead |
 | POST | `/api/v1/pipeline/:id` | `pipeline` | Run full pipeline on lead |
+| GET | `/api/v1/integrations/smirk/diagnostics` | `handoff:write` | Non-contacting probe of the exact SMIRK receiver route |
 | GET | `/api/v1/leads/ready` | `handoff:write` | Get audited leads ready for SMIRK |
 | POST | `/api/v1/leads/:id/handoff` | `handoff:write` | Queue SMIRK call for lead |
 | POST | `/api/v1/leads/:id/outcome` | `outcome:write` | Post SMIRK call result |
@@ -267,7 +283,7 @@ The intended operator loop is:
 1. **Hunt** — go to Business Scraper, enter a city + vertical (e.g., "HVAC Las Vegas NV"), run scrape. System finds businesses, pre-screens, stores leads.
 2. **Audit** — leads auto-enqueue for the pipeline worker. Worker runs screenshot → AI audit → enrichment. Or trigger manually from Lead Detail.
 3. **Review** — check Lead Detail for prestige score, strengths/weaknesses, verified email, outreach channel.
-4. **Handoff** — click "Queue SMIRK Call" on any audited lead with a phone number. SMIRK queues the call.
+4. **Handoff** — click **Review SMIRK Handoff** on an audited lead with a phone number. The confirmation dialog displays the business, phone number, and downstream impact before anything is submitted. Confirm only when you intend for SMIRK’s workflow to receive the lead.
 5. **Outcome** — SMIRK calls the business, records the conversation, posts the outcome back. Lead status updates to `smirk_contacted`. Call summary appears in the SMIRK Call Intelligence panel.
 6. **Revenue** — if interested, create a Stripe invoice from Lead Detail. Send payment link.
 
@@ -296,7 +312,7 @@ The intended operator loop is:
 |---|---|---|
 | `pnpm db:push` fails (migration journal drift) | Medium — schema changes must be applied via SQL | Apply via `webdev_execute_sql` or DB panel |
 | Google AI key (`AQ.*`) is a short-lived OAuth token | High — Gemini fallback will die | Get permanent `AIzaSy*` key from aistudio.google.com/apikey |
-| SMIRK receiver deployed at commit `2138435` | ✅ Resolved — live at smirkcalls.com | Synthetic test confirmed: 201 RECEIVED + 200 DUPLICATE |
+| SMIRK receiver callback configuration | **Action required** — the receiver route is deployed and reachable, but the latest synthetic POST returned `503 VELVET_ALCHEMY_HANDOFF_NOT_CONFIGURED` because SMIRK Railway is missing `VELVET_ALCHEMY_HANDOFF_API_KEY` | Create a dedicated `outcome:write` VA key; set `VELVET_ALCHEMY_HANDOFF_API_KEY` and `VELVET_ALCHEMY_WORKSPACE_ID=1` in SMIRK Railway; redeploy/restart; then run `pnpm test:smirk-live` |
 
 ### Deferred Features
 
@@ -315,7 +331,7 @@ The intended operator loop is:
 
 ## Test Suite
 
-**88/88 tests passing** in the Manus runtime (integration tests requiring injected database, LLM, and storage credentials). Outside Manus: ~53 tests pass as portable unit tests; the remainder properly skip via `it.skipIf` guards rather than returning vacuously. This is the correct behavior — do not treat skipped tests as failures.
+The default suite runs without initiating a synthetic handoff. It includes portable unit tests plus Manus-backed integration tests; tests needing unavailable services use explicit `it.skipIf` guards rather than vacuous returns. The SMIRK live synthetic contract test is now opt-in because it creates a durable receiver record, even though it never uses a real prospect or routable phone number.
 
 ```
 server/auth.logout.test.ts          Auth flow
@@ -329,14 +345,20 @@ server/onboarding.test.ts           Onboarding wizard + Stripe
 server/orchestrator.test.ts         Pipeline orchestration
 server/payment.test.ts              Stripe checkout
 server/scraper.test.ts              Google Maps scraping
-server/screenshot.test.ts           Screenshot capture
+server/screenshot.test.ts            Screenshot capture
+server/smirkDiagnostics.unit.test.ts Fail-closed receiver diagnostics
 server/smirkHandoff.test.ts         SMIRK integration (live cross-system test)
 server/visionary.test.ts            Asset generation
 server/visualAudit.test.ts          AI audit scoring
 server/waitlist.test.ts             Waitlist signup
 ```
 
-Run with: `pnpm test`
+Run with:
+
+```bash
+pnpm test                 # Default suite — no synthetic handoff submission
+pnpm test:smirk-live      # Explicit opt-in synthetic SMIRK contract proof
+```
 
 ---
 

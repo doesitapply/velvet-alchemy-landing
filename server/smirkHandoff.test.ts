@@ -3,7 +3,7 @@
  *
  * Test categories:
  *   - DB-dependent tests: skipped (not passed) when DATABASE_URL is absent
- *   - Live SMIRK tests:   skipped (not passed) when SMIRK_BASE_URL is absent
+ *   - Live SMIRK tests:   skipped (not passed) unless SMIRK_LIVE_TESTS=1 is set
  *
  * Strict assertions — 404 is a failure. No weakened assertions.
  */
@@ -16,6 +16,7 @@ import { leads, audits } from "../drizzle/schema";
 
 const hasDb = !!process.env.DATABASE_URL;
 const hasSmirk = !!process.env.SMIRK_BASE_URL && !!process.env.SMIRK_API_KEY;
+const runLiveSmirkTests = hasSmirk && process.env.SMIRK_LIVE_TESTS === "1";
 
 // ─── Test data ────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ describe("queueSmirkCall", () => {
 describe("SMIRK live integration", () => {
   const syntheticSuffix = `test-${Date.now()}`;
 
-  it.skipIf(!hasSmirk)(
+  it.skipIf(!runLiveSmirkTests)(
     "synthetic handoff: first POST returns 201 RECEIVED",
     async () => {
       const result = await sendSyntheticTestHandoff(syntheticSuffix);
@@ -151,7 +152,7 @@ describe("SMIRK live integration", () => {
     20_000
   );
 
-  it.skipIf(!hasSmirk)(
+  it.skipIf(!runLiveSmirkTests)(
     "synthetic handoff: exact replay returns 200 DUPLICATE",
     async () => {
       // Replay the exact same suffix — must be DUPLICATE

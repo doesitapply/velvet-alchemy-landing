@@ -1027,27 +1027,27 @@
 
 ## SMIRK ↔ Velvet Alchemy Integration (2026-07-27)
 
-- [ ] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
+- [x] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
 - [x] Add handoff:write and outcome:write scopes to apiKeyRouter.ts
-- [ ] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
-- [ ] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
-- [ ] Add POST /api/v1/leads/:id/outcome endpoint to apiRouter.ts
-- [ ] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
-- [ ] Request SMIRK secrets via webdev_request_secrets
-- [ ] Write integration tests for handoff and outcome endpoints
-- [ ] Run full test suite (pnpm test)
-- [ ] Save checkpoint
+- [x] Create server/lib/smirkHandoff.ts (call brief builder + SMIRK queue dispatcher)
+- [x] Add GET /api/v1/leads/ready endpoint to apiRouter.ts
+- [x] Add POST /api/v1/leads/:id/handoff endpoint to apiRouter.ts
+- [x] Add POST /api/v1/leads/:id/outcome endpoint to apiRouter.ts
+- [x] Add SMIRK_BASE_URL, SMIRK_API_KEY, SMIRK_WORKSPACE_ID to env.ts
+- [x] Request SMIRK secrets via webdev_request_secrets
+- [x] Write integration tests for handoff and outcome endpoints
+- [x] Run full test suite (pnpm test)
+- [x] Save checkpoint
 
 ## UI Coherence Pass
-- [ ] Replace landing page with minimal auth gate (name + one line + login button)
-- [ ] Root / redirects to /command-center when authenticated, to login gate when not
-- [ ] Remove all "$5K paychecks" / SaaS marketing copy from codebase
-- [ ] Add SMIRK status badges to lead list (smirk_queued, smirk_contacted with outcome chip)
-- [ ] Add SMIRK Call Intelligence panel to LeadDetail page
-- [ ] Add "Queue SMIRK Call" button to LeadDetail (visible when lead is audited + has phone)
-- [ ] Add leads.triggerHandoff tRPC mutation (calls queueSmirkCall, returns result)
-- [ ] Status color map updated to include smirk_queued (purple) and smirk_contacted (indigo)
+- [x] Replace landing page with minimal auth gate (name + one line + login button)
+- [x] Root / redirects to /command-center when authenticated, to login gate when not
+- [x] Remove all "$5K paychecks" / SaaS marketing copy from codebase
+- [x] Add SMIRK status badges to lead list (smirk_queued, smirk_contacted with outcome chip)
+- [x] Add SMIRK Call Intelligence panel to LeadDetail page
+- [x] Add "Queue SMIRK Call" button to LeadDetail (visible when lead is audited + has phone)
+- [x] Add leads.triggerHandoff tRPC mutation (calls queueSmirkCall, returns result)
+- [x] Status color map updated to include smirk_queued (purple) and smirk_contacted (indigo)
 
 ## SMIRK Integration (COMPLETE)
 - [x] Apply DB schema migration: 4 SMIRK columns on leads table + enum update
@@ -1085,3 +1085,15 @@
 - [x] Fix /leads/ready scope from leads:read to handoff:write (correct security boundary)
 - [x] Add SMIRK endpoint reference to Quick Reference card (GET /leads/ready, POST /leads/:id/handoff, POST /leads/:id/outcome)
 - [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
+
+## SMIRK Operator Workflow Enhancement (CURRENT)
+- [x] Add a fail-closed SMIRK diagnostics endpoint that validates local configuration and receiver reachability without queueing a call
+- [x] Display diagnostic state, receiver URL, workspace binding, and last handoff outcome in the Command Center SMIRK panel
+- [x] Add explicit operator confirmation before a real lead is handed to SMIRK from LeadDetail
+- [x] Add one-click copyable SMIRK implementation contract to the API Keys integration panel
+- [x] Add focused tests for diagnostics and operator handoff confirmation behavior
+
+## SMIRK Railway Deployment Gate (EXTERNAL ACTION REQUIRED)
+- [ ] Set `VELVET_ALCHEMY_HANDOFF_API_KEY` in SMIRK Railway to a dedicated Velvet Alchemy `outcome:write` API key
+- [ ] Set `VELVET_ALCHEMY_WORKSPACE_ID=1` in SMIRK Railway and restart/redeploy the receiver
+- [ ] Run `pnpm test:smirk-live` after the receiver configuration is installed; require 201 RECEIVED then 200 DUPLICATE

@@ -53,6 +53,132 @@ export interface SmirkHandoffResponse {
   error?: string;
 }
 
+export type SmirkDiagnosticState = "not_configured" | "invalid_configuration" | "reachable" | "degraded" | "unreachable";
+
+export interface SmirkDiagnostics {
+  state: SmirkDiagnosticState;
+  configured: boolean;
+  receiverUrl: string | null;
+  workspaceId: string | null;
+  receiverHttpStatus?: number;
+  message: string;
+}
+
+type SmirkDiagnosticOptions = {
+  baseUrl?: string;
+  apiKey?: string;
+  workspaceId?: string;
+  fetchImpl?: typeof fetch;
+};
+
+type SmirkSyntheticOptions = SmirkDiagnosticOptions;
+
+/**
+ * Validate SMIRK configuration and probe the exact receiver route without
+ * submitting a handoff payload. OPTIONS cannot create a queue record or
+ * trigger any prospect contact. A 404 is always a hard receiver failure.
+ */
+export async function getSmirkDiagnostics(options: SmirkDiagnosticOptions = {}): Promise<SmirkDiagnostics> {
+  const baseUrl = options.baseUrl ?? process.env.SMIRK_BASE_URL ?? "";
+  const apiKey = options.apiKey ?? process.env.SMIRK_API_KEY ?? "";
+  const workspaceId = options.workspaceId ?? process.env.SMIRK_WORKSPACE_ID ?? "";
+
+  if (!baseUrl || !apiKey || !workspaceId) {
+    return {
+      state: "not_configured",
+      configured: false,
+      receiverUrl: null,
+      workspaceId: workspaceId || null,
+      message: "SMIRK not configured — set SMIRK_BASE_URL, SMIRK_API_KEY, and SMIRK_WORKSPACE_ID.",
+    };
+  }
+
+  const numericWorkspaceId = Number(workspaceId);
+  if (!Number.isInteger(numericWorkspaceId) || numericWorkspaceId <= 0) {
+    return {
+      state: "invalid_configuration",
+      configured: false,
+      receiverUrl: null,
+      workspaceId,
+      message: "SMIRK_WORKSPACE_ID must be a positive integer.",
+    };
+  }
+
+  let normalizedBaseUrl: string;
+  try {
+    normalizedBaseUrl = new URL(baseUrl).toString().replace(/\/$/, "");
+  } catch {
+    return {
+      state: "invalid_configuration",
+      configured: false,
+      receiverUrl: null,
+      workspaceId,
+      message: "SMIRK_BASE_URL must be a valid absolute URL.",
+    };
+  }
+
+  const receiverUrl = `${normalizedBaseUrl}/api/integrations/velvet/handoffs`;
+  const fetchImpl = options.fetchImpl ?? fetch;
+
+  try {
+    const response = await fetchImpl(receiverUrl, {
+      method: "OPTIONS",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(8_000),
+    });
+
+    if (response.status === 404) {
+      return {
+        state: "unreachable",
+        configured: true,
+        receiverUrl,
+        workspaceId,
+        receiverHttpStatus: response.status,
+        message: "SMIRK receiver endpoint returned 404. Do not queue real leads until the receiver deployment is corrected.",
+      };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        state: "degraded",
+        configured: true,
+        receiverUrl,
+        workspaceId,
+        receiverHttpStatus: response.status,
+        message: `SMIRK receiver rejected the configured bearer token (${response.status}). Do not queue real leads until the token is corrected.`,
+      };
+    }
+
+    if (response.status >= 500) {
+      return {
+        state: "degraded",
+        configured: true,
+        receiverUrl,
+        workspaceId,
+        receiverHttpStatus: response.status,
+        message: `SMIRK receiver responded with ${response.status}. The endpoint is deployed but unhealthy; do not queue real leads.`,
+      };
+    }
+
+    return {
+      state: "reachable",
+      configured: true,
+      receiverUrl,
+      workspaceId,
+      receiverHttpStatus: response.status,
+      message: "SMIRK receiver route is reachable. This non-contacting probe does not verify bearer-token acceptance; the synthetic handoff test remains the authorization proof.",
+    };
+  } catch (error: any) {
+    return {
+      state: "unreachable",
+      configured: true,
+      receiverUrl,
+      workspaceId,
+      message: `SMIRK receiver could not be reached: ${error?.message ?? "network error"}`,
+    };
+  }
+}
+
 // ─── Call Brief (internal — used to build the SMIRK payload) ─────────────────
 
 export interface CallBrief {
@@ -251,6 +377,14 @@ export async function queueSmirkCall(
       return { success: false, httpStatus, error: "SMIRK handoff endpoint not found (404) — check deployment" };
     }
 
+    if (httpStatus === 503 && body?.code === "VELVET_ALCHEMY_HANDOFF_NOT_CONFIGURED") {
+      return {
+        success: false,
+        httpStatus,
+        error: "SMIRK receiver is deployed but missing VELVET_ALCHEMY_HANDOFF_API_KEY in Railway. No lead was queued.",
+      };
+    }
+
     return {
       success: false,
       httpStatus,
@@ -270,10 +404,13 @@ export async function queueSmirkCall(
  * Phone: +12025550124 (non-routable test number)
  * externalId prefix: velvet-manus-fake-
  */
-export async function sendSyntheticTestHandoff(suffix: string): Promise<SmirkHandoffResponse> {
-  const smirkBaseUrl = process.env.SMIRK_BASE_URL ?? "";
-  const smirkApiKey = process.env.SMIRK_API_KEY ?? "";
-  const smirkWorkspaceId = process.env.SMIRK_WORKSPACE_ID ?? "";
+export async function sendSyntheticTestHandoff(
+  suffix: string,
+  options: SmirkSyntheticOptions = {}
+): Promise<SmirkHandoffResponse> {
+  const smirkBaseUrl = options.baseUrl ?? process.env.SMIRK_BASE_URL ?? "";
+  const smirkApiKey = options.apiKey ?? process.env.SMIRK_API_KEY ?? "";
+  const smirkWorkspaceId = options.workspaceId ?? process.env.SMIRK_WORKSPACE_ID ?? "";
 
   if (!smirkBaseUrl || !smirkApiKey || !smirkWorkspaceId) {
     return { success: false, error: "SMIRK not configured" };
@@ -296,7 +433,8 @@ export async function sendSyntheticTestHandoff(suffix: string): Promise<SmirkHan
   };
 
   try {
-    const response = await fetch(`${smirkBaseUrl}/api/integrations/velvet/handoffs`, {
+    const fetchImpl = options.fetchImpl ?? fetch;
+    const response = await fetchImpl(`${smirkBaseUrl}/api/integrations/velvet/handoffs`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -319,6 +457,13 @@ export async function sendSyntheticTestHandoff(suffix: string): Promise<SmirkHan
     if (httpStatus === 409) {
       return { success: false, state: "VELVET_ALCHEMY_IDEMPOTENCY_CONFLICT", httpStatus,
         error: "Idempotency conflict on synthetic test" };
+    }
+    if (httpStatus === 503 && body?.code === "VELVET_ALCHEMY_HANDOFF_NOT_CONFIGURED") {
+      return {
+        success: false,
+        httpStatus,
+        error: "SMIRK receiver is deployed but missing VELVET_ALCHEMY_HANDOFF_API_KEY in Railway. No lead was queued.",
+      };
     }
 
     return {

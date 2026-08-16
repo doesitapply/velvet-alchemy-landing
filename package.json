@@ -10,6 +10,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:smirk-live": "SMIRK_LIVE_TESTS=1 vitest run server/smirkHandoff.test.ts --reporter=verbose",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

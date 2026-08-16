@@ -108,6 +108,8 @@ export default function ApiKeys() {
   const baseUrl = window.location.origin;
   const outcomeWebhookUrl = `${baseUrl}/api/v1/leads/:id/outcome`;
   const readyLeadsUrl = `${baseUrl}/api/v1/leads/ready`;
+  const smirkDiagnosticsUrl = `${baseUrl}/api/v1/integrations/smirk/diagnostics`;
+  const smirkOutcomeContract = `POST ${outcomeWebhookUrl}\nAuthorization: Bearer <VELVET_ALCHEMY_OUTCOME_KEY>\nContent-Type: application/json\n\n{\n  "outcome": "interested | not_interested | callback | booked | no_answer | voicemail",\n  "summary": "SMIRK post-call summary",\n  "workspaceId": 1,\n  "callDuration": 86,\n  "calledAt": "2026-08-15T12:34:56.000Z"\n}`;
 
   return (
     <div className="container max-w-4xl py-8 space-y-6">
@@ -338,6 +340,44 @@ export default function ApiKeys() {
               Returns audited leads with phone numbers, prestige scores, and pre-built call briefs. Sorted by priority score.
             </p>
           </div>
+
+          <Separator />
+
+          {/* Step 5 — contract + diagnostics */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-foreground">Step 5 — Install the outcome callback contract</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => copyText(smirkOutcomeContract, "outcome-contract")}
+              >
+                {copiedKey === "outcome-contract" ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                Copy Contract
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Paste this into SMIRK’s Velvet callback implementation. The endpoint validates outcome values, numeric workspace binding, lead ownership, and bounded summary length before persisting anything.
+            </p>
+            <pre className="max-h-72 overflow-auto rounded-md border border-border bg-background p-3 text-xs leading-5 text-foreground whitespace-pre-wrap break-words">{smirkOutcomeContract}</pre>
+            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2">
+              <code className="text-xs flex-1 text-foreground break-all">{smirkDiagnosticsUrl}</code>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 shrink-0"
+                onClick={() => copyText(smirkDiagnosticsUrl, "diagnostics-url")}
+              >
+                {copiedKey === "diagnostics-url"
+                  ? <CheckCircle className="h-3 w-3 text-green-500" />
+                  : <Copy className="h-3 w-3" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Use <code className="bg-muted px-1 rounded">GET diagnostics</code> with a <code className="bg-muted px-1 rounded">handoff:write</code> key to probe the exact SMIRK receiver route without submitting a handoff or contacting anyone.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -367,6 +407,7 @@ export default function ApiKeys() {
               { method: "POST", path: "/scrape", desc: "Search businesses", scope: "scrape" },
               { method: "POST", path: "/leads/:id/audit", desc: "Run AI audit", scope: "audit" },
               { method: "POST", path: "/pipeline", desc: "Scrape + create + audit", scope: "pipeline" },
+              { method: "GET", path: "/integrations/smirk/diagnostics", desc: "Non-contacting receiver probe", scope: "handoff:write" },
               { method: "GET", path: "/leads/ready", desc: "Ready for SMIRK", scope: "handoff:write" },
               { method: "POST", path: "/leads/:id/handoff", desc: "Queue SMIRK call", scope: "handoff:write" },
               { method: "POST", path: "/leads/:id/outcome", desc: "Post call result", scope: "outcome:write" },

@@ -421,15 +421,13 @@ export default function CommandCenter() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Phone className="h-4 w-4 text-violet-400" />
                 SMIRK Connection
-                {smirkStats?.configured
-                  ? <Badge className="text-xs bg-green-600/20 text-green-400 border-green-500/30">Connected</Badge>
-                  : <Badge className="text-xs bg-red-600/20 text-red-400 border-red-500/30">Not Configured</Badge>
+                {smirkStats?.diagnostics.state === "reachable"
+                  ? <Badge className="text-xs bg-green-600/20 text-green-400 border-green-500/30">Receiver Reachable</Badge>
+                  : <Badge className="text-xs bg-red-600/20 text-red-400 border-red-500/30">Action Blocked</Badge>
                 }
               </CardTitle>
               <CardDescription>
-                {smirkStats?.configured
-                  ? "SMIRK API key is set. Handoffs are live."
-                  : "Set SMIRK_API_KEY and SMIRK_BASE_URL to enable autonomous calling."}
+                {smirkStats?.diagnostics.message ?? "Checking SMIRK configuration and receiver route…"}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -446,6 +444,23 @@ export default function CommandCenter() {
                   </div>
                 ))}
               </div>
+              {smirkStats?.diagnostics.receiverUrl && (
+                <div className="rounded-md border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-xs text-muted-foreground space-y-1 mb-3">
+                  <p><span className="text-foreground">Receiver:</span> <code className="break-all">{smirkStats.diagnostics.receiverUrl}</code></p>
+                  <p>
+                    <span className="text-foreground">Workspace:</span> {smirkStats.diagnostics.workspaceId}
+                    {smirkStats.diagnostics.receiverHttpStatus !== undefined && (
+                      <span> · Receiver HTTP {smirkStats.diagnostics.receiverHttpStatus}</span>
+                    )}
+                  </p>
+                  {smirkStats.lastHandoff && (
+                    <p>
+                      <span className="text-foreground">Latest handoff:</span> {smirkStats.lastHandoff.companyName} · {new Date(smirkStats.lastHandoff.handoffAt!).toLocaleString()}
+                      {smirkStats.lastHandoff.outcome ? ` · ${smirkStats.lastHandoff.outcome.replace(/_/g, " ")}` : ""}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="flex gap-2">
                 <Link href="/leads">
                   <Button size="sm" variant="outline" className="text-xs gap-1">

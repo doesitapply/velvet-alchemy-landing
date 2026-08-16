@@ -311,22 +311,45 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    smirkStats: protectedProcedure.query(async () => {
+    smirkStats: protectedProcedure.query(async ({ ctx }) => {
+        const { getSmirkDiagnostics } = await import('./lib/smirkHandoff');
+        const diagnostics = await getSmirkDiagnostics();
         const orm = await (await import('./db')).getDb();
-        if (!orm) return { queued: 0, contacted: 0, interested: 0, booked: 0, configured: false };
+        if (!orm) {
+          return {
+            queued: 0,
+            contacted: 0,
+            interested: 0,
+            booked: 0,
+            diagnostics,
+            lastHandoff: null,
+          };
+        }
         const { leads: leadsTable } = await import('../drizzle/schema');
-        const { inArray } = await import('drizzle-orm');
-        const { ENV } = await import('./_core/env');
-        const configured = !!(ENV.smirkApiKey && ENV.smirkBaseUrl);
+        const { and, desc, eq, inArray, isNotNull } = await import('drizzle-orm');
         const rows = await orm
           .select({ status: leadsTable.status, outcome: leadsTable.smirkCallOutcome })
           .from(leadsTable)
-          .where(inArray(leadsTable.status, ['smirk_queued', 'smirk_contacted', 'closed']));
+          .where(and(
+            eq(leadsTable.userId, ctx.user.id),
+            inArray(leadsTable.status, ['smirk_queued', 'smirk_contacted', 'closed'])
+          ));
+        const latestRows = await orm
+          .select({
+            id: leadsTable.id,
+            companyName: leadsTable.companyName,
+            handoffAt: leadsTable.smirkHandoffAt,
+            outcome: leadsTable.smirkCallOutcome,
+          })
+          .from(leadsTable)
+          .where(and(eq(leadsTable.userId, ctx.user.id), isNotNull(leadsTable.smirkHandoffAt)))
+          .orderBy(desc(leadsTable.smirkHandoffAt))
+          .limit(1);
         const queued = rows.filter(r => r.status === 'smirk_queued').length;
         const contacted = rows.filter(r => r.status === 'smirk_contacted').length;
         const interested = rows.filter(r => r.outcome === 'interested').length;
         const booked = rows.filter(r => r.outcome === 'booked').length;
-        return { queued, contacted, interested, booked, configured };
+        return { queued, contacted, interested, booked, diagnostics, lastHandoff: latestRows[0] ?? null };
       }),
 
     triggerHandoff: protectedProcedure

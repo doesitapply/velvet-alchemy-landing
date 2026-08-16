@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, ArrowLeft, ExternalLink, Sparkles, Mail, Send, Play, DollarSign, PhoneCall, CheckCircle2, XCircle, PhoneMissed } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -13,6 +14,7 @@ import AppHeader from "@/components/AppHeader";
 import { AuditProgressBar } from "@/components/AuditProgressBar";
 import { ReportDrawer } from "@/components/ReportDrawer";
 import { WebsiteEditorModal, WebsiteCustomizations } from "@/components/WebsiteEditorModal";
+import { buildSmirkHandoffConfirmation } from "@shared/smirkHandoffConfirmation";
 
 export default function LeadDetail() {
   const [, params] = useRoute("/leads/:id");
@@ -23,6 +25,7 @@ export default function LeadDetail() {
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
   const [selectedPackage, setSelectedPackage] = useState<'basic' | 'standard' | 'premium'>('standard');
+  const [handoffConfirmOpen, setHandoffConfirmOpen] = useState(false);
 
   const { data, isLoading, error, refetch } = trpc.leads.getById.useQuery(
     { id: leadId! },
@@ -127,7 +130,8 @@ export default function LeadDetail() {
 
   const triggerHandoff = trpc.leads.triggerHandoff.useMutation({
     onSuccess: (data) => {
-      toast.success(`⚡ SMIRK call queued — ${data.state}`);
+      toast.success(`SMIRK handoff accepted — ${data.state}`);
+      setHandoffConfirmOpen(false);
       refetch();
     },
     onError: (error: any) => {
@@ -233,6 +237,11 @@ export default function LeadDetail() {
   }
 
   const { lead, audit } = data;
+  const handoffConfirmation = buildSmirkHandoffConfirmation({
+    leadId: lead.id,
+    companyName: lead.companyName,
+    phone: String((lead as any).phone ?? ""),
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -265,7 +274,7 @@ export default function LeadDetail() {
             <div className="flex items-center gap-3">
               {['audited', 'contacted'].includes(lead.status) && (lead as any).phone && (
                 <Button
-                  onClick={() => triggerHandoff.mutate({ id: lead.id })}
+                  onClick={() => setHandoffConfirmOpen(true)}
                   disabled={triggerHandoff.isPending}
                   size="lg"
                   className="gap-2 bg-violet-600 hover:bg-violet-500 text-white border border-violet-400/30"
@@ -273,7 +282,7 @@ export default function LeadDetail() {
                   {triggerHandoff.isPending ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />Queuing...</>
                   ) : (
-                    <><PhoneCall className="h-4 w-4" />Queue SMIRK Call</>
+                    <><PhoneCall className="h-4 w-4" />Review SMIRK Handoff</>
                   )}
                 </Button>
               )}
@@ -308,6 +317,39 @@ export default function LeadDetail() {
               </Button>
             </div>
           </div>
+
+          <AlertDialog open={handoffConfirmOpen} onOpenChange={setHandoffConfirmOpen}>
+            <AlertDialogContent className="border-violet-500/40">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <PhoneCall className="h-5 w-5 text-violet-400" />
+                  {handoffConfirmation.title}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {handoffConfirmation.description}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1 text-sm">
+                {handoffConfirmation.target.map(([label, value]) => (
+                  <p key={label}><span className="text-muted-foreground">{label}:</span> {value}</p>
+                ))}
+                <p className="pt-2 text-xs text-muted-foreground">{handoffConfirmation.warning}</p>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={triggerHandoff.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={triggerHandoff.isPending}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    triggerHandoff.mutate({ id: lead.id });
+                  }}
+                  className="bg-violet-600 hover:bg-violet-500"
+                >
+                  {triggerHandoff.isPending ? "Submitting…" : handoffConfirmation.actionLabel}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Progress Bar */}
           {lead.status === 'pending' && (

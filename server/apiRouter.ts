@@ -25,7 +25,7 @@ import { storagePut } from "./storage";
 import { analyzeVisualDebt } from "./visualAudit";
 import { nanoid } from "nanoid";
 import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
-import { queueSmirkCall } from "./lib/smirkHandoff";
+import { getSmirkDiagnostics, queueSmirkCall } from "./lib/smirkHandoff";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -107,6 +107,18 @@ export function createApiRouter(): Router {
       scopes: req.apiKey?.scopes,
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // ── GET /api/v1/integrations/smirk/diagnostics ─────────────────────────────
+  // Non-contacting receiver probe. This endpoint never submits a handoff and
+  // cannot queue, call, text, or email a prospect.
+  // Scope: handoff:write
+  r.get("/integrations/smirk/diagnostics", requireScope("handoff:write"), async (_req: AuthedRequest, res: Response) => {
+    const diagnostics = await getSmirkDiagnostics();
+    const status = diagnostics.state === "reachable" ? 200
+      : diagnostics.state === "not_configured" || diagnostics.state === "invalid_configuration" ? 424
+      : 503;
+    res.status(status).json(diagnostics);
   });
 
   // ── GET /api/v1/leads ───────────────────────────────────────────────────────
@@ -445,10 +457,38 @@ export function createApiRouter(): Router {
         calledAt,      // ISO 8601
       } = req.body ?? {};
 
-      if (!outcome) return res.status(400).json({ error: "outcome is required" });
+      const allowedOutcomes = ["interested", "not_interested", "callback", "booked", "no_answer", "voicemail"] as const;
+      if (!allowedOutcomes.includes(outcome)) {
+        return res.status(400).json({ error: `outcome must be one of: ${allowedOutcomes.join(", ")}` });
+      }
+      if (typeof summary !== "undefined" && typeof summary !== "string") {
+        return res.status(400).json({ error: "summary must be a string" });
+      }
+      if (typeof callDuration !== "undefined" && (!Number.isInteger(callDuration) || callDuration < 0 || callDuration > 14_400)) {
+        return res.status(400).json({ error: "callDuration must be an integer between 0 and 14400 seconds" });
+      }
+      if (typeof calledAt !== "undefined" && (typeof calledAt !== "string" || Number.isNaN(Date.parse(calledAt)))) {
+        return res.status(400).json({ error: "calledAt must be a valid ISO-8601 timestamp" });
+      }
+      if (!Number.isInteger(Number(workspaceId)) || Number(workspaceId) <= 0) {
+        return res.status(400).json({ error: "workspaceId must be a positive integer" });
+      }
+      const expectedWorkspaceId = process.env.SMIRK_WORKSPACE_ID ?? "";
+      if (expectedWorkspaceId && String(workspaceId ?? "") !== expectedWorkspaceId) {
+        return res.status(403).json({ error: "workspaceId does not match the configured SMIRK workspace" });
+      }
 
       const orm = await getDb();
       if (!orm) return res.status(503).json({ error: "Database unavailable" });
+
+      const leadRows = await orm.select({ id: leads.id, userId: leads.userId })
+        .from(leads)
+        .where(eq(leads.id, leadId))
+        .limit(1);
+      if (!leadRows[0]) return res.status(404).json({ error: "Lead not found" });
+      if (leadRows[0].userId !== req.apiKey!.userId) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
 
       // Map SMIRK outcome tag to Velvet Alchemy lead status
       const statusMap: Record<string, "smirk_contacted" | "closed" | "smirk_queued"> = {
@@ -464,8 +504,8 @@ export function createApiRouter(): Router {
       await orm.update(leads).set({
         status: newStatus,
         smirkCallOutcome: outcome,
-        smirkCallSummary: summary ?? null,
-        smirkWorkspaceId: workspaceId ?? null,
+        smirkCallSummary: typeof summary === "string" ? summary.slice(0, 8_000) : null,
+        smirkWorkspaceId: String(workspaceId),
         updatedAt: new Date(),
       }).where(eq(leads.id, leadId));
 
