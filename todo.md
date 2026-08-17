@@ -1094,9 +1094,28 @@
 - [x] Add focused tests for diagnostics and operator handoff confirmation behavior
 
 ## SMIRK Railway Deployment Gate (EXTERNAL ACTION REQUIRED)
-- [ ] Set `VELVET_ALCHEMY_HANDOFF_API_KEY` in SMIRK Railway to a dedicated Velvet Alchemy `outcome:write` API key
-- [ ] Set `VELVET_ALCHEMY_WORKSPACE_ID=1` in SMIRK Railway and restart/redeploy the receiver
-- [ ] Run `pnpm test:smirk-live` after the receiver configuration is installed; require 201 RECEIVED then 200 DUPLICATE
+- [x] Verify the deployed callback credential has `outcome:write` as its only scope before installing it in Railway
+- [x] Initial outcome-key mapping to `VELVET_ALCHEMY_HANDOFF_API_KEY` (later corrected to the directional two-key design)
+- [x] Set `VELVET_ALCHEMY_WORKSPACE_ID=1` in SMIRK Railway and restart/redeploy the receiver
+- [x] Run `pnpm test:smirk-live` after the receiver configuration is installed; require 201 RECEIVED then 200 DUPLICATE
+- [x] Resolve the SMIRK receiver’s 401 inbound-handoff authentication mismatch without broadening the callback credential scope
+
+## Corrected SMIRK Two-Direction Credential Boundary (CURRENT)
+- [x] Locate the protected Manus secret-management handoff or browser surface required for inbound bearer rotation
+- [x] Verify the exact live SMIRK service, deployment revision, inbound route, and bearer consumer before rotating the exposed inbound credential
+- [x] Rotate the inbound Velvet-to-SMIRK bearer because it was exposed in local project metadata, then replace it in Velvet and Railway without rendering the new value
+- [x] Rotate the scoped Velvet `outcome:write` credential because its one-time value was exposed during the failed mapping attempt
+- [x] Replace the second exposed outcome-only key using a non-disclosing secret path before it is installed in Railway
+- [x] Issue the replacement outcome-only key server-side and pipe it directly into Railway without rendering the raw value
+- [x] Correct the SMIRK setup UI so inbound and outcome callback Railway variables are documented separately
+- [x] Temporarily restore the verified existing Velvet `SMIRK_API_KEY` to the Railway inbound handoff variable; subsequently rotate it after exposure was confirmed
+- [x] Restore `VELVET_ALCHEMY_HANDOFF_API_KEY` as the dedicated inbound Velvet-to-SMIRK bearer secret that matches Velvet `SMIRK_API_KEY`
+- [x] Add the scoped `VELVET_ALCHEMY_OUTCOME_KEY` and `VELVET_ALCHEMY_BASE_URL` configuration for SMIRK-to-Velvet callbacks
+- [x] Implement SMIRK outcome delivery to Velvet using only the `outcome:write` credential
+- [x] Add contract tests for SMIRK outcome delivery and preserve no-contact behavior for synthetic handoffs
+- [x] Deploy the corrected receiver and prove 201 RECEIVED then 200 DUPLICATE with the approved synthetic fixture
+- [x] Recover or verify Railway's GitHub source link so it can deploy the published `velvet-outcome-callback` branch without overwriting unrelated production code
+- [x] Authorize Railway CLI only for the identified SMIRK project and deploy the reviewed callback commit through that path
 
 ## API Keys Navigation Regression (CURRENT)
 - [x] Remove duplicate `/leads` navigation key causing React reconciliation warnings on `/api-keys`

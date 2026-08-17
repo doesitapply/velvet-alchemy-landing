@@ -13,7 +13,13 @@ import { toast } from "sonner";
 import { Key, Plus, Trash2, Copy, CheckCircle, AlertCircle, Clock, Zap, Phone, ExternalLink } from "lucide-react";
 import { getApiEndpointKey } from "@shared/apiEndpointKey";
 import { OperatorShell } from "@/components/OperatorShell";
-import { buildSmirkOutcomeContract, SMIRK_RAILWAY_BASE_URL, SMIRK_RAILWAY_CALLBACK_KEY, SMIRK_RAILWAY_WORKSPACE_ID } from "@shared/smirkIntegrationContract";
+import {
+  buildSmirkOutcomeContract,
+  SMIRK_RAILWAY_BASE_URL,
+  SMIRK_RAILWAY_INBOUND_HANDOFF_KEY,
+  SMIRK_RAILWAY_OUTCOME_KEY,
+  SMIRK_RAILWAY_WORKSPACE_ID,
+} from "@shared/smirkIntegrationContract";
 
 const SCOPE_OPTIONS = [
   { value: "leads:read", label: "Read Leads", description: "GET /leads, GET /leads/:id" },
@@ -31,7 +37,7 @@ const PRESETS = [
   {
     id: "smirk-outcome",
     label: "SMIRK Outcome Webhook",
-    description: "For Railway env var VELVET_ALCHEMY_HANDOFF_API_KEY — lets SMIRK post call results back",
+    description: "For Railway env var VELVET_ALCHEMY_OUTCOME_KEY — lets SMIRK post call results back",
     scopes: ["outcome:write"],
     name: "SMIRK Outcome Webhook",
   },
@@ -216,7 +222,7 @@ export default function ApiKeys() {
                   <Phone className="h-3.5 w-3.5" /> Set this in SMIRK Railway env vars:
                 </p>
                 <p className="font-mono text-xs text-muted-foreground">
-                  {SMIRK_RAILWAY_CALLBACK_KEY}=<span className="text-foreground">{newKeyResult.key}</span>
+                  {SMIRK_RAILWAY_OUTCOME_KEY}=<span className="text-foreground">{newKeyResult.key}</span>
                 </p>
                 <p className="font-mono text-xs text-muted-foreground">
                   VELVET_ALCHEMY_BASE_URL=<span className="text-foreground">{baseUrl}</span>
@@ -272,11 +278,11 @@ export default function ApiKeys() {
           <div className="space-y-2">
             <p className="text-sm font-semibold text-foreground">Step 2 — Set Railway env vars in SMIRK</p>
             <p className="text-xs text-muted-foreground mb-2">
-              In your SMIRK Railway project → Variables, add:
+              In your SMIRK Railway project → Variables, keep the two directions separate:
             </p>
             <div className="space-y-1.5">
               {[
-                { key: SMIRK_RAILWAY_CALLBACK_KEY, value: "<key from Step 1>", copyId: null },
+                { key: SMIRK_RAILWAY_OUTCOME_KEY, value: "<outcome:write key from Step 1>", copyId: null },
                 { key: SMIRK_RAILWAY_BASE_URL, value: baseUrl, copyId: "base-url" },
                 { key: SMIRK_RAILWAY_WORKSPACE_ID, value: "1", copyId: "ws-id" },
               ].map(row => (
@@ -298,6 +304,9 @@ export default function ApiKeys() {
                 </div>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              <code className="bg-muted px-1 rounded">{SMIRK_RAILWAY_INBOUND_HANDOFF_KEY}</code> is separate: it must match Velvet&apos;s dedicated <code className="bg-muted px-1 rounded">SMIRK_API_KEY</code> for Velvet → SMIRK handoffs. Never place an <code className="bg-muted px-1 rounded">outcome:write</code> key in that variable.
+            </p>
           </div>
 
           <Separator />

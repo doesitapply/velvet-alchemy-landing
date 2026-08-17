@@ -237,12 +237,16 @@ Content-Type: application/json
 }
 ```
 
-SMIRK must set both Railway environment variables below. Generate the key from Velvet Alchemy’s API Keys page using the **SMIRK Outcome Webhook** preset. Do not use `DASHBOARD_API_KEY` or a general-purpose admin credential.
+SMIRK uses **separate credentials for each direction**. Do not reuse either credential in the other direction, do not use `DASHBOARD_API_KEY`, and do not use a general-purpose admin credential.
 
 | Variable | Required value |
 |---|---|
-| `VELVET_ALCHEMY_HANDOFF_API_KEY` | A dedicated Velvet Alchemy API key with `outcome:write` scope. The legacy name is retained by SMIRK, but the key authorizes its callback to Velvet. |
+| `VELVET_ALCHEMY_HANDOFF_API_KEY` | Dedicated inbound bearer for **Velvet → SMIRK**. It must exactly match Velvet’s protected `SMIRK_API_KEY`; it is not a Velvet API key. |
+| `VELVET_ALCHEMY_OUTCOME_KEY` | Dedicated Velvet API key with exactly `outcome:write`, used only for **SMIRK → Velvet** post-call outcome callbacks. |
+| `VELVET_ALCHEMY_BASE_URL` | `https://velvetalchemy.manus.space` |
 | `VELVET_ALCHEMY_WORKSPACE_ID` | `1` for the currently bound workspace. |
+
+The inbound bearer and outcome-only callback key were deliberately rotated after prior one-time values were exposed during configuration attempts. The active outcome key remains restricted to `outcome:write`; predecessor outcome keys are revoked.
 
 ### Receiver Diagnostics
 
