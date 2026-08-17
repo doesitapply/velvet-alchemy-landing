@@ -25,7 +25,8 @@ import { storagePut } from "./storage";
 import { analyzeVisualDebt } from "./visualAudit";
 import { nanoid } from "nanoid";
 import { makeRequest, PlacesSearchResult, PlaceDetailsResult } from "./_core/map";
-import { getSmirkDiagnostics, queueSmirkCall } from "./lib/smirkHandoff";
+import { getSmirkDiagnostics, getSmirkQualification, queueSmirkCall } from "./lib/smirkHandoff";
+import { evaluateSmirkQualification } from "@shared/smirkQualification";
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -355,9 +356,8 @@ export function createApiRouter(): Router {
   });
 
   // ── GET /api/v1/leads/ready ────────────────────────────────────────────────
-  // Returns audited leads with phone numbers that haven't been handed off to SMIRK yet.
-  // Sorted by priorityScore desc, then reviewCount desc.
-  // Scope: leads:read
+  // Returns only leads that pass the same fail-closed qualification gate as handoff.
+  // Scope: handoff:write
   r.get("/leads/ready", requireScope("handoff:write"), async (req: AuthedRequest, res: Response) => {
     try {
       const limit = Math.min(parseInt(String(req.query.limit ?? "20")), 100);
@@ -376,6 +376,7 @@ export function createApiRouter(): Router {
           googleRating: leads.googleRating,
           reviewCount: leads.reviewCount,
           prestigeScore: leads.prestigeScore,
+          businessStatus: leads.businessStatus,
           priorityScore: leads.priorityScore,
           outreachChannel: leads.outreachChannel,
           verifiedOwnerEmail: leads.verifiedOwnerEmail,
@@ -391,22 +392,22 @@ export function createApiRouter(): Router {
           )
         )
         .orderBy(desc(leads.priorityScore), desc(leads.reviewCount))
-        .limit(limit);
+        .limit(Math.min(Math.max(limit * 5, 100), 500));
 
-      const withBriefs = readyLeads.map(lead => ({
+      const withBriefs = readyLeads.map(lead => {
+        const qualification = evaluateSmirkQualification(lead);
+        return {
         ...lead,
+        qualification,
         callBrief: {
           openingLine: lead.reviewCount && lead.reviewCount > 30
             ? `Hi, I'm calling about ${lead.companyName}. You have ${lead.reviewCount} Google reviews — clearly people love you. I wanted to share something specific about your call handling that I think is costing you jobs. Do you have 90 seconds?`
             : `Hi, I'm calling about ${lead.companyName}. We ran a quick analysis on your business and found something specific about your phone coverage I think is worth 2 minutes of your time.`,
-          signals: [
-            lead.reviewCount && lead.reviewCount > 30 ? `${lead.reviewCount} Google reviews` : null,
-            lead.googleRating ? `${lead.googleRating}\u2605 rating` : null,
-            lead.prestigeScore && lead.prestigeScore < 60 ? `Website score ${lead.prestigeScore}/100` : null,
-          ].filter(Boolean),
+          signals: qualification.evidence.map(item => item.detail),
         },
         handoffUrl: `/api/v1/leads/${lead.id}/handoff`,
-      }));
+        };
+      }).filter(lead => lead.qualification.eligible).slice(0, limit);
 
       res.json({ leads: withBriefs, count: withBriefs.length });
     } catch (err: any) {
@@ -428,7 +429,13 @@ export function createApiRouter(): Router {
       const leadRows = await orm.select().from(leads)
         .where(and(eq(leads.id, leadId), eq(leads.userId, req.apiKey!.userId))).limit(1);
       if (!leadRows[0]) return res.status(404).json({ error: "Lead not found" });
-      if (!leadRows[0].phone) return res.status(422).json({ error: "Lead has no phone number — cannot queue call" });
+      const qualification = await getSmirkQualification(leadId);
+      if (!qualification?.eligible) {
+        return res.status(422).json({
+          error: "Lead does not qualify for SMIRK",
+          qualification: qualification ?? { eligible: false, blockers: [{ label: "Qualification could not be evaluated" }] },
+        });
+      }
 
       const result = await queueSmirkCall(leadId, { scheduledAt, maxAttempts });
 

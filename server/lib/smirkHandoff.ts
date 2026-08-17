@@ -24,6 +24,7 @@
 import { getDb } from "../db";
 import { leads, audits } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
+import { evaluateSmirkQualification, normalizeSmirkPhone, type SmirkQualification } from "@shared/smirkQualification";
 
 // ─── SMIRK Handoff Payload Contract ──────────────────────────────────────────
 
@@ -203,7 +204,8 @@ export async function buildCallBrief(leadId: number): Promise<CallBrief | null> 
 
   const leadRows = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
   const lead = leadRows[0];
-  if (!lead || !lead.phone) return null;
+  const normalizedPhone = normalizeSmirkPhone(lead?.phone);
+  if (!lead || !normalizedPhone) return null;
 
   const auditRows = await db
     .select()
@@ -251,7 +253,7 @@ export async function buildCallBrief(leadId: number): Promise<CallBrief | null> 
   return {
     velvetLeadId: leadId,
     businessName: lead.companyName,
-    phoneNumber: lead.phone,
+    phoneNumber: normalizedPhone,
     ownerName: null,
     websiteUrl: lead.websiteUrl,
     signals,
@@ -261,6 +263,28 @@ export async function buildCallBrief(leadId: number): Promise<CallBrief | null> 
     prestigeScore: audit?.prestigeScore ?? lead.prestigeScore ?? 0,
     outcomeWebhookUrl,
   };
+}
+
+/** Reproducible, non-mutating eligibility decision used by every real handoff path. */
+export async function getSmirkQualification(leadId: number): Promise<SmirkQualification | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const leadRows = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+  const lead = leadRows[0];
+  if (!lead) return null;
+
+  const auditRows = await db
+    .select({ prestigeScore: audits.prestigeScore })
+    .from(audits)
+    .where(eq(audits.leadId, leadId))
+    .orderBy(desc(audits.createdAt))
+    .limit(1);
+
+  return evaluateSmirkQualification({
+    ...lead,
+    prestigeScore: auditRows[0]?.prestigeScore ?? lead.prestigeScore,
+  });
 }
 
 // ─── SMIRK Handoff Dispatcher ─────────────────────────────────────────────────
@@ -292,6 +316,17 @@ export async function queueSmirkCall(
     return {
       success: false,
       error: "SMIRK not configured — set SMIRK_BASE_URL, SMIRK_API_KEY, and SMIRK_WORKSPACE_ID",
+    };
+  }
+
+  const qualification = await getSmirkQualification(leadId);
+  if (!qualification) {
+    return { success: false, error: "Lead not found — cannot evaluate SMIRK qualification" };
+  }
+  if (!qualification.eligible) {
+    return {
+      success: false,
+      error: `Lead does not qualify for SMIRK: ${qualification.blockers.map(item => item.label).join("; ")}`,
     };
   }
 

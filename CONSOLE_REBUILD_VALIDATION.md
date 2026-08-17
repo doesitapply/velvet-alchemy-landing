@@ -93,3 +93,19 @@ The receiver’s live authentication boundary was verified with deliberately mal
 The final approved synthetic fixture `velvet-manus-fake-rotated-1786968503` with phone `+12025550124` returned `201 RECEIVED` for handoff record `31` and task `243`; its exact replay returned `200 DUPLICATE` for those same records. The fixture is explicitly synthetic and no call, SMS, email, or prospect contact occurred.
 
 The active boundary is now directional: `VELVET_ALCHEMY_HANDOFF_API_KEY` is the private Velvet-to-SMIRK bearer, while `VELVET_ALCHEMY_OUTCOME_KEY` is the separate Velvet API key restricted to `outcome:write` for SMIRK-to-Velvet callbacks. A live post-call outcome delivery cannot be exercised without a real completed call, so it remains guarded by the deployed callback code and focused unit coverage rather than fabricated outcome data.
+
+## 2026-08-17 — Console Receiver Status Refresh
+
+The initial Command Center screenshot after protected bearer rotation showed **Receiver blocked** while the long-lived development server still held its pre-rotation environment. Restarting the Velvet development server reloaded the protected `SMIRK_API_KEY`. A fresh Command Center view then resolved **Receiver reachable** and displayed the expected non-contacting diagnostic message, alongside 104 audited leads and 46 leads ready for review. This was a process-environment refresh issue, not a receiver or UI mapping defect.
+
+## 2026-08-17 — Protected Rotation Reverification
+
+From Velvet’s protected runtime, the named synthetic fixture `velvet-manus-fake-rotation-proof-1786970304` returned `201 RECEIVED` with `handoffId` **33** and `taskId` **245**. The exact same payload and external ID returned `200 DUPLICATE` with the same record IDs. The fixture used only `+12025550124`; no real prospect, call, SMS, or email was involved.
+
+The retired inbound bearer was intentionally unavailable to this session, so it was not retrieved or reintroduced merely to test it. An unauthorized synthetic control request using a non-secret invalid bearer returned `401 VELVET_ALCHEMY_HANDOFF_UNAUTHORIZED`, confirming the receiver rejects untrusted credentials. This is an authentication-rejection control, not a claim that the unretrieved predecessor itself was replayed.
+
+## 2026-08-17 — Hard Qualification Gate Validation
+
+The Live Queue now states its auditable qualification criteria and, after data loaded, showed **24 Qualified** records rather than the prior 46 phone-bearing audited records. Each ready-row carried a visible **Qualified** badge, while the receiver remained reachable. The threshold was derived from the current real inventory: audited, operational businesses with a callable phone, at least 30 reviews, a rating of at least 4.2, and an actionable audit score from 1 through 60. The queue did not submit any lead during this validation.
+
+The all-states view explicitly marks failed records with a **Blocked** badge and the first concrete reason, such as operational status, rating, review-count, or actionable-opportunity threshold. The older `Ready for review` status label was removed from all audited records; audit completion and qualification are now visibly distinct.

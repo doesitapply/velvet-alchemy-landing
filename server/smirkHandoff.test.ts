@@ -22,6 +22,7 @@ const runLiveSmirkTests = hasSmirk && process.env.SMIRK_LIVE_TESTS === "1";
 
 let testLeadId: number | null = null;
 let testLeadNoPhoneId: number | null = null;
+let testLeadUnqualifiedId: number | null = null;
 
 beforeAll(async () => {
   if (!hasDb) return; // cleanup skipped — no DB
@@ -34,6 +35,7 @@ beforeAll(async () => {
     websiteUrl: "https://testhvac.example.com",
     phone: "+17755550001",
     status: "audited",
+    businessStatus: "OPERATIONAL",
     prestigeScore: 45,
     priorityScore: 72,
     reviewCount: 87,
@@ -53,6 +55,19 @@ beforeAll(async () => {
   }).$returningId();
   testLeadNoPhoneId = noPhone?.id ?? null;
 
+  const [unqualified] = await db.insert(leads).values({
+    userId: 1,
+    companyName: "Unqualified Test Business",
+    websiteUrl: "https://unqualified.example.com",
+    phone: "+17755550002",
+    status: "audited",
+    businessStatus: "CLOSED_TEMPORARILY",
+    prestigeScore: 0,
+    reviewCount: 8,
+    googleRating: "3.8",
+  }).$returningId();
+  testLeadUnqualifiedId = unqualified?.id ?? null;
+
   if (testLeadId) {
     await db.insert(audits).values({
       leadId: testLeadId,
@@ -69,6 +84,7 @@ afterAll(async () => {
   if (!db) return;
   if (testLeadId) await db.delete(leads).where(eq(leads.id, testLeadId));
   if (testLeadNoPhoneId) await db.delete(leads).where(eq(leads.id, testLeadNoPhoneId));
+  if (testLeadUnqualifiedId) await db.delete(leads).where(eq(leads.id, testLeadUnqualifiedId));
 });
 
 // ─── buildCallBrief ───────────────────────────────────────────────────────────
@@ -125,6 +141,14 @@ describe("queueSmirkCall", () => {
   it.skipIf(!hasDb)("returns error for non-existent lead", async () => {
     const result = await queueSmirkCall(999999999);
     expect(result.success).toBe(false);
+  });
+
+  it.skipIf(!hasDb)("fails closed before dispatching when the lead does not pass qualification", async () => {
+    expect(testLeadUnqualifiedId).not.toBeNull();
+    const result = await queueSmirkCall(testLeadUnqualifiedId!);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/does not qualify/i);
+    expect(result.error).toMatch(/operational/i);
   });
 });
 

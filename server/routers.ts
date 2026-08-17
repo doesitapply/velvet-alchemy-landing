@@ -250,7 +250,9 @@ export const appRouter = router({
         
         const audit = await getAuditByLeadId(lead.id);
         
-        return { lead, audit };
+        const { getSmirkQualification } = await import('./lib/smirkHandoff');
+        const qualification = await getSmirkQualification(lead.id);
+        return { lead, audit, qualification };
       }),
 
     captureScreenshot: protectedProcedure
@@ -360,11 +362,11 @@ export const appRouter = router({
         if (lead.userId !== ctx.user.id && ctx.user.role !== 'admin') {
           throw new Error('Unauthorized');
         }
-        if (!lead.phone) throw new Error('Lead has no phone number — cannot queue SMIRK call');
-        if (!['audited', 'contacted'].includes(lead.status)) {
-          throw new Error('Lead must be audited before queuing a SMIRK call');
+        const { getSmirkQualification, queueSmirkCall } = await import('./lib/smirkHandoff');
+        const qualification = await getSmirkQualification(lead.id);
+        if (!qualification?.eligible) {
+          throw new Error(`Lead does not qualify for SMIRK: ${qualification?.blockers.map(item => item.label).join('; ') ?? 'qualification could not be evaluated'}`);
         }
-        const { queueSmirkCall } = await import('./lib/smirkHandoff');
         const result = await queueSmirkCall(lead.id);
         if (!result.success) throw new Error(result.error || 'SMIRK handoff failed');
         await logAudit({

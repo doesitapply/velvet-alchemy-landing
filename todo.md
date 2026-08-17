@@ -1087,6 +1087,10 @@
 - [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
 
 ## SMIRK Operator Workflow Enhancement (CURRENT)
+- [x] Define explicit, auditable lead-qualification criteria for SMIRK eligibility
+- [x] Enforce server-side qualification before every manual or API-driven SMIRK handoff
+- [x] Display qualification evidence and failure reasons in the Live Queue and Lead Detail views
+- [x] Add qualification-gate unit and handoff regression tests
 - [x] Add a fail-closed SMIRK diagnostics endpoint that validates local configuration and receiver reachability without queueing a call
 - [x] Display diagnostic state, receiver URL, workspace binding, and last handoff outcome in the Command Center SMIRK panel
 - [x] Add explicit operator confirmation before a real lead is handed to SMIRK from LeadDetail
@@ -1101,6 +1105,8 @@
 - [x] Resolve the SMIRK receiver’s 401 inbound-handoff authentication mismatch without broadening the callback credential scope
 
 ## Corrected SMIRK Two-Direction Credential Boundary (CURRENT)
+- [x] Verify protected-runtime synthetic receipt and exact replay; unauthorized-control request returned 401 without accessing or disclosing the retired bearer
+- [x] Resolve the Command Center receiver-status inconsistency observed after a verified live SMIRK handoff proof
 - [x] Update stale HANDOFF checkpoint metadata and resolved receiver-blocker guidance
 - [x] Locate the protected Manus secret-management handoff or browser surface required for inbound bearer rotation
 - [x] Verify the exact live SMIRK service, deployment revision, inbound route, and bearer consumer before rotating the exposed inbound credential

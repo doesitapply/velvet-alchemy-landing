@@ -1,11 +1,11 @@
-export type SmirkLifecycleLead = {
-  status: string;
-  phone?: string | null;
+import { evaluateSmirkQualification, type SmirkQualificationLead } from "./smirkQualification";
+
+export type SmirkLifecycleLead = SmirkQualificationLead & {
   smirkCallOutcome?: string | null;
 };
 
 export function isReadyForSmirkReview(lead: SmirkLifecycleLead): boolean {
-  return ["audited", "contacted"].includes(lead.status) && Boolean(lead.phone);
+  return evaluateSmirkQualification(lead).eligible;
 }
 
 export function isInSmirkLifecycle(lead: SmirkLifecycleLead): boolean {
