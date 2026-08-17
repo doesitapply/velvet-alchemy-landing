@@ -1087,6 +1087,8 @@
 - [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
 
 ## SMIRK Operator Workflow Enhancement (CURRENT)
+- [x] Clean test-created lead rate-limit state so fixture tests remain isolated across full-suite runs
+- [x] Audit and safely isolate synthetic fixture records from the operator-visible lead inventory
 - [x] Render a neutral verifying state instead of a false receiver-blocked state while SMIRK diagnostics load
 - [x] Define explicit, auditable lead-qualification criteria for SMIRK eligibility
 - [x] Enforce server-side qualification before every manual or API-driven SMIRK handoff

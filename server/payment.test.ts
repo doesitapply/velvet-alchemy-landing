@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { appRouter } from "./routers";
 import { getDb } from "./db";
-import { leads } from "../drizzle/schema";
+import { leads, payments } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Payment Router Tests
@@ -37,6 +38,14 @@ describe("Payment Router", () => {
     ) as any;
 
     testLeadId = leadResult[0].id;
+  });
+
+  afterAll(async () => {
+    if (!testLeadId) return;
+    const db = await getDb();
+    if (!db) return;
+    await db.delete(payments).where(eq(payments.lead_id, testLeadId));
+    await db.delete(leads).where(eq(leads.id, testLeadId));
   });
 
   it("should create a Stripe checkout session for standard package", async () => {

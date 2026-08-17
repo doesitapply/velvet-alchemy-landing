@@ -1,12 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { getDb } from "./db";
+import { audits, leads, rateLimits } from "../drizzle/schema";
+import { and, eq } from "drizzle-orm";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+const createdLeadIds: number[] = [];
+const TEST_USER_ID = 9_999_001;
 
-function createAuthContext(): TrpcContext {
+function createAuthContext(userId = 1): TrpcContext {
   const user: AuthenticatedUser = {
-    id: 1,
+    id: userId,
     openId: "test-user",
     email: "test@example.com",
     name: "Test User",
@@ -27,16 +32,31 @@ function createAuthContext(): TrpcContext {
   };
 }
 
+afterEach(async () => {
+  const db = await getDb();
+  if (!db) return;
+  while (createdLeadIds.length) {
+    const leadId = createdLeadIds.pop()!;
+    await db.delete(audits).where(eq(audits.leadId, leadId));
+    await db.delete(leads).where(eq(leads.id, leadId));
+  }
+  await db.delete(rateLimits).where(and(
+    eq(rateLimits.userId, TEST_USER_ID),
+    eq(rateLimits.action, "lead_create"),
+  ));
+});
+
 describe("Curator MVP", () => {
   describe("leads.create", () => {
     it("creates lead with screenshot and audit", async () => {
-      const ctx = createAuthContext();
+      const ctx = createAuthContext(TEST_USER_ID);
       const caller = appRouter.createCaller(ctx);
 
       const result = await caller.leads.create({
         companyName: "Test Company",
         websiteUrl: "https://example.com",
       });
+      createdLeadIds.push(result.lead.id);
 
       expect(result.lead).toBeDefined();
       expect(result.lead.companyName).toBe("Test Company");
@@ -117,7 +137,7 @@ describe("Curator MVP", () => {
 
   describe("leads.getById", () => {
     it("returns lead with audit", async () => {
-      const ctx = createAuthContext();
+      const ctx = createAuthContext(TEST_USER_ID);
       const caller = appRouter.createCaller(ctx);
 
       // First create a lead
@@ -125,6 +145,7 @@ describe("Curator MVP", () => {
         companyName: "Test Company",
         websiteUrl: "https://example.com",
       });
+      createdLeadIds.push(created.lead.id);
 
       // Then fetch it by ID
       const result = await caller.leads.getById({ id: created.lead.id });
