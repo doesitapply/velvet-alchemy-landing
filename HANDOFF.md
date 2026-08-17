@@ -1,6 +1,6 @@
 # Velvet Alchemy — Operator Handoff Document
 
-**Checkpoint:** post-hardening | **Date:** 2026-08-04 | **Tests:** 88/88 in Manus runtime | **TypeScript:** Clean
+**Checkpoint:** `c50f78f7` | **Date:** 2026-08-17 | **Tests:** 100 passed, 2 credential-dependent tests intentionally skipped outside Manus | **TypeScript:** Clean
 
 This document is the authoritative reference for any operator, agent, or AI continuing work on Velvet Alchemy. It reflects the actual current state of the codebase — not aspirational design.
 
@@ -316,7 +316,8 @@ The intended operator loop is:
 |---|---|---|
 | `pnpm db:push` fails (migration journal drift) | Medium — schema changes must be applied via SQL | Apply via `webdev_execute_sql` or DB panel |
 | Google AI key (`AQ.*`) is a short-lived OAuth token | High — Gemini fallback will die | Get permanent `AIzaSy*` key from aistudio.google.com/apikey |
-| SMIRK receiver callback configuration | **Action required** — the receiver route is deployed and reachable, but the latest synthetic POST returned `503 VELVET_ALCHEMY_HANDOFF_NOT_CONFIGURED` because SMIRK Railway is missing `VELVET_ALCHEMY_HANDOFF_API_KEY` | Create a dedicated `outcome:write` VA key; set `VELVET_ALCHEMY_HANDOFF_API_KEY` and `VELVET_ALCHEMY_WORKSPACE_ID=1` in SMIRK Railway; redeploy/restart; then run `pnpm test:smirk-live` |
+| SMIRK inbound handoff receiver | **Verified** — Railway deployment `540cffc2-ca94-4939-aeda-f59159562df6` is healthy; protected inbound bearer and separate outcome callback key are installed | Final synthetic fixture returned `201 RECEIVED` then `200 DUPLICATE` (handoff `31`, task `243`). No real prospect was contacted. |
+| Live post-call outcome callback | Guarded, not fabricated | The callback path is deployed and unit-covered. Its first live delivery will occur only after a real completed SMIRK call; do not manufacture an outcome record to test it. |
 
 ### Deferred Features
 

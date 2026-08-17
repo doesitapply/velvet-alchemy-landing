@@ -1101,6 +1101,7 @@
 - [x] Resolve the SMIRK receiver’s 401 inbound-handoff authentication mismatch without broadening the callback credential scope
 
 ## Corrected SMIRK Two-Direction Credential Boundary (CURRENT)
+- [x] Update stale HANDOFF checkpoint metadata and resolved receiver-blocker guidance
 - [x] Locate the protected Manus secret-management handoff or browser surface required for inbound bearer rotation
 - [x] Verify the exact live SMIRK service, deployment revision, inbound route, and bearer consumer before rotating the exposed inbound credential
 - [x] Rotate the inbound Velvet-to-SMIRK bearer because it was exposed in local project metadata, then replace it in Velvet and Railway without rendering the new value
