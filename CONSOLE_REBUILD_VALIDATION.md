@@ -109,3 +109,7 @@ The retired inbound bearer was intentionally unavailable to this session, so it 
 The Live Queue now states its auditable qualification criteria and, after data loaded, showed **24 Qualified** records rather than the prior 46 phone-bearing audited records. Each ready-row carried a visible **Qualified** badge, while the receiver remained reachable. The threshold was derived from the current real inventory: audited, operational businesses with a callable phone, at least 30 reviews, a rating of at least 4.2, and an actionable audit score from 1 through 60. The queue did not submit any lead during this validation.
 
 The all-states view explicitly marks failed records with a **Blocked** badge and the first concrete reason, such as operational status, rating, review-count, or actionable-opportunity threshold. The older `Ready for review` status label was removed from all audited records; audit completion and qualification are now visibly distinct.
+
+## 2026-08-17 — Receiver Loading-State Validation
+
+After a fresh server restart, the Command Center now renders **Verifying receiver** with neutral presentation while the diagnostic query is pending. It subsequently resolved to **Receiver reachable**. The console no longer presents a transient failed-receiver condition before it has any diagnostic data.

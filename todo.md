@@ -1087,6 +1087,7 @@
 - [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
 
 ## SMIRK Operator Workflow Enhancement (CURRENT)
+- [x] Render a neutral verifying state instead of a false receiver-blocked state while SMIRK diagnostics load
 - [x] Define explicit, auditable lead-qualification criteria for SMIRK eligibility
 - [x] Enforce server-side qualification before every manual or API-driven SMIRK handoff
 - [x] Display qualification evidence and failure reasons in the Live Queue and Lead Detail views

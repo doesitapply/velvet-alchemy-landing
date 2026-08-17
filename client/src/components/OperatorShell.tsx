@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { getSmirkReceiverPresentation } from "@shared/smirkReceiverPresentation";
 import {
   Activity,
   ChevronRight,
@@ -43,16 +44,19 @@ const systemNavigation = [
 ];
 
 function ReceiverPill({ state }: { state?: string }) {
-  const isReachable = state === "reachable";
-  const label = isReachable ? "Receiver reachable" : "Receiver blocked";
+  const presentation = getSmirkReceiverPresentation(state);
+  const isReachable = presentation.tone === "reachable";
+  const isVerifying = presentation.tone === "verifying";
   return (
     <Badge
       className={isReachable
         ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/10"
-        : "border-amber-400/20 bg-amber-400/10 text-amber-200 hover:bg-amber-400/10"}
+        : isVerifying
+          ? "border-slate-400/20 bg-slate-400/10 text-slate-300 hover:bg-slate-400/10"
+          : "border-amber-400/20 bg-amber-400/10 text-amber-200 hover:bg-amber-400/10"}
     >
-      <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${isReachable ? "bg-emerald-300" : "bg-amber-300"}`} />
-      {label}
+      <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${isReachable ? "bg-emerald-300" : isVerifying ? "bg-slate-300 animate-pulse" : "bg-amber-300"}`} />
+      {presentation.label}
     </Badge>
   );
 }
@@ -61,11 +65,13 @@ export function OperatorShell({ children, eyebrow, title, description, actions }
   const [location, setLocation] = useLocation();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const smirkStats = trpc.leads.smirkStats.useQuery(undefined, {
+  const smirkStatsQuery = trpc.leads.smirkStats.useQuery(undefined, {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
-  }).data;
+  });
+  const smirkStats = smirkStatsQuery.data;
   const isReachable = smirkStats?.diagnostics.state === "reachable";
+  const isVerifying = smirkStatsQuery.isLoading || !smirkStats;
 
   const navigate = (path: string) => setLocation(path);
 
@@ -124,9 +130,9 @@ export function OperatorShell({ children, eyebrow, title, description, actions }
             <button onClick={() => setCollapsed(value => !value)} className="flex h-9 w-full items-center rounded-lg px-3 text-slate-500 transition-colors hover:bg-white/[0.045] hover:text-slate-200" title={collapsed ? "Expand navigation" : "Collapse navigation"}>
               {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <><PanelLeftClose className="h-4 w-4" /><span className="ml-3 text-xs">Collapse</span></>}
             </button>
-            <div className={`rounded-xl border ${isReachable ? "border-emerald-400/15 bg-emerald-400/[0.045]" : "border-amber-400/15 bg-amber-400/[0.045]"} p-3`}>
+            <div className={`rounded-xl border ${isReachable ? "border-emerald-400/15 bg-emerald-400/[0.045]" : isVerifying ? "border-slate-400/15 bg-slate-400/[0.035]" : "border-amber-400/15 bg-amber-400/[0.045]"} p-3`}>
               <div className="flex items-center gap-2">
-                <Activity className={`h-3.5 w-3.5 ${isReachable ? "text-emerald-300" : "text-amber-300"}`} />
+                <Activity className={`h-3.5 w-3.5 ${isReachable ? "text-emerald-300" : isVerifying ? "text-slate-300" : "text-amber-300"}`} />
                 {!collapsed && <span className="text-xs font-medium text-slate-200">SMIRK Receiver</span>}
               </div>
               {!collapsed && <p className="mt-1.5 text-[11px] leading-4 text-slate-500">{smirkStats?.diagnostics.message ?? "Verifying connection…"}</p>}
