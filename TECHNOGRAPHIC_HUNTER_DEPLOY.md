@@ -1,5 +1,7 @@
 # Technographic Hunter - Deployment Guide
 
+> **Historical concept note.** This is not the deployed Velvet workflow and must not be used as deployment guidance.
+
 ## What You Built
 
 A **headless data stream** that scrapes websites for tech stack signals and sells access via API.

@@ -1,5 +1,7 @@
 # Velvet Alchemy
 
+> **Historical / superseded.** This file describes an older revenue-system concept. The current entry point is [`README.md`](./README.md).
+
 **An autonomous, multi-agent revenue system designed to identify, audit, and close high-net-worth leads in the luxury market.**
 
 Velvet Alchemy operates as a "revenue instrument" that converts URLs into contracts through automated lead acquisition, visual auditing, asset generation, and outreach. The system is built with a safety-first approach, ensuring compliance and preventing abuse while maximizing conversion efficiency.

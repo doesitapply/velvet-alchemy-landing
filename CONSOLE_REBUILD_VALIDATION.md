@@ -1,5 +1,7 @@
 # Console Rebuild Validation Notes
 
+> **Historical validation log.** Earlier entries record transient states that may be superseded. Read the final dated sections and [`SYSTEM_STATUS.md`](./SYSTEM_STATUS.md) for current state.
+
 ## 2026-08-16 — Authenticated Preview
 
 The rebuilt **Operations** and **Live Queue** routes rendered under the authenticated preview with the persistent SMIRK operator shell, workflow navigation, real lead counts, and lead records from the database.

@@ -1,5 +1,7 @@
 # Velvet Alchemy Stress Test Findings
 
+> **Historical test record.** Findings here predate the current SMIRK, qualification, and data-cleanup work.
+
 **Date**: January 20, 2026  
 **Tester**: Manus AI  
 **Environment**: Development (https://3000-izwy8vywvrbmic6mp6nag-0061a0de.us2.manus.computer)

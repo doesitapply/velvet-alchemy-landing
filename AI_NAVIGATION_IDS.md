@@ -1,5 +1,7 @@
 # AI Agent Navigation - Element ID Reference
 
+> **Historical / not current.** This is an earlier UI navigation snapshot. Use the current routes in [`README.md`](./README.md) and operator shell instead.
+
 This document provides a comprehensive mapping of all interactive element IDs across the Velvet Alchemy platform for AI agent navigation.
 
 ## Landing Page (Home.tsx)

@@ -1,5 +1,7 @@
 # VELVET ALCHEMY: 90-SECOND DEMO VIDEO PRODUCTION GUIDE
 
+> **Historical / do not use.** This guide contains unsupported revenue and conversion claims. Do not record or publish it without a complete evidence-based rewrite.
+
 **Last Updated:** January 27, 2026
 
 ---

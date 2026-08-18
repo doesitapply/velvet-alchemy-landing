@@ -1,5 +1,7 @@
 # Velvet Alchemy Website Design Brainstorming
 
+> **Historical ideation only.** This is not a product specification or implementation plan.
+
 <response>
 <text>
 <idea>

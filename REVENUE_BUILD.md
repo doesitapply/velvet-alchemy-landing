@@ -1,5 +1,7 @@
 # Velvet Alchemy - Complete Revenue Generation Build
 
+> **Historical / not current.** Revenue-generation and automatic-outreach plans in this file are not shipped behavior or operational instructions.
+
 ## PHASE 1: Enrichment Engine (Technical Leak Detection)
 - [ ] Create revenue calculator function (estimates annual loss based on prestige score)
 - [ ] Build technical audit function (page speed, mobile-friendly, SSL, broken links)

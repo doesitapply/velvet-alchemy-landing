@@ -1,5 +1,7 @@
 # Multi-Provider AI API Architecture
 
+> **Historical technical note.** Provider behavior must be verified against `server/_core/llm.ts` and active secrets; do not treat uptime, failover, or cost claims here as current.
+
 ## Overview
 
 Velvet Alchemy uses multiple AI providers with automatic failover to ensure 100% uptime even when rate limits are hit. The system automatically switches between providers based on availability, cost, and performance.

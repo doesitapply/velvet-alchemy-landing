@@ -1,5 +1,7 @@
 # Velvet Alchemy Outreach Playbook
 
+> **Historical draft reference.** Any outreach remains draft-first and operator-approved. This document is not authorization for direct, bulk, or automatic sending.
+
 **Version 1.0** | **Author:** Manus AI | **Last Updated:** January 21, 2026
 
 ---
@@ -366,4 +368,3 @@ Your audit findings are powerful—this playbook ensures that power translates i
 **Last Updated:** January 21, 2026  
 **Author:** Manus AI  
 **For:** Velvet Alchemy Revenue Instrument
-

@@ -1,5 +1,7 @@
 # Velvet Alchemy - Fully Autonomous Sales Pipeline
 
+> **Historical / not current.** Velvet does not run autonomous sales or automatic contact. The current controlled workflow is documented in [`HANDOFF.md`](./HANDOFF.md).
+
 ## 🎯 Goal: Make You Money While You Sleep
 
 **Your Role:** Quality control, visual approvals, final sign-offs, answering human questions  

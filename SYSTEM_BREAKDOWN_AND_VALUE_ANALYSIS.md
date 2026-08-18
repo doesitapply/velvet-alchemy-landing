@@ -1,5 +1,7 @@
 # VELVET ALCHEMY: COMPLETE SYSTEM BREAKDOWN & VALUE ANALYSIS
 
+> **Historical / not current.** This analysis predates the private operator pivot. Do not use its revenue, market, or valuation claims as operating assumptions.
+
 **Last Updated:** January 27, 2026
 
 ---

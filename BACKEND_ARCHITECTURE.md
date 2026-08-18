@@ -1,5 +1,7 @@
 # Velvet Alchemy - Backend Architecture Audit
 
+> **Historical architecture note.** Validate any implementation claim against the current source and [`HANDOFF.md`](./HANDOFF.md) before acting.
+
 ## ✅ FINAL IMPLEMENTATION STATUS (100% COMPLETE)
 
 **Date:** January 28, 2026  

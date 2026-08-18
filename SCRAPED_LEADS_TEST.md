@@ -1,5 +1,7 @@
 # Google Maps Scraper Test Results
 
+> **Historical test record.** This snapshot is not current operator inventory and must not be used as a live lead list.
+
 **Date:** January 20, 2026
 **Search Query:** "pizza in Reno, NV"
 **Category:** Pizza Places

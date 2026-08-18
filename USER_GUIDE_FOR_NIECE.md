@@ -1,5 +1,7 @@
 # Velvet Alchemy - Operations Manual
 
+> **Historical / superseded.** Use [`OPERATOR_TRAINING_GUIDE.md`](./OPERATOR_TRAINING_GUIDE.md) for the current qualification-first workflow.
+
 **For:** The person running the daily business  
 **Purpose:** Turn terrible restaurant websites into $5k paychecks  
 **Time Required:** 2-3 hours per day

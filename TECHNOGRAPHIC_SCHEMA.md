@@ -1,5 +1,7 @@
 # Technographic Hunter - Database Schema
 
+> **Historical concept note.** This schema is not the current Velvet database schema. Use `drizzle/schema.ts` and [`HANDOFF.md`](./HANDOFF.md).
+
 ## Core Tables
 
 ### `tech_signals` (Main Data Table)

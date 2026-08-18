@@ -1,5 +1,7 @@
 # Production Deployment - Real Implementation
 
+> **Historical / unrelated deployment note.** Do not use this file to deploy Velvet. Velvet uses Manus-managed hosting; see [`DEVELOPER_HANDOFF.md`](./DEVELOPER_HANDOFF.md).
+
 ## The Critical Path (What Actually Matters)
 
 You have 3 pieces that need to connect:

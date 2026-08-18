@@ -1,5 +1,7 @@
 # Velvet Alchemy - Comprehensive Stress Test #2
 
+> **Historical test record.** Use current test output and [`SYSTEM_STATUS.md`](./SYSTEM_STATUS.md) for present verification state.
+
 **Date:** January 20, 2026  
 **Tester:** Manus AI  
 **Goal:** Test all features end-to-end with real data, no mocks

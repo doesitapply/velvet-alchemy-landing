@@ -1,5 +1,7 @@
 # New Landing Page - Conversion-Focused Design
 
+> **Historical / not current.** The public conversion landing design was removed. The current root is a private operator auth gate.
+
 **Last Updated:** January 27, 2026
 
 ## Screenshot

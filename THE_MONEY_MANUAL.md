@@ -1,5 +1,7 @@
 # THE MONEY MANUAL 💰
 
+> **Historical / do not use.** This file contains unsupported revenue framing. Velvet currently makes no income, conversion, or deal-value claims.
+
 **Last Updated:** January 26, 2026 at 4:22 AM PST  
 **Version:** 1.0.0  
 **Status:** Production Ready
