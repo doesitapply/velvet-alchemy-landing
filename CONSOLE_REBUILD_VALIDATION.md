@@ -115,3 +115,9 @@ The all-states view explicitly marks failed records with a **Blocked** badge and
 ## 2026-08-17 — Receiver Loading-State Validation
 
 After a fresh server restart, the Command Center now renders **Verifying receiver** with neutral presentation while the diagnostic query is pending. It subsequently resolved to **Receiver reachable**. The console no longer presents a transient failed-receiver condition before it has any diagnostic data.
+
+## 2026-08-20 — First Supervised Real Handoff Receipt
+
+After explicit operator approval, lead `480011` (Weaklands Heating & Air Conditioning, Inc) was revalidated against the stored identity, full qualification gate, and an empty SMIRK lifecycle. The guarded dispatcher then received `201 RECEIVED` from SMIRK and Velvet persisted `status = smirk_queued`, `smirkHandoffAt = 2026-08-20 09:04:29`, and workspace `1`. The one-time runner was removed immediately after receipt confirmation.
+
+Velvet sent no SMS or email, and no second lead was submitted. No SMIRK call outcome, summary, or callback has returned; that remains the only valid next observation for this lead.

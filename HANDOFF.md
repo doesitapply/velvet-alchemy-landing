@@ -3,7 +3,6 @@
 **Authoritative state date:** 2026-08-17
 
 **Verification baseline:** 106 passed, 2 explicitly skipped; production build passes.
-**Default verification:** 106 passed, 2 intentionally skipped; production build passes.
 
 This document describes the system that is actually deployed and tested. It supersedes old revenue, agency, payment, and automatic-outreach descriptions elsewhere in the repository.
 
@@ -131,6 +130,10 @@ Database-backed tests must clean their records. Curator and payment tests now re
 | Fixed hunt workflow | Configurable predicate hunting is planned, not shipped. |
 | Railway GitHub CI skips | Active direct callback deployment is healthy; normal GitHub-driven deployment drift needs repair. |
 | AI provider dependencies | Audit behavior degrades when required LLM credentials are absent or exhausted. |
+
+## Cross-Repository Release Record
+
+The SMIRK repository maintains the detailed operational release record in [PR #7](https://github.com/doesitapply/ai-phone-agent-from-gemini/pull/7), branch `docs/operations-status-20260818`, commit `fffbf62415a995b66700ca640f69ae2d24b77f0d`. At verification time, the PR is open, clean, and has no blocking status checks. It documents Stripe test-versus-live boundaries, the active callback deployment, and the separate GitHub CI/workflow-permission limitation. This Velvet guide intentionally records only the dependency and does not duplicate those operational artifacts.
 
 ## Next High-Leverage Work
 
