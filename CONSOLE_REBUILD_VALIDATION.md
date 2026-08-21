@@ -121,3 +121,7 @@ After a fresh server restart, the Command Center now renders **Verifying receive
 After explicit operator approval, lead `480011` (Weaklands Heating & Air Conditioning, Inc) was revalidated against the stored identity, full qualification gate, and an empty SMIRK lifecycle. The guarded dispatcher then received `201 RECEIVED` from SMIRK and Velvet persisted `status = smirk_queued`, `smirkHandoffAt = 2026-08-20 09:04:29`, and workspace `1`. The one-time runner was removed immediately after receipt confirmation.
 
 Velvet sent no SMS or email, and no second lead was submitted. No SMIRK call outcome, summary, or callback has returned; that remains the only valid next observation for this lead.
+
+## 2026-08-21 — Read-Only Task Inspection Limitation
+
+The restored sandbox does not retain the previously authorized Railway CLI session, and the Railway browser surface remained blank after navigation to the known production service. No task state, schedule, or call behavior was read or changed. Velvet remains the authoritative observed state: lead `480011` is `smirk_queued` with no returned outcome.

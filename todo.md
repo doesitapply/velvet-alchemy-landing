@@ -1087,6 +1087,13 @@
 - [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
 
 ## SMIRK Operator Workflow Enhancement (CURRENT)
+- [ ] Diagnose and correct the live SMIRK receiver 404 observed during control-chat validation without contacting any lead
+- [x] Add a SMIRK control-chat tool pack for read-only Velvet system status and qualified-lead retrieval
+- [x] Add explicit tool-risk policy so contact, configuration, and credential actions remain confirmation-gated
+- [x] Extend the embedded SMIRK chat bubble with a visible Velvet/System mode and capability state
+- [x] Add cross-system control-chat contract tests and deployment documentation
+- [ ] Restore Railway access solely for a read-only inspection of the approved SMIRK task
+- [ ] Inspect the single approved SMIRK task read-only to determine its current lifecycle state without modifying any call behavior
 - [x] Update README with the verified first real handoff receipt and explicitly pending outcome state
 - [x] Submit the explicitly approved Weaklands handoff once through the existing guarded service after the preview OAuth 403 prevented UI submission
 - [x] Verify and record the SMIRK documentation PR #7 release dependency without overwriting its completed documentation work

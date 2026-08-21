@@ -122,6 +122,74 @@ export function createApiRouter(): Router {
     res.status(status).json(diagnostics);
   });
 
+  // ── Read-only SMIRK Control Chat endpoints ─────────────────────────────────
+  // These endpoints are intentionally separate from handoff and outcome authority.
+  // They never create, queue, contact, modify, or schedule a lead.
+  r.get("/integrations/smirk/control", requireScope("smirk:read"), async (req: AuthedRequest, res: Response) => {
+    try {
+      const orm = await getDb();
+      if (!orm) return res.status(503).json({ error: "Database unavailable" });
+      const rows = await orm.select({
+        id: leads.id,
+        status: leads.status,
+        phone: leads.phone,
+        businessStatus: leads.businessStatus,
+        reviewCount: leads.reviewCount,
+        googleRating: leads.googleRating,
+        prestigeScore: leads.prestigeScore,
+        smirkHandoffAt: leads.smirkHandoffAt,
+        smirkCallOutcome: leads.smirkCallOutcome,
+      }).from(leads).where(eq(leads.userId, req.apiKey!.userId));
+      const qualified = rows.filter(lead => evaluateSmirkQualification(lead).eligible);
+      const latestHandoff = rows.filter(lead => lead.smirkHandoffAt)
+        .sort((a, b) => new Date(b.smirkHandoffAt!).getTime() - new Date(a.smirkHandoffAt!).getTime())[0] ?? null;
+      res.json({
+        system: "velvet_alchemy",
+        mode: "private_operator",
+        counts: {
+          total: rows.length,
+          qualified: qualified.length,
+          queued: rows.filter(lead => lead.status === "smirk_queued").length,
+          contacted: rows.filter(lead => lead.status === "smirk_contacted").length,
+          outcomes: rows.filter(lead => Boolean(lead.smirkCallOutcome)).length,
+        },
+        latestHandoff: latestHandoff ? { id: latestHandoff.id, handoffAt: latestHandoff.smirkHandoffAt, outcome: latestHandoff.smirkCallOutcome } : null,
+      });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  r.get("/integrations/smirk/control/qualified", requireScope("smirk:read"), async (req: AuthedRequest, res: Response) => {
+    try {
+      const orm = await getDb();
+      if (!orm) return res.status(503).json({ error: "Database unavailable" });
+      const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 25);
+      const rows = await orm.select({
+        id: leads.id, companyName: leads.companyName, city: leads.city, state: leads.state,
+        category: leads.category, websiteUrl: leads.websiteUrl, googleRating: leads.googleRating,
+        reviewCount: leads.reviewCount, prestigeScore: leads.prestigeScore, status: leads.status,
+        phone: leads.phone, businessStatus: leads.businessStatus, smirkHandoffAt: leads.smirkHandoffAt,
+        smirkCallOutcome: leads.smirkCallOutcome,
+      }).from(leads).where(eq(leads.userId, req.apiKey!.userId)).orderBy(desc(leads.priorityScore)).limit(200);
+      const qualified = rows.filter(lead => evaluateSmirkQualification(lead).eligible).slice(0, limit)
+        .map(({ phone, ...lead }) => ({ ...lead, qualification: "eligible" }));
+      res.json({ leads: qualified, count: qualified.length, readOnly: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  r.get("/integrations/smirk/control/leads/:id", requireScope("smirk:read"), async (req: AuthedRequest, res: Response) => {
+    try {
+      const orm = await getDb();
+      if (!orm) return res.status(503).json({ error: "Database unavailable" });
+      const leadId = Number(req.params.id);
+      const leadRows = await orm.select().from(leads).where(and(eq(leads.id, leadId), eq(leads.userId, req.apiKey!.userId))).limit(1);
+      const lead = leadRows[0];
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+      const auditRows = await orm.select().from(audits).where(eq(audits.leadId, leadId)).orderBy(desc(audits.createdAt)).limit(1);
+      const audit = auditRows[0] ?? null;
+      res.json({ lead, audit: audit ? { summary: audit.summary, prestigeScore: audit.prestigeScore, createdAt: audit.createdAt } : null, qualification: evaluateSmirkQualification(lead), readOnly: true });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // ── GET /api/v1/leads ───────────────────────────────────────────────────────
   r.get("/leads", requireScope("leads:read"), async (req: AuthedRequest, res: Response) => {
     try {

@@ -12,7 +12,7 @@ import { getDb } from "./db";
 import { apiKeys } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
-const VALID_SCOPES = [
+export const VALID_SCOPES = [
   "leads:read",
   "leads:write",
   "scrape",
@@ -20,6 +20,7 @@ const VALID_SCOPES = [
   "pipeline",
   "handoff:write",   // Queue a SMIRK outbound call for a lead
   "outcome:write",   // Post a SMIRK call outcome back to Velvet Alchemy
+  "smirk:read",      // Read-only SMIRK Control Chat evidence retrieval
   "*",
 ] as const;
 

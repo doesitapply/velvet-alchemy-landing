@@ -2,6 +2,7 @@ export const SMIRK_RAILWAY_INBOUND_HANDOFF_KEY = "VELVET_ALCHEMY_HANDOFF_API_KEY
 export const SMIRK_RAILWAY_OUTCOME_KEY = "VELVET_ALCHEMY_OUTCOME_KEY";
 export const SMIRK_RAILWAY_WORKSPACE_ID = "VELVET_ALCHEMY_WORKSPACE_ID";
 export const SMIRK_RAILWAY_BASE_URL = "VELVET_ALCHEMY_BASE_URL";
+export const SMIRK_RAILWAY_READ_KEY = "VELVET_ALCHEMY_READ_KEY";
 
 export function buildSmirkOutcomeContract(baseUrl: string) {
   const outcomeWebhookUrl = `${baseUrl}/api/v1/leads/:id/outcome`;

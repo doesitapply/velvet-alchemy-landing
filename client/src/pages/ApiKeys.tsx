@@ -18,6 +18,7 @@ import {
   SMIRK_RAILWAY_BASE_URL,
   SMIRK_RAILWAY_INBOUND_HANDOFF_KEY,
   SMIRK_RAILWAY_OUTCOME_KEY,
+  SMIRK_RAILWAY_READ_KEY,
   SMIRK_RAILWAY_WORKSPACE_ID,
 } from "@shared/smirkIntegrationContract";
 
@@ -29,11 +30,19 @@ const SCOPE_OPTIONS = [
   { value: "pipeline", label: "Pipeline", description: "POST /pipeline — scrape + create + audit" },
   { value: "handoff:write", label: "SMIRK Handoff", description: "GET /leads/ready, POST /leads/:id/handoff" },
   { value: "outcome:write", label: "SMIRK Outcome", description: "POST /leads/:id/outcome — receive call results" },
+  { value: "smirk:read", label: "SMIRK Control Read", description: "Read-only chat: system status, qualified leads, and audit evidence" },
   { value: "*", label: "Full Access", description: "All current and future scopes" },
 ];
 
 // Preset configs for common integrations
 const PRESETS = [
+  {
+    id: "smirk-control",
+    label: "SMIRK Control Chat",
+    description: "Read-only Velvet evidence for the embedded SMIRK System chat mode",
+    scopes: ["smirk:read"],
+    name: "SMIRK Control Chat Read",
+  },
   {
     id: "smirk-outcome",
     label: "SMIRK Outcome Webhook",
@@ -283,6 +292,7 @@ export default function ApiKeys() {
             <div className="space-y-1.5">
               {[
                 { key: SMIRK_RAILWAY_OUTCOME_KEY, value: "<outcome:write key from Step 1>", copyId: null },
+                { key: SMIRK_RAILWAY_READ_KEY, value: "<separate smirk:read key for control chat>", copyId: null },
                 { key: SMIRK_RAILWAY_BASE_URL, value: baseUrl, copyId: "base-url" },
                 { key: SMIRK_RAILWAY_WORKSPACE_ID, value: "1", copyId: "ws-id" },
               ].map(row => (
@@ -425,6 +435,8 @@ export default function ApiKeys() {
               { method: "POST", path: "/leads/:id/audit", desc: "Run AI audit", scope: "audit" },
               { method: "POST", path: "/pipeline", desc: "Scrape + create + audit", scope: "pipeline" },
               { method: "GET", path: "/integrations/smirk/diagnostics", desc: "Non-contacting receiver probe", scope: "handoff:write" },
+              { method: "GET", path: "/integrations/smirk/control", desc: "Read-only control state", scope: "smirk:read" },
+              { method: "GET", path: "/integrations/smirk/control/qualified", desc: "Qualified lead evidence", scope: "smirk:read" },
               { method: "GET", path: "/leads/ready", desc: "Ready for SMIRK", scope: "handoff:write" },
               { method: "POST", path: "/leads/:id/handoff", desc: "Queue SMIRK call", scope: "handoff:write" },
               { method: "POST", path: "/leads/:id/outcome", desc: "Post call result", scope: "outcome:write" },
