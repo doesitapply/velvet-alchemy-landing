@@ -8,6 +8,7 @@ import {
   Activity,
   ChevronRight,
   Crosshair,
+  ExternalLink,
   Gauge,
   KeyRound,
   ListChecks,
@@ -42,6 +43,8 @@ const systemNavigation = [
   { path: "/governor", label: "Controls", icon: ShieldCheck },
   { path: "/export", label: "Export", icon: ListChecks },
 ];
+
+const SMIRK_CONSOLE_URL = "https://smirkcalls.com";
 
 function ReceiverPill({ state }: { state?: string }) {
   const presentation = getSmirkReceiverPresentation(state);
@@ -127,6 +130,10 @@ export function OperatorShell({ children, eyebrow, title, description, actions }
           </nav>
 
           <div className="mt-auto space-y-3">
+            <a href={SMIRK_CONSOLE_URL} target="_blank" rel="noreferrer" className="flex h-10 w-full items-center rounded-lg border border-cyan-300/15 bg-cyan-300/[0.04] px-3 text-cyan-100 transition-colors hover:border-cyan-300/30 hover:bg-cyan-300/[0.08]" title="Open SMIRK control console">
+              <Radio className="h-3.5 w-3.5" />
+              {!collapsed && <><span className="ml-3 flex-1 text-xs font-medium">Open SMIRK</span><ExternalLink className="h-3 w-3 text-cyan-300" /></>}
+            </a>
             <button onClick={() => setCollapsed(value => !value)} className="flex h-9 w-full items-center rounded-lg px-3 text-slate-500 transition-colors hover:bg-white/[0.045] hover:text-slate-200" title={collapsed ? "Expand navigation" : "Collapse navigation"}>
               {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <><PanelLeftClose className="h-4 w-4" /><span className="ml-3 text-xs">Collapse</span></>}
             </button>

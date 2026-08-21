@@ -1087,6 +1087,12 @@
 - [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
 
 ## SMIRK Operator Workflow Enhancement (CURRENT)
+- [x] Add bidirectional Velvet–SMIRK navigation links with authentication-safe context deep links
+- [ ] Restore the live SMIRK receiver route, install only the scoped `smirk:read` control connection, and deploy the reviewed control-chat branch
+- [x] Define safe CRUD entities and launch-action risk tiers for the combined SMIRK–Velvet control surface
+- [x] Add guarded CRUD APIs and chat tools for safe SMIRK task, contact, and briefing records
+- [x] Add visible control-panel launch buttons with exact confirmation for contact or real handoff actions
+- [x] Add tests and operating documentation for the CRUD and launch-control boundaries
 - [ ] Diagnose and correct the live SMIRK receiver 404 observed during control-chat validation without contacting any lead
 - [x] Add a SMIRK control-chat tool pack for read-only Velvet system status and qualified-lead retrieval
 - [x] Add explicit tool-risk policy so contact, configuration, and credential actions remain confirmation-gated

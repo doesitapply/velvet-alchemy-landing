@@ -81,7 +81,7 @@ export default function LeadDetail() {
       eyebrow="LEAD INTELLIGENCE"
       title={lead.companyName}
       description="The evidence and decision record for this specific business. SMIRK receives a brief only after explicit operator confirmation."
-      actions={<Link href="/smirk-queue"><Button size="sm" variant="outline" className="border-white/[0.1] bg-white/[0.03] text-slate-200 hover:bg-white/[0.08]"><ArrowLeft className="mr-2 h-3.5 w-3.5" /> Queue</Button></Link>}
+      actions={<div className="flex items-center gap-2"><a href={`https://smirkcalls.com/?velvetLeadId=${lead.id}`} target="_blank" rel="noreferrer"><Button size="sm" variant="outline" className="border-cyan-300/20 bg-cyan-300/[0.04] text-cyan-100 hover:bg-cyan-300/[0.1]"><Radio className="mr-2 h-3.5 w-3.5" /> SMIRK</Button></a><Link href="/smirk-queue"><Button size="sm" variant="outline" className="border-white/[0.1] bg-white/[0.03] text-slate-200 hover:bg-white/[0.08]"><ArrowLeft className="mr-2 h-3.5 w-3.5" /> Queue</Button></Link></div>}
     >
       <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <div className="rounded-2xl border border-white/[0.08] bg-[#0d0f17]/85 p-5 md:p-6">
