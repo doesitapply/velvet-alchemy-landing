@@ -2,7 +2,7 @@
 
 **Status:** Operational lead-screening and controlled SMIRK handoff system.
 
-**Last reconciled:** 2026-08-17.
+**Last reconciled:** 2026-08-20.
 **Repository:** [`doesitapply/velvet-alchemy-landing`](https://github.com/doesitapply/velvet-alchemy-landing).
 
 Velvet Alchemy is a **private operator tool**. It stores and audits business leads, applies an explicit qualification gate, and lets an operator deliberately hand an eligible lead to SMIRK. It is not a public SaaS product, a revenue guarantee, or an unattended outbound system.
@@ -16,11 +16,17 @@ Velvet Alchemy is a **private operator tool**. It stores and audits business lea
 | Lead inventory | Working | Known synthetic `Test Company` and `Test Payment Company` records were removed; tests now clean their own fixtures. |
 | Audit and qualification | Working | Leads must satisfy the hard eligibility rule before SMIRK handoff. |
 | Operator review | Working | Live Queue and Lead Detail expose qualification evidence, block reasons, and explicit confirmation. |
-| Velvet → SMIRK handoff | Proven with a synthetic fixture | A protected-runtime synthetic request returned `201 RECEIVED`; exact replay returned `200 DUPLICATE`. |
+| Velvet → SMIRK handoff | Proven synthetically and exercised once with explicit operator approval | A protected-runtime synthetic request returned `201 RECEIVED`; exact replay returned `200 DUPLICATE`. One approved real lead is now queued; see the current lifecycle note below. |
 | Inbound receiver security | Proven | An unauthorized synthetic control returned `401`. |
-| SMIRK → Velvet outcome callback | Deployed and unit-covered | A real post-call outcome is not fabricated; it remains unproven until a real completed SMIRK call. |
+| SMIRK → Velvet outcome callback | Deployed and unit-covered | No real terminal call outcome has returned. Velvet will not fabricate one. |
 
 The latest default test run completed with **106 passing tests and 2 explicit skips**. `pnpm build` succeeds.
+
+### Current Real Handoff Lifecycle
+
+After explicit operator approval, Velvet submitted **one** real handoff: **Weaklands Heating & Air Conditioning, Inc** (lead `480011`). SMIRK returned `201 RECEIVED`, and Velvet recorded `status = smirk_queued`, `smirkHandoffAt = 2026-08-20 09:04:29`, and workspace `1`. Velvet sent no SMS or email and no second lead was submitted.
+
+This is a receipt state, **not a completed sale or call result**. SMIRK now owns any configured calling, timing, recording, escalation, and retry behavior. The only valid next lifecycle record is a real terminal outcome delivered through the scoped SMIRK → Velvet callback.
 
 ## Qualification Gate
 
@@ -90,7 +96,7 @@ The default suite does not submit a synthetic handoff. Use `pnpm test:smirk-live
 
 ## Known Limits
 
-The configurable predicate hunt engine is not built yet; the current hunt flow is not arbitrary business-pattern search. The outcome callback is deployed but has no real-call proof. Railway’s active direct callback deployment is healthy, while its normal GitHub-triggered deployment path remains skipped by a failing CI suite. These are tracked limitations, not evidence of sales performance.
+The configurable predicate hunt engine is not built yet; the current hunt flow is not arbitrary business-pattern search. One real handoff is queued, but no completed call or terminal outcome has been observed. Railway’s active direct callback deployment is healthy, while its normal GitHub-triggered deployment path remains skipped by a failing CI suite. These are tracked limitations, not evidence of sales performance.
 
 ## License
 

@@ -11,13 +11,15 @@
     "DRIZZLE_DATABASE_URL": "mysql://2N1WTErRdSjheBh.3ef00cf48eaf:A3gDgA4dU2fR97wDUMC2@gateway02.us-east-1.prod.aws.tidbcloud.com:4000/HG4Skpf2ZVYBMNGsfofSrc?ssl={\"rejectUnauthorized\":true}",
     "MANUS_WEBDEV_PROJECT_ID": "HG4Skpf2ZVYBMNGsfofSrc"
   },
-  "experiments": null,
+  "experiments": [
+    "no_db_push"
+  ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/91847194/HG4Skpf2ZVYBMNGsfofSrc",
-    "access_key_id": "ASIAZV3A2ECZBVASCBQ6",
-    "secret_access_key": "7xjxVYxGg6uUPBzAXt7x0mtHltBDxH7twAdSYMMJ",
-    "session_token": "IQoJb3JpZ2luX2VjEHoaCXVzLWVhc3QtMSJGMEQCIAd752NdXkyQ9+63lHHIbCLuw5F/yfrfA2GeEyuhRyLWAiBUxwOS5o7c1a7AMuvPBlWHYM5LXnb84FLWLEPbiptTeSriAwhDEAQaDDY2NTM4NjA5ODg2NiIMmUqGWr8WoR56LXUOKr8DpM5AjhqsAW7vB3WLoLn3yVLx/Li8ZoULwjoZSzInFCWi0auzdurb0FM6EhMIFbqEgOOIq53c0a/hgSxyrWcJbBWmb+2254IGxBZVtWiqNkAEfT1RR9IpXhYeStbV86PzHuTXtTvzMIiiM1YJ7T9/M+yOR1GYXL8+J7eSIGPLPQEbwwMWQGwU3b7LU2WbDJsyosqTm8g3Ae5vbvhuESh8n5HUpcTaeH6rmB074DMIMswdPKR9B9D1CR0JHUe8kHojZvEo5T+l8sGxfDPN3CKuJLAAH8w2QOtlPfOv/FpCsczSMibkfsSyMDsxBQ3DgfDXlFPqZ7stYLasQvevmmwN0gLBY/pMR1T/NdHFslD7cZ24+SyR7fk0QprbuFqItYWZ0ou1BCfFA4E8NJ9ym1R63Hg7J2vNDH+kDcYPgowkRnf8gMvyVtpi9lsC6EpiNu1H/9jDwfUucZXMRE7VVJ+TunVYfThzyK2ZfIstjWePVpbG6bK8QLfuMjj79QUQ9hDdkBmqq8pQOjTvTn1HcFAKg4Ak7WWimpFGMgeuUNxwuPxJ8ugKW8B4vQnGJYNplCchZvp2lOquF+tZ3mmWAuaMMK24i9QGOp4BMOoNN/+qdq8QzOPOnlBSw7LmbQKmIo/uWG6G50mrka+xidHqstDUFAV84r5pOA3QIczJG4uUpVnnLdqRRq0jyr+Ep16sAIcekeppd23kGNrJRVf6fBqy8kWx5gi69wQx1G7T+6I9v3XGY7/zFlc+M77AVhorSy2HDZ50pbETesCe5JvjrTILKb1vjdVSvzWlA3+QSotFpEQSMzup5Nc=",
-    "expiration": "2026-08-17T22:02:21.000Z",
+    "access_key_id": "ASIAZV3A2ECZDLNJGD46",
+    "secret_access_key": "LLLXAHfsWJjX+2d//5MP7LnKkUAB95aZJ8AGie34",
+    "session_token": "IQoJb3JpZ2luX2VjENj//////////wEaCXVzLWVhc3QtMSJIMEYCIQD7SYp4CEZqpoPfNvV8aQDjGNmJ4CXt1vYToV/bbGBeSQIhAKM9ZbXYjwYY5Suf9P/aHb70v0JYI4m6e6crqWgbHyasKusDCKH//////////wEQBBoMNjY1Mzg2MDk4ODY2Igx5nxZExak5MFUmLgoqvwMl0qZDqBRz52rGKZZ5UQsZTn/bdrLsDFaXg70sdZ1UUBsgzfxA50pXhoEHaQhkVGic0+mvt+y9+3ayT3sg/kCal27Ms/e33c3gngS/oPqkb87OI/E4XT5Ht85xb8YkqpEr5x58uJ833bKLR0bSewricA3qDj2pcGm+9x+03mGQbJKd4xCRKZvL2RfEwMNMaPpFE8Hs9mZrDf6HQS9wtb5pSzJblRchCWTIzOhgouw4daaLS1DATXzNt5NTotMIF9Ad6QGri5XC3VSvwMx4kqFiIllQyfBOLfIZsBB9HKhDK2M+m0Ai+q4Gf3QxJscv84J7QpiHD+nZN0chjfKLab+3mTQ4QRDmr4L9mGX1AxxXp0NtUq7G57EDzWC/msxbS5/ka169JYD3eGeJCw3IHt0xLLkxby/QwCGTZycNXg6/4RGgtQz0nExgCTO9z7RCNQlPzTWUsP7Zy09q1aCjzp/J497j2RWsQwv7Td+D5oNh8TLWEeNj5lsW5C6M59wZ04Afjn7w/UzBAZOXET1/W+Bn2m2URZYFJmtGnVkeF+ynj/w6/d40YUk4SpayjfDYVf6iLlkDFiR2BnIUfhPB/8gw2IWg1AY6nAFAqXDIuLvoLrRzJVl0OGLZegPNPYLO2n8U/VBAP/WpsC2WIs+aqI81BGjQ7k3lZxzlyHdT0dUVrhaIq5Q9cDRHJE8igU8gY3mRRtvkVmpSaI5jsE0vMGtHryibsJE8nk4m9ER4zhLQwDufMxSfhv2dCg1tvCt7wxcL8cqJt1LRTdH4oKCpaMs31Qq1CLVxq0F/yeG7MWDXIdy6878=",
+    "expiration": "2026-08-21T19:48:40.000Z",
     "backend": "GIT_BACKEND_S3"
   },
   "name": "velvet-alchemy-landing",

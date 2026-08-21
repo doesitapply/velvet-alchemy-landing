@@ -1087,6 +1087,7 @@
 - [x] Add SMIRK Connection status indicator to CommandCenter (shows if SMIRK_API_KEY is configured)
 
 ## SMIRK Operator Workflow Enhancement (CURRENT)
+- [x] Update README with the verified first real handoff receipt and explicitly pending outcome state
 - [x] Submit the explicitly approved Weaklands handoff once through the existing guarded service after the preview OAuth 403 prevented UI submission
 - [x] Verify and record the SMIRK documentation PR #7 release dependency without overwriting its completed documentation work
 - [x] Prepare one evidence-backed real lead for supervised SMIRK handoff; final submission remains pending explicit target approval
